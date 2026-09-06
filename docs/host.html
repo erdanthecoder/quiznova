@@ -344,29 +344,112 @@
   text-align:center;box-shadow:0 13px 0 -3px rgba(0,0,0,.5)}
 .crown h1{font-size:clamp(1.6rem,4vw,3rem);font-weight:900;letter-spacing:-.02em;margin:0;line-height:1.12}
 .crown p{margin:6px 0 0;font-weight:600;opacity:.6}
-.podium{flex:none;display:flex;gap:16px;align-items:flex-end;justify-content:center;margin:20px 0 8px;
-  position:relative}
-/* the places arrive one at a time, each in its own light */
-.podium .stand{opacity:0;transform:translateY(26px)}
-.podium .stand.up{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .6s var(--bounce)}
-.podium .stand .spot{position:absolute;left:50%;bottom:100%;width:190px;height:230px;margin-left:-95px;
-  pointer-events:none;opacity:0;
-  background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.30));
-  clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);filter:blur(3px)}
-.podium .stand.up .spot{animation:lampOn .9s var(--ease) forwards}
-@keyframes lampOn{0%{opacity:0}40%{opacity:1}100%{opacity:.55}}
+/* ── the podium, as a place rather than a bar chart ────────
+ *
+ * Three blocks standing on a floor in a hall, seen from slightly above. Every
+ * face is a real surface — a lit top, a front, and a side that catches less
+ * light — so it reads as something solid the winners are standing on rather than
+ * as three coloured rectangles. This is the moment a room remembers, so it is
+ * worth the depth.
+ *
+ * CSS rather than canvas on purpose: the monsters are SVG and stay sharp at any
+ * size, and a school laptop does not have to composite a canvas at 60fps while
+ * the confetti is running.
+ */
+.podium{flex:none;position:relative;height:min(46vh,380px);margin:10px 0 4px;overflow:hidden;
+  border-radius:20px;background:#0A0718}
+/* The scenery and the people who stand in it are two layers, not one 3D soup.
+ * Trying to order them by depth alone put a translucent floor in front of the
+ * winner and washed the gold out to brown: every see-through layer that lands in
+ * front costs the block underneath a little more of its colour. So the hall is
+ * flat stacking — scenery behind, stands in front — and 3D is used only where it
+ * earns something, inside a block that really does have three faces. */
+/* Names here are deliberately not .face/.floor/.scene: those already mean a
+ * player chip, a race track and an arena backdrop elsewhere in this file, and
+ * borrowing them handed the podium a pop-in animation and a half-opaque
+ * overlay it never asked for. Third time a generic class name has done this.
+ *
+ * The perspective lives here, not on .podium. Put it on the outer box and the
+ * scenery and the stands share one 3D rendering context, where the browser sorts
+ * by depth and ignores z-index — which is how a see-through floor ended up in
+ * front of the winner and turned the gold to brown. Kept inside .scene, the
+ * scenery is one flat layer that can simply be told to stay behind. */
+.podium .set{position:absolute;inset:0;z-index:0;pointer-events:none;
+  perspective:1200px;perspective-origin:50% 34%}
+.podium .hall{position:absolute;inset:0;z-index:1}
+.podium .ground{position:absolute;left:-40%;right:-40%;bottom:-8%;height:170%;
+  transform:rotateX(76deg);transform-origin:50% 100%;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 2px,transparent 2px 90px),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 2px,transparent 2px 90px),
+    radial-gradient(60% 70% at 50% 16%,rgba(124,77,255,.34),rgba(8,5,18,0) 72%),
+    linear-gradient(180deg,#1B1436,#0A0718)}
+.podium .backdrop{position:absolute;left:6%;right:6%;top:-6%;height:80%;
+  transform:translateZ(-340px);border-radius:24px;
+  background:radial-gradient(72% 92% at 50% 100%,rgba(124,77,255,.32),rgba(10,7,22,0) 74%)}
+
+.stand{position:absolute;bottom:6%;opacity:0;transform:translateY(44px)}
+.stand.up{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .7s var(--bounce)}
+.stand.p1{left:50%;width:196px;margin-left:-98px;--h:176px;--fh:94px;--c:#FFC53D;--lit:#FFE9A8;--dark:#C08200;z-index:3}
+.stand.p2{left:21%;width:172px;margin-left:-86px;--h:132px;--fh:74px;--c:#C9D2E6;--lit:#EFF3FB;--dark:#8791AC;z-index:2}
+.stand.p3{left:79%;width:172px;margin-left:-86px;--h:104px;--fh:74px;--c:#E0A46B;--lit:#F7D1A7;--dark:#9E6530;z-index:1}
+
+.stand .block{position:absolute;left:0;right:0;bottom:0;height:var(--h);z-index:1;
+  transform-style:preserve-3d;perspective:900px}
+.stand .block .front{position:absolute;inset:0;background:linear-gradient(180deg,var(--lit),var(--c));
+  border:3px solid rgba(8,5,18,.85);border-radius:5px 5px 0 0}
+.stand .block .top{position:absolute;left:0;right:0;top:0;height:58px;
+  transform:rotateX(76deg);transform-origin:50% 0;
+  background:linear-gradient(180deg,var(--lit),var(--c));
+  border:3px solid rgba(8,5,18,.85);border-radius:5px}
+.stand .block .side{position:absolute;top:0;bottom:0;right:0;width:36px;
+  transform:rotateY(56deg);transform-origin:100% 50%;
+  background:var(--dark);border:3px solid rgba(8,5,18,.85)}
+.stand .block .num{position:absolute;left:0;right:0;top:8px;text-align:center;
+  font-size:clamp(1.4rem,2.6vw,2.2rem);font-weight:900;color:rgba(8,5,18,.5);
+  text-shadow:0 2px 0 rgba(255,255,255,.35)}
+/* Name and score are painted on the block itself, the way a real podium has the
+   country on the front. Floating them above the monster left it hovering in the
+   air with a hand's width of nothing under its feet. */
+.stand .block .plate{position:absolute;left:5px;right:5px;bottom:9px;text-align:center;
+  color:rgba(8,5,18,.9)}
+.stand .who{font-size:clamp(.9rem,1.35vw,1.2rem);font-weight:900;line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.stand .pts{font-weight:800;font-size:.82rem;color:rgba(8,5,18,.62)}
+
+/* the monster stands on top of the block, feet on the lit surface */
+.stand .who-box{position:absolute;left:0;right:0;bottom:calc(var(--h) - 14px);text-align:center;z-index:2}
+.stand .mini-face{display:inline-block;line-height:0;filter:drop-shadow(0 10px 9px rgba(0,0,0,.55))}
+.stand .medal{position:absolute;left:50%;margin-left:-17px;
+  bottom:calc(var(--h) + var(--fh) + 2px);line-height:0;z-index:3;
+  filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));
+  opacity:0;transform:scale(.4) rotate(-25deg)}
+.stand.up .medal{animation:medalDrop .7s .25s var(--bounce) forwards}
+@keyframes medalDrop{to{opacity:1;transform:none}}
+
+/* The beam runs past the block and spills onto the floor either side of it — a
+   lamp that stopped dead at the block top read as a grey panel, not as light.
+   It sits behind the block, so the block itself stays crisp. */
+.stand .spot{position:absolute;left:50%;bottom:-26px;width:320px;margin-left:-160px;
+  height:calc(var(--h) + 330px);
+  pointer-events:none;opacity:0;z-index:0;
+  background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,244,214,.2) 62%,rgba(255,244,214,.05));
+  clip-path:polygon(45% 0,55% 0,100% 100%,0 100%);filter:blur(9px)}
+.stand.up .spot{animation:lampOn 1s var(--ease) forwards}
+@keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
-.stand{width:150px;border-radius:20px 20px 0 0;display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;padding:16px 12px;text-align:center;animation:rise .8s var(--ease) both}
-@keyframes rise{from{transform:scaleY(.2);opacity:0;transform-origin:bottom}}
-.stand.p1{height:min(280px,34vh);background:linear-gradient(180deg,#FFE08A,#FFC53D);border:3px solid #0b0718}
-.stand.p2{height:min(215px,26vh);background:linear-gradient(180deg,#E6EAF5,#BFC7DA);border:3px solid #0b0718}
-.stand.p3{height:min(175px,21vh);background:linear-gradient(180deg,#F0BD8B,#D08C4B);border:3px solid #0b0718}
-.stand.p1,.stand.p2,.stand.p3{color:#161036;box-shadow:0 11px 0 -3px rgba(0,0,0,.45)}
-.stand .medal{font-size:2.2rem;line-height:1}
-.stand .who{font-size:clamp(1rem,1.5vw,1.35rem);font-weight:900;margin-top:4px}
-.stand .pts{font-weight:800;opacity:.66;font-size:.95rem}
+@media (max-width:860px){
+  .podium{height:min(38vh,290px)}
+  .stand.p1{width:156px;margin-left:-78px;--h:136px}
+  .stand.p2,.stand.p3{width:134px;margin-left:-67px}
+  .stand.p2{--h:108px} .stand.p3{--h:88px}
+}
+@media (prefers-reduced-motion:reduce){
+  .stand,.stand.up{transition:none;opacity:1;transform:none}
+  .stand.up .medal,.stand.up .spot{animation:none;opacity:1;transform:none}
+}
 .finale .rest{flex:1;min-height:0;overflow:auto}
 .lb-row .move{font-weight:800;font-size:.85rem;width:34px;text-align:right}
 .lb-row .move.up{color:#12BE8E}.lb-row .move.down{color:#FF8A9B}.lb-row .move.same{opacity:.3}
@@ -1362,15 +1445,30 @@ function overView() {
   // announce() owns this once it is on screen: data-static keeps the update pass
   // from stripping the classes that light each place up
   const podium = el('div', { class: 'podium', 'data-static': '' });
-  [top[1], top[0], top[2]].forEach((p) => {
+  const scene = el('div', { class: 'set' },
+    el('div', { class: 'backdrop' }), el('div', { class: 'ground' }));
+  const hall = el('div', { class: 'hall' });
+  podium.append(scene, hall);
+
+  // each place is a block standing on the floor: the CSS puts them where they go,
+  // so the order they are built in does not matter
+  [top[0], top[1], top[2]].forEach((p, i) => {
     if (!p) return;
-    const place = p === top[0] ? 1 : p === top[1] ? 2 : 3;
-    podium.append(el('div', { class: 'stand p' + place, 'data-place': place },
+    const place = i + 1;
+    const tint = place === 1 ? '#E8A400' : place === 2 ? '#93A0BC' : '#B4713A';
+    hall.append(el('div', { class: 'stand p' + place, 'data-place': place },
       el('div', { class: 'spot' }),
-      el('div', { class: 'medal', html: Sprite.icon('medal', 30, place === 1 ? '#E8A400' : place === 2 ? '#93A0BC' : '#B4713A') }),
-      el('div', { class: 'mini-face', html: Sprite.face(p.avatar, 54) }),
-      el('div', { class: 'who' }, p.name),
-      el('div', { class: 'pts' }, game.mode === 'laser' ? p.score + ' dmg' : unitFor(p))));
+      el('div', { class: 'medal', html: Sprite.icon('medal', 34, tint) }),
+      el('div', { class: 'who-box' },
+        el('div', { class: 'mini-face', html: Sprite.face(p.avatar, place === 1 ? 94 : 74) })),
+      el('div', { class: 'block' },
+        el('div', { class: 'front' },
+          el('div', { class: 'num' }, String(place)),
+          el('div', { class: 'plate' },
+            el('div', { class: 'who' }, p.name),
+            el('div', { class: 'pts' }, game.mode === 'laser' ? p.score + ' dmg' : unitFor(p)))),
+        el('div', { class: 'top' }),
+        el('div', { class: 'side' }))));
   });
   root.append(podium);
 
