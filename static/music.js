@@ -198,8 +198,120 @@
       kick:  [0, 4],
       shake: [2, 6],
       chord: [0, 4]
+    },
+
+    /* ── one question tune per kind of game ────────────────
+     * The question is the moment a room is actually in, and hearing the same
+     * eight bars in every one of fourteen games is what makes a soundtrack feel
+     * like a screensaver. These are all the same length and the same key as
+     * `question`, so a game can swap between them without a seam — what changes
+     * is the gait: how heavily the bass walks, where the kick lands, whether
+     * anything is on the offbeat.
+     *
+     * All of them take `tension`, so the last seconds still climb.
+     */
+
+    // a race: everything on the beat, nothing lingering
+    q_race: {
+      beat: 0.27, level: 0.46,
+      mel:   [7, 7, 9, 11, 9, 7, 5, 4],
+      bass:  [-5, -5, -5, -5, -3, -3, -3, -3],
+      kick:  [0, 2, 4, 6],
+      shake: [0, 1, 2, 3, 4, 5, 6, 7],
+      tension: true
+    },
+    // a fight: heavy on the one, and a gap where the answer goes
+    q_duel: {
+      beat: 0.31, level: 0.47,
+      mel:   [0, null, 3, 4, null, 7, 4, 3],
+      bass:  [-5, -5, null, -5, -4, -4, null, -4],
+      kick:  [0, 3, 4, 7],
+      shake: [2, 6],
+      tension: true
+    },
+    // something coming for you: a bass that never stops and a tune that keeps
+    // stepping up, which is what the lava is doing
+    q_chase: {
+      beat: 0.26, level: 0.48,
+      mel:   [0, 2, 4, 5, 7, 9, 11, 12],
+      bass:  [-5, -5, -4, -4, -3, -3, -1, -1],
+      kick:  [0, 1, 2, 3, 4, 5, 6, 7],
+      shake: [1, 3, 5, 7],
+      tension: true
+    },
+    // machinery: a shuffle on the offbeat, like something turning over
+    q_works: {
+      beat: 0.29, level: 0.44,
+      mel:   [4, null, 4, 5, null, 7, null, 5],
+      bass:  [-5, null, -5, null, -3, null, -3, null],
+      kick:  [0, 4],
+      shake: [1, 2, 5, 6],
+      tension: true
+    },
+    // water: wide and slow underneath, with the tune drifting over the top
+    q_water: {
+      beat: 0.36, level: 0.40,
+      mel:   [9, null, 7, null, 11, 9, null, 7],
+      bass:  [-5, null, null, -3, null, null, -4, null],
+      kick:  [0],
+      shake: [2, 4, 6],
+      chord: [0, 4],
+      tension: true
+    },
+    // sneaking about: quiet, off the beat, and never quite settling
+    q_sneak: {
+      beat: 0.30, level: 0.42,
+      mel:   [null, 4, null, 3, null, 7, null, 5],
+      bass:  [-5, null, -4, null, -5, null, -3, null],
+      kick:  [0, 4],
+      shake: [1, 5],
+      tension: true
+    },
+    // two sides pulling: a bass that swings between two notes and back
+    q_pull: {
+      beat: 0.28, level: 0.47,
+      mel:   [4, 4, 7, 7, 9, 9, 7, 4],
+      bass:  [-5, -5, -1, -1, -5, -5, -1, -1],
+      kick:  [0, 2, 4, 6],
+      shake: [3, 7],
+      tension: true
+    },
+
+    /* The last ten seconds, when the board asks for it. Nothing melodic — a room
+       does not need a tune at that point, it needs a clock. */
+    countdown: {
+      beat: 0.24, level: 0.5,
+      mel:   [12, null, 11, null, 12, null, 11, null],
+      bass:  [-5, -5, -5, -5, -5, -5, -5, -5],
+      kick:  [0, 2, 4, 6],
+      shake: [0, 1, 2, 3, 4, 5, 6, 7],
+      tension: true
+    },
+
+    /* Between the games: the moment a class is picking a blook or reading their
+       coins, which wants to be pleasant and completely unhurried. */
+    board: {
+      beat: 0.52, level: 0.26,
+      mel:   [4, 7, null, 9, 7, null, 4, 2],
+      bass:  [-5, null, null, -3, null, null, -4, null],
+      kick:  [], shake: [4],
+      chord: [0, 4, 7]
     }
   };
+
+  /* Which question tune each game gets. Anything not named here keeps the
+   * original, which is the right default: a new mode that nobody has chosen a
+   * gait for should sound like Quoldek rather than like a guess. */
+  const MODE_TUNE = {
+    kart: 'q_race', laser: 'q_duel', boss: 'q_duel', snow: 'q_duel',
+    volcano: 'q_chase', balloon: 'q_chase',
+    factory: 'q_works', tower: 'q_works',
+    fishing: 'q_water', treasure: 'q_water',
+    heist: 'q_sneak', cards: 'q_sneak',
+    tug: 'q_pull'
+  };
+  /** The question tune for a game, by name. */
+  const tuneFor = (mode) => (MODE_TUNE[mode] && TRACKS[MODE_TUNE[mode]]) ? MODE_TUNE[mode] : 'question';
 
   let track = TRACKS.menu;
   let name = 'menu';
@@ -303,6 +415,16 @@
       [3, 1, -1].forEach((n, i) => pluck(note(n + 5), at + i * 0.1, 0.18, 0.9));
     } else if (kind === 'join') {
       [7, 11].forEach((n, i) => pluck(note(n + 5), at + i * 0.07, 0.14, 0.7));
+    } else if (kind === 'level') {
+      // a level gained: four notes going up, and one underneath holding them
+      [0, 4, 7, 12].forEach((n, i) => pluck(note(n + 5), at + i * 0.08, 0.2, 1.2));
+      pad(note(0) / 2, at, 0.06, 1.6);
+    } else if (kind === 'unlock') {
+      [7, 12, 16].forEach((n, i) => pluck(note(n + 5), at + i * 0.06, 0.18, 1.3));
+    } else if (kind === 'ouch') {
+      // something was taken from you, or the lava got you
+      [-1, -3, -5].forEach((n, i) => pluck(note(n + 5), at + i * 0.09, 0.2, 1.1));
+      kick(at + 0.2, 0.34);
     } else if (kind === 'go') {
       [0, 4, 7].forEach((n, i) => pluck(note(n + 5), at + i * 0.09, 0.2, 1.1));
       kick(at, 0.36);
@@ -313,7 +435,8 @@
   }
 
   global.NovaMusic = {
-    play, start, stop, sting, tension,
+    play, start, stop, sting, tension, tuneFor,
+    get tracks() { return Object.keys(TRACKS); },
     get on() { return playing; },
     get wanted() { return wanted; },
     get track() { return playing ? name : null; },

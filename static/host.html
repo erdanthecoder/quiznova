@@ -45,6 +45,10 @@
 
 /* the board, sized for the back row of a classroom */
 .board,.lobby{display:flex;flex-direction:column;gap:14px;height:calc(100vh - 128px);min-height:520px}
+/* the waiting room fills whatever the join bar and the buttons leave */
+.lobby .waiting{flex:1;min-height:0;display:flex}
+.lobby .waiting:empty{flex:0;min-height:0}
+.lobby .waiting > .stage3d{flex:1;min-height:180px}
 .joinbar{flex:none;display:flex;align-items:center;gap:30px;background:#fff;color:#161036;border:3px solid #0b0718;
   border-radius:24px;padding:16px 26px;box-shadow:0 13px 0 -3px rgba(0,0,0,.5)}
 .lobby-art{flex:none;line-height:0;border-radius:16px;overflow:hidden;border:3px solid #0b0718}
@@ -208,6 +212,16 @@
 .balloons i.popped{background:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);animation:none;opacity:.45}
 .balloons i.popped::after{display:none}
 @keyframes sway{50%{transform:rotate(9deg)}}
+/* under the waiting room: the same names again, small, in one line of sight */
+.crowd.strip{flex:none;max-height:78px;overflow:auto;gap:8px}
+.crowd.strip .face{padding:5px 12px;font-size:.92rem;gap:7px;border-width:2px}
+.crowd.strip .face .av{font-size:1rem}
+/* the lobby: a blook walks in from the back rather than blinking into being */
+.figure.arriving{animation:walkOn .6s var(--bounce) both}
+@keyframes walkOn{
+  from{opacity:0;transform:rotateX(-58deg) translateY(26px) scale(.6)}}
+.figure.red .tag{background:rgba(244,54,76,.85);border-color:#7A0F1E}
+.figure.blue .tag{background:rgba(79,107,255,.85);border-color:#1E2A6E}
 .figure.knocked{filter:grayscale(1) brightness(.62)}
 .figure.knocked .tag{background:rgba(10,7,20,.6);color:var(--faint)}
 
@@ -440,7 +454,7 @@
  * as three coloured rectangles. This is the moment a room remembers, so it is
  * worth the depth.
  *
- * CSS rather than canvas on purpose: the monsters are SVG and stay sharp at any
+ * CSS rather than canvas on purpose: the blooks are SVG and stay sharp at any
  * size, and a school laptop does not have to composite a canvas at 60fps while
  * the confetti is running.
  */
@@ -497,7 +511,7 @@
   font-size:clamp(1.4rem,2.6vw,2.2rem);font-weight:900;color:rgba(8,5,18,.5);
   text-shadow:0 2px 0 rgba(255,255,255,.35)}
 /* Name and score are painted on the block itself, the way a real podium has the
-   country on the front. Floating them above the monster left it hovering in the
+   country on the front. Floating them above the blook left it hovering in the
    air with a hand's width of nothing under its feet. */
 .stand .block .plate{position:absolute;left:5px;right:5px;bottom:9px;text-align:center;
   color:rgba(8,5,18,.9)}
@@ -506,7 +520,7 @@
   text-shadow:0 1px 0 rgba(255,255,255,.4)}
 .stand .pts{font-weight:800;font-size:.82rem;color:rgba(8,5,18,.62)}
 
-/* the monster stands on top of the block, feet on the lit surface */
+/* the blook stands on top of the block, feet on the lit surface */
 .stand .who-box{position:absolute;left:0;right:0;bottom:calc(var(--h) - 14px);text-align:center;z-index:2}
 .stand .mini-face{display:inline-block;line-height:0;filter:drop-shadow(0 10px 9px rgba(0,0,0,.55))}
 .stand .medal{position:absolute;left:50%;margin-left:-17px;
@@ -641,10 +655,15 @@ function paintMusic() {
 }
 
 /* Each part of a game has its own piece of music. The board says which part it
- * is in; the tune follows, easing from one to the next. */
+ * is in; the tune follows, easing from one to the next.
+ *
+ * Since 4.0 the question also has a tune per kind of game — a race gallops, a
+ * heist sneaks, the lava chases — because the question is the moment the room is
+ * actually in, and the same eight bars in all fourteen games is what turns a
+ * soundtrack into a screensaver. */
 function trackFor(state) {
   if (!state) return 'lobby';
-  if (state.state === 'question') return 'question';
+  if (state.state === 'question') return NovaMusic.tuneFor(state.mode);
   if (state.state === 'reveal') return 'reveal';
   if (state.state === 'over') return 'podium';
   return 'lobby';
@@ -870,16 +889,41 @@ function lobbyView() {
     <div class="qrbox" id="qr" data-static></div>`;
   root.append(bar);
 
-  const crowd = el('div', { class: 'crowd' });
+  /* The room, rather than a list of the room.
+   *
+   * A lobby is the only screen a class stares at for minutes at a time, and a
+   * grid of name chips gives them nothing to look at while they wait. So the
+   * blooks stand about on the same floor the game will be played on, in the
+   * order they arrived, and a new one walks in rather than appearing. Beyond
+   * two dozen the floor gets crowded and the list underneath does the work.
+   */
+  /* The room, and the register under it. A teacher scanning for who is still
+   * missing wants the names in one line of sight; a class waiting for ten
+   * minutes wants something to look at. Both, rather than a choice.
+   *
+   * These two go in whatever happens, even when they are empty. The update pass
+   * morphs one render onto the last by walking children in order, so a lobby
+   * that grows a fourth child the moment somebody joins hands every later child
+   * the wrong partner — which is how the Start button came back unbound and a
+   * teacher could press it all day. The shape stays the same; the contents move.
+   */
+  const room = el('div', { class: 'waiting' });
+  const crowd = el('div', { class: 'crowd' + (game.players.length ? ' strip' : '') });
+  const many = game.players.length > 24;
+
   if (!game.players.length) {
     crowd.append(el('div', { class: 'nobody' },
       el('div', { class: 'mini-face', html: Sprite.icon('wave', 44) }),
-      el('div', { style: 'margin-top:8px' }, 'Waiting for the class to join')));
+      el('div', { style: 'margin-top:8px' }, 'Waiting for the class to join'),
+      el('div', { class: 'tiny faint', style: 'margin-top:4px' },
+         'They type the PIN on their own device')));
   } else {
+    if (!many) room.append(lobbyRoom());
     game.players.forEach(p => crowd.append(el('div', { class: 'face ' + (game.mode === 'laser' ? p.team : '') },
-      el('span', { class: 'av', html: Sprite.face(p.avatar, 40) }), p.name)));
+      el('span', { class: 'av', html: Sprite.face(p.avatar, many ? 40 : 24) }), p.name)));
+    if (many) crowd.classList.remove('strip');
   }
-  root.append(crowd);
+  root.append(room, crowd);
 
   root.append(el('div', { class: 'lobbybar' },
     el('button', { class: 'btn primary lg', id: 'start' },
@@ -895,6 +939,40 @@ function lobbyView() {
       ? el('span', { class: 'tiny faint' }, 'Teams are balanced automatically. Players can swap before the start.')
       : ''));
   return root;
+}
+
+/* Everybody who has joined, standing on the floor they are about to play on.
+ *
+ * Placed in rows back to front so the ones who arrived first are nearest — which
+ * means a child watching for their own name has somewhere to look, and the
+ * newest arrival is always the one at the back. */
+function lobbyRoom() {
+  const people = game.players.slice(0, 24);
+  const perRow = people.length <= 6 ? Math.max(1, people.length)
+               : people.length <= 12 ? 6 : 8;
+  const placed = people.map((p, i) => {
+    const row = Math.floor(i / perRow);
+    const inRow = i % perRow;
+    const wide = Math.min(perRow, people.length - row * perRow);
+    // odd rows step half a place across, so nobody is ever directly behind
+    // somebody else and every name is readable
+    const shift = row % 2 ? 0.5 : 0;
+    return { p, i, row, x: 50 + (inRow - (wide - 1) / 2 + shift) * (74 / perRow), y: 9 + row * 27 };
+  });
+  /* Back row first. Everything on this floor is drawn on one plane, so what is
+   * in front is decided by the order it is added — and a name tag from the row
+   * behind landing over the face in front is exactly what a lobby must not do. */
+  placed.sort((a, b) => b.row - a.row);
+
+  return stage((world) => {
+    placed.forEach(({ p, i, x, y }) => {
+      const node = standing(p, x, y, p.name, game.mode === 'laser' ? ' ' + p.team : '');
+      // arriving, not appearing: a new blook walks in rather than blinking on
+      node.classList.add('arriving');
+      node.style.animationDelay = Math.min(600, i * 45) + 'ms';
+      world.append(node);
+    });
+  });
 }
 
 /* Bound once, when the lobby is first drawn: later polls only morph the roster,

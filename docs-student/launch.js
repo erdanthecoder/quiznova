@@ -34,7 +34,7 @@
     { icon: 'cards', tint: '#4F6BFF', title: 'Card Collector',
       line: 'Win a card for every right answer. First to all eight.' },
     { icon: 'medal', tint: '#12BE8E', title: 'Levels and coins',
-      line: 'Play to earn coins, and unlock monsters nobody else has.' }
+      line: 'Play to earn coins, and unlock blooks nobody else has.' }
   ];
 
   const now = () => Date.now();

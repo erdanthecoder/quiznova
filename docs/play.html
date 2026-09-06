@@ -298,8 +298,8 @@
 <main class="shell" id="app"></main>
 
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=b9d6e0d6"></script>
-<script src="progress.js?v=8177d194"></script>
+<script src="launch.js?v=68086dc8"></script>
+<script src="progress.js?v=4849abb2"></script>
 
 
 <script src="nova.js?v=30a2cc36"></script>
@@ -377,7 +377,7 @@ function askPin() {
 }
 
 function askName() {
-  /* Building your own monster.
+  /* Building your own blook.
    *
    * Five things to choose: the colour and the silhouette, which are what tell
    * two players apart across a room, then the eyes, the mouth and the markings,
@@ -388,7 +388,7 @@ function askName() {
   const COUNTS = { colour: Sprite.COLOURS, shape: Sprite.SHAPES, eyes: Sprite.EYES,
                    mouth: Sprite.MOUTHS, pattern: Sprite.PATTERNS };
 
-  /* A monster made only of parts this phone actually owns. Used for the one a
+  /* A blook made only of parts this phone actually owns. Used for the one a
      child is shown before they touch anything and for "surprise me", so neither
      can hand over something that has not been earned. */
   const ownedPart = (key, n) => {
@@ -462,10 +462,10 @@ function askName() {
       el('div', { class: 'coins' },
         el('span', { class: 'c', html: Sprite.icon('coin', 20, '#FFC53D') }),
         String(state.coins)));
-    box.title = 'Kept on this phone. Play to earn coins and unlock more monsters.';
+    box.title = 'Kept on this phone. Play to earn coins and unlock more blooks.';
   }
 
-  /* Each swatch shows the monster you would get by changing only that one thing,
+  /* Each swatch shows the blook you would get by changing only that one thing,
    * so a child can see the choice rather than guess at it. */
   const paint = () => {
     pv.innerHTML = Sprite.face(chosen(), 118);
@@ -475,7 +475,7 @@ function askName() {
     const { key, n } = TABS[tab];
     choices.innerHTML = '';
     choices.className = 'choices' + (key === 'colour' ? ' swatches' : '');
-    // before the update opens, every monster is simply available, exactly as it
+    // before the update opens, every blook is simply available, exactly as it
     // was yesterday — nothing is teased and nothing is taken away
     const prog = (window.NovaLaunch && !NovaLaunch.out()) ? null : window.NovaProgress;
     for (let i = 0; i < n; i++) {
@@ -530,7 +530,7 @@ function askName() {
       const res = await api(`/games/${pin}/join`, { method: 'POST', body: { name, avatar: chosen() } });
       me = res.player;
       // the game keeps two players from looking alike, so say so rather than
-      // quietly handing back a different monster
+      // quietly handing back a different blook
       if (Number(me.avatar) !== chosen()) toast('Someone had that colour and shape. You got the next shape.');
       store.set('player:' + pin, me);
       connect();
@@ -1266,13 +1266,13 @@ function payoutCard(paid) {
     el('span', {}, `Level ${lv.level}`),
     el('b', {}, lv.top ? 'Top level' : `${lv.toNext} to level ${lv.level + 1}`)));
   box.append(el('p', { class: 'tiny faint', style: 'margin-top:8px' },
-    `${NovaProgress.read().coins} coins to spend on your monster. Kept on this phone.`));
+    `${NovaProgress.read().coins} coins to spend on your blook. Kept on this phone.`));
 
   const wrap = el('div', {});
   if (paid.levelUp) {
     NovaProgress.markSeen(paid.levelUp);
     wrap.append(el('div', { class: 'levelup' },
-      `Level ${paid.levelUp}! New monster parts unlocked.`));
+      `Level ${paid.levelUp}! New blook parts unlocked.`));
     confetti(90);
   }
   wrap.append(box);
