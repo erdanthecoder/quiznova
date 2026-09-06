@@ -18,6 +18,7 @@
 
 <script src="/sprites.js"></script>
 <script src="/progress.js"></script>
+<script src="/launch.js"></script>
 <script src="/nova.js"></script>
 <script src="/quizbank.js"></script>
 <script src="/rules.js"></script>
@@ -37,7 +38,6 @@
  * a board that is blank when the wifi is slow.
  */
 const { el, esc, qs } = Nova;
-const global0 = () => window;
 const B = NovaBoards, P = NovaProgress, R = NovaRules;
 const app = document.getElementById('app');
 
@@ -67,9 +67,11 @@ function draw() {
 
   /* ── start a game ─────────────────────────────────────── */
   const modes = el('div', { class: 'modes' });
-  // launch.js is not on this page's list; if it ever is, it gets the last word
   const all = Object.keys(R.MODES);
-  const open = global0().NovaLaunch ? NovaLaunch.openModes(all) : all;
+  const open = window.NovaLaunch ? NovaLaunch.openModes(all) : all;
+  // a game that is coming is shown, greyed, with the hour on it — a teacher who
+  // can see what is arriving can plan a lesson round it
+  const soon = window.NovaLaunch ? NovaLaunch.next() : null;
   Object.entries(R.MODES).forEach(([id, m]) => {
     const locked = !open.includes(id);
     const card = el('button', { class: 'mode' + (locked ? ' locked' : ''), type: 'button',
@@ -78,7 +80,10 @@ function draw() {
       onclick: () => { chosen.mode = id; refreshModes(modes); } },
       el('span', { class: 'ic', html: Sprite.icon(m.icon, 26, '#fff') }),
       el('b', {}, m.label), el('span', {}, m.blurb));
-    if (locked) card.append(el('span', { class: 'lock' }, 'Soon'));
+    if (locked) {
+      card.append(el('span', { class: 'lock' }, 'Soon'));
+      card.title = soon ? whenText(soon) : 'Not open yet';
+    }
     modes.append(card);
   });
 
@@ -153,6 +158,20 @@ function refreshModes(modes) {
   modes.querySelectorAll('.mode').forEach((n, i) => {
     n.setAttribute('aria-pressed', String(Object.keys(NovaRules.MODES)[i] === chosen.mode));
   });
+}
+
+/* "At 7 in the evening", rather than a date nobody can hold in their head. Read
+   off the reader's own clock, so it is right wherever they are. */
+function whenText(release) {
+  if (!release) return 'Out now';
+  const at = release.at;
+  const today = at.toDateString() === new Date().toDateString();
+  const hour = ((at.getHours() + 11) % 12) + 1;
+  const clock = at.getMinutes() ? `${hour}:${String(at.getMinutes()).padStart(2, '0')}` : String(hour);
+  const part = at.getHours() < 12 ? 'in the morning'
+             : at.getHours() < 18 ? 'in the afternoon' : 'in the evening';
+  return today ? `Opens at ${clock} ${part}`
+    : `Opens ${at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} at ${clock}`;
 }
 
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';

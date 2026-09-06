@@ -909,8 +909,15 @@ $('#present').onclick = () => {
  * the short site; a board being run from a laptop keeps its own address, so a
  * game still works with no internet at all. */
 /* Written out rather than hard-coded, because how many games there are depends
-   on whether the 3.0 update has opened yet. */
-const gameCount = () => ((window.NovaLaunch && !NovaLaunch.out()) ? 'eight' : 'eleven');
+   on which updates have opened. Counted rather than named, so the next release
+   does not need this line changed as well. */
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+               'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen'];
+function gameCount() {
+  const all = window.NovaRules ? Object.keys(NovaRules.MODES) : [];
+  const open = (window.NovaLaunch ? NovaLaunch.openModes(all) : all).length;
+  return WORDS[open] || String(open);
+}
 
 const joinAddress = () => (window.QUOLDEK_JOIN
   ? window.QUOLDEK_JOIN.replace(/^https?:\/\//, '').replace(/\/?\?pin=.*$/, '')
@@ -927,7 +934,7 @@ const joinAddress = () => (window.QUOLDEK_JOIN
       const list = box.querySelector('#mode-list');
       let modes = [];
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
-      // the 3.0 games are held back until the update opens at midday
+      // anything from a release that has not opened yet is held back
       if (window.NovaLaunch) modes = NovaLaunch.openModes(modes);
       if (!modes.length) modes = [{ id: 'normal', icon: 'target', label: 'Normal',
                                     blurb: 'Fastest right answer scores the most', maps: [] }];

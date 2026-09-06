@@ -39,6 +39,7 @@
 
 <script src="/sprites.js"></script>
 <script src="/progress.js"></script>
+<script src="/launch.js"></script>
 <script src="/nova.js"></script>
 <script src="/quizbank.js"></script>
 <script src="/rules.js"></script>
@@ -128,19 +129,29 @@ function draw() {
       el('div', { style: 'margin-top:16px' }, B.levelTrack(5)))));
 
   /* ── hats ─────────────────────────────────────────────── */
+  /* Hats past the plain few wait for the update to open. The ones that are
+   * already out stay out, so nobody opens this shelf on the day and finds it
+   * locked end to end. */
+  const soon = window.NovaLaunch ? NovaLaunch.next() : null;
   const hats = el('div', { class: 'hats' });
   for (let h = 0; h < Sprite.HATS_N; h++) {
+    const waiting = window.NovaLaunch && !NovaLaunch.hatOpen(h);
     const info = P.partState('hat', h, { hat: Sprite.HATS_N }, state);
-    const card = el('button', { class: 'blook' + (info.owned ? '' : ' shut'), type: 'button',
-      'aria-pressed': String(h === state.hat),
-      title: info.owned ? 'Wear it' : info.levelReached ? `${info.cost} coins` : `Level ${info.needsLevel}` },
-      el('span', { class: 'art', html: Sprite.face(wearing, 62, h) }),
-      el('span', { class: 'nm' }, Sprite.HAT_NAMES[h]));
-    if (!info.owned) {
+    const card = el('button', { class: 'blook' + (info.owned && !waiting ? '' : ' shut'), type: 'button',
+      'aria-pressed': String(h === state.hat && !waiting),
+      title: waiting ? 'Arrives with the update'
+           : info.owned ? 'Wear it'
+           : info.levelReached ? `${info.cost} coins` : `Level ${info.needsLevel}` },
+      el('span', { class: 'art', html: Sprite.face(wearing, 62, waiting ? 0 : h) }),
+      el('span', { class: 'nm' }, waiting ? '???' : Sprite.HAT_NAMES[h]));
+    if (waiting) {
+      card.append(el('span', { class: 'price no' }, 'Soon'));
+    } else if (!info.owned) {
       card.append(el('span', { class: 'price' + (info.canBuy ? '' : ' no') },
         info.levelReached ? String(info.cost) : 'Lv ' + info.needsLevel));
     }
     card.onclick = () => {
+      if (waiting) { flash(whenText(soon)); return; }
       if (info.owned) { P.wearHat(h); return again(); }
       const out = P.buy('hat', h, { hat: Sprite.HATS_N });
       if (!out.ok) { flash(out.why); return; }
@@ -152,7 +163,9 @@ function draw() {
 
   deck.append(el('section', { class: 'panel' },
     el('h2', {}, 'Hats'),
-    el('p', { class: 'sub' }, 'Buy one with coins, then tap it to put it on. Some of them wait for a level.'),
+    el('p', { class: 'sub' }, soon
+      ? `Some of these arrive with the update ${whenText(soon).toLowerCase()}. The rest are yours to buy now.`
+      : 'Buy one with coins, then tap it to put it on. Some of them wait for a level.'),
     hats));
 
   /* ── the blook wall ───────────────────────────────────── */
@@ -230,6 +243,22 @@ const KINDS = ['Bud', 'Pip', 'Tuft', 'Spike', 'Fluff', 'Bolt', 'Wisp', 'Nub', 'C
 function blookName(index) {
   const p = Sprite.partsOf(index);
   return HUES[p.colour % HUES.length] + ' ' + KINDS[p.shape % KINDS.length];
+}
+
+/* "at seven this evening", rather than a date nobody can hold in their head.
+   Read off the reader's own clock, so it is right wherever they are. */
+function whenText(release) {
+  if (!release) return 'Out now';
+  const at = release.at;
+  const today = new Date();
+  const sameDay = at.toDateString() === today.toDateString();
+  const hour = at.getHours();
+  const clock = at.getMinutes()
+    ? `${((hour + 11) % 12) + 1}:${String(at.getMinutes()).padStart(2, '0')}`
+    : String(((hour + 11) % 12) + 1);
+  const part = hour < 12 ? 'in the morning' : hour < 18 ? 'in the afternoon' : 'in the evening';
+  return sameDay ? `At ${clock} ${part}` : `On ${at.toLocaleDateString(undefined,
+    { weekday: 'long', day: 'numeric', month: 'long' })} at ${clock}`;
 }
 
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';

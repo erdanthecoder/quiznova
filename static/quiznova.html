@@ -283,20 +283,28 @@ document.addEventListener('DOMContentLoaded', () => { paintIcons(); showcase(); 
  */
 function watchLaunch() {
   if (!window.NovaLaunch) return;
-  const go = () => {
-    if (NovaLaunch.seen()) return;
-    NovaLaunch.markSeen();
+  const go = (version) => {
+    if (NovaLaunch.seen(version)) return;
+    NovaLaunch.markSeen(version);
     // No reload afterwards. The picker asks for the list of games when it opens
     // and the phone reads the clock as it draws, so nothing needs refreshing —
     // and a reload on a browser that cannot remember it has seen this would put
-    // the page in a loop of rocket, reload, rocket, with no way to play at all.
-    NovaLaunch.rocket({});
+    // the page in a loop of reveal, reload, reveal, with no way to play at all.
+    NovaLaunch.reveal(version, {});
   };
-  if (NovaLaunch.out()) return go();
-  const wait = NovaLaunch.until();
+
+  /* Whichever release is next, rather than the first one for ever. Every
+     release that has already landed and was never watched is shown once, oldest
+     first, so a browser that was closed all evening still gets the moment. */
+  const missed = NovaLaunch.RELEASES.filter(r => NovaLaunch.live(r.version) && !NovaLaunch.seen(r.version));
+  if (missed.length) return go(missed[missed.length - 1].version);
+
+  const soon = NovaLaunch.next();
+  if (!soon) return;
+  const wait = NovaLaunch.untilVersion(soon.version);
   // setTimeout is not to be trusted over many hours, so long waits are checked
   // again rather than fired blind
-  setTimeout(() => (NovaLaunch.out() ? go() : watchLaunch()), Math.min(wait + 250, 60000));
+  setTimeout(watchLaunch, Math.min(wait + 250, 60000));
 }
 
 /* What the card on the landing page says.

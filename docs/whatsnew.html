@@ -21,7 +21,7 @@
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
 <meta name="description" content="Quoldek 3.0: three new games, settings for every live game, music for every part of a round, Laser Tag in real 3D, and a Windows app.">
-<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="nova.css?v=2e40604c">
 <style>
 .top{display:flex;align-items:center;gap:14px;padding:20px 0 10px}
 .top .brand-mark{width:42px;height:42px;flex:none}
@@ -112,12 +112,12 @@ footer a{color:var(--grape)}
     for every kind of game, and a waiting room a class can actually watch.</p>
 
     <div class="when" id="when">
-      <span class="cap" id="when-cap">Arrives today at 12:00</span>
+      <span class="cap" id="when-cap">Arrives today at 19:00</span>
       <span class="clock" id="when-clock">—</span>
-      <span class="sub" id="when-sub">Everything below goes live at midday.</span>
+      <span class="sub" id="when-sub">The new games and the hats open then. Everything else is already here.</span>
     </div>
 
-    <p style="margin-top:12px"><button class="btn sm" type="button" id="replay">Watch the launch</button></p>
+    <p style="margin-top:12px"><button class="btn sm" type="button" id="replay">Watch the reveal</button></p>
 
     <nav class="rail">
       <a href="#boards">Your own board</a>
@@ -398,7 +398,7 @@ footer a{color:var(--grape)}
 </div>
 
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=68086dc8"></script>
+<script src="launch.js?v=ac877a6b"></script>
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
@@ -447,12 +447,25 @@ for (const g of NEW_GAMES) {
 
 /* The countdown.
  *
- * Midday, on whatever day this page is opened up to and including release day,
- * read in the reader's own clock rather than ours — a school in one time zone
- * should not be told the update lands in the middle of their night. Once it is
- * past, the box stops counting and says so.
+ * The release is whichever one has not opened yet, read off launch.js rather
+ * than written here twice — a date in two files is a date that goes wrong in
+ * one of them. It is the reader's own clock, not ours: a school in one time
+ * zone should not be told a school-day update lands in the middle of their
+ * night. Once it is past, the box stops counting and says so.
  */
-const RELEASE = new Date(2026, 8, 5, 12, 0, 0);      // 5 September 2026, 12:00 local
+const RELEASE = (window.NovaLaunch && NovaLaunch.next())
+  ? NovaLaunch.next().at
+  : new Date(2026, 8, 6, 19, 0, 0);          // 6 September 2026, 19:00 local
+const VERSION = (window.NovaLaunch && NovaLaunch.next()) ? NovaLaunch.next().version : '4.0';
+
+(function sayWhen() {
+  const cap = document.getElementById('when-cap');
+  const at = RELEASE;
+  const today = at.toDateString() === new Date().toDateString();
+  const clock = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+  cap.textContent = today ? `Arrives today at ${clock}`
+    : `Arrives ${at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} at ${clock}`;
+})();
 
 function tick() {
   const box = document.getElementById('when');
@@ -466,10 +479,10 @@ function tick() {
     cap.textContent = 'Out now';
     clock.textContent = 'It is here';
     sub.textContent = 'Everything below is live. Open Quoldek and have a look.';
-    // whoever is watching the clock when it strikes gets the launch
-    if (window.NovaLaunch && !NovaLaunch.seen()) {
-      NovaLaunch.markSeen();
-      NovaLaunch.rocket({});
+    // whoever is watching the clock when it strikes gets the reveal
+    if (window.NovaLaunch && !NovaLaunch.seen(VERSION)) {
+      NovaLaunch.markSeen(VERSION);
+      NovaLaunch.reveal(VERSION, {});
     }
     return;
   }
@@ -482,7 +495,8 @@ function tick() {
 }
 tick();
 
-document.getElementById('replay').onclick = () => window.NovaLaunch && NovaLaunch.rocket({});
+document.getElementById('replay').onclick = () =>
+  window.NovaLaunch && NovaLaunch.reveal(VERSION, {});
 
 /* What the counter really says, read straight from the database. */
 (async () => {

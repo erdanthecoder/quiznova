@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#7C4DFF">
 <meta name="description" content="A teacher's board: start a live game, write a quiz, set homework, and see how the class is doing.">
 <meta name="category" content="Education">
-<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="nova.css?v=2e40604c">
 <link rel="stylesheet" href="boards.css?v=f6f648d2">
 </head>
 <body class="light">
@@ -18,6 +18,7 @@
 
 <script src="sprites.js?v=756a85b1"></script>
 <script src="progress.js?v=4849abb2"></script>
+<script src="launch.js?v=ac877a6b"></script>
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
@@ -53,7 +54,6 @@ window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
  * a board that is blank when the wifi is slow.
  */
 const { el, esc, qs } = Nova;
-const global0 = () => window;
 const B = NovaBoards, P = NovaProgress, R = NovaRules;
 const app = document.getElementById('app');
 
@@ -83,9 +83,11 @@ function draw() {
 
   /* ── start a game ─────────────────────────────────────── */
   const modes = el('div', { class: 'modes' });
-  // launch.js is not on this page's list; if it ever is, it gets the last word
   const all = Object.keys(R.MODES);
-  const open = global0().NovaLaunch ? NovaLaunch.openModes(all) : all;
+  const open = window.NovaLaunch ? NovaLaunch.openModes(all) : all;
+  // a game that is coming is shown, greyed, with the hour on it — a teacher who
+  // can see what is arriving can plan a lesson round it
+  const soon = window.NovaLaunch ? NovaLaunch.next() : null;
   Object.entries(R.MODES).forEach(([id, m]) => {
     const locked = !open.includes(id);
     const card = el('button', { class: 'mode' + (locked ? ' locked' : ''), type: 'button',
@@ -94,7 +96,10 @@ function draw() {
       onclick: () => { chosen.mode = id; refreshModes(modes); } },
       el('span', { class: 'ic', html: Sprite.icon(m.icon, 26, '#fff') }),
       el('b', {}, m.label), el('span', {}, m.blurb));
-    if (locked) card.append(el('span', { class: 'lock' }, 'Soon'));
+    if (locked) {
+      card.append(el('span', { class: 'lock' }, 'Soon'));
+      card.title = soon ? whenText(soon) : 'Not open yet';
+    }
     modes.append(card);
   });
 
@@ -169,6 +174,20 @@ function refreshModes(modes) {
   modes.querySelectorAll('.mode').forEach((n, i) => {
     n.setAttribute('aria-pressed', String(Object.keys(NovaRules.MODES)[i] === chosen.mode));
   });
+}
+
+/* "At 7 in the evening", rather than a date nobody can hold in their head. Read
+   off the reader's own clock, so it is right wherever they are. */
+function whenText(release) {
+  if (!release) return 'Out now';
+  const at = release.at;
+  const today = at.toDateString() === new Date().toDateString();
+  const hour = ((at.getHours() + 11) % 12) + 1;
+  const clock = at.getMinutes() ? `${hour}:${String(at.getMinutes()).padStart(2, '0')}` : String(hour);
+  const part = at.getHours() < 12 ? 'in the morning'
+             : at.getHours() < 18 ? 'in the afternoon' : 'in the evening';
+  return today ? `Opens at ${clock} ${part}`
+    : `Opens ${at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} at ${clock}`;
 }
 
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';

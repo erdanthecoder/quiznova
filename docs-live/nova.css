@@ -338,6 +338,36 @@ body.dark .toast{color:var(--text)}
   background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);color:#fff;font:inherit;
   font-weight:800;font-size:.82rem}
 .launch-skip:hover{background:rgba(255,255,255,.2)}
+
+/* ── the 4.0 reveal ──────────────────────────────────────
+ * The garden paints its own night, so the shell gets out of its way. The word
+ * does not pop: it opens, slowly, out of a blur and a warm light — the same
+ * thing the flowers underneath it are doing, on the same easing, which is what
+ * makes the two read as one moment rather than two effects. */
+.launch-garden{background:#07040F}
+.launch-garden .launch-word{top:17%}
+.launch-garden .launch-word .up{
+  color:#FFF7E4;letter-spacing:-.035em;transform:scale(.72);filter:blur(9px);
+  text-shadow:0 0 34px rgba(255,197,61,.65),0 0 90px rgba(124,77,255,.5),0 6px 0 rgba(0,0,0,.3)}
+.launch-garden .launch-word.on .up{animation:launch-bloom 1.5s cubic-bezier(.16,.9,.24,1) forwards}
+@keyframes launch-bloom{
+  0%{opacity:0;transform:scale(.72) translateY(14px);filter:blur(9px)}
+  55%{opacity:1;filter:blur(0)}
+  72%{transform:scale(1.035) translateY(0)}
+  100%{opacity:1;transform:scale(1) translateY(0);filter:blur(0)}}
+/* the cards come up the way a leaf does — off centre, and not all at one angle */
+.launch-garden .launch-card{transform:translateY(34px) scale(.88) rotate(-2.5deg)}
+.launch-garden .launch-card:nth-child(2n){transform:translateY(34px) scale(.88) rotate(2deg)}
+.launch-garden .launch-cards.on .launch-card{
+  animation:launch-leaf 1.05s cubic-bezier(.2,1.05,.3,1) forwards}
+@keyframes launch-leaf{
+  60%{opacity:1;transform:translateY(-5px) scale(1.02) rotate(.6deg)}
+  100%{opacity:1;transform:none}}
+/* dark enough to read against a garden in full bloom, and warm enough to
+   belong to it */
+.launch-garden .launch-card{background:rgba(14,8,24,.68);border-color:rgba(255,216,107,.34);
+  backdrop-filter:blur(9px);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.launch-garden .launch-card span{opacity:.86}
 @media (max-width:560px){ .launch-card{width:100%;max-width:300px} .launch-cards{bottom:8%} }
 @media (prefers-reduced-motion:reduce){
   .launch-word .up,.launch-cards.on .launch-card{animation-duration:.01ms}
