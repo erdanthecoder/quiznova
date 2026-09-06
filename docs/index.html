@@ -45,7 +45,7 @@
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
 </script>
-<link rel="stylesheet" href="nova.css?v=2e40604c">
+<link rel="stylesheet" href="nova.css?v=7831630d">
 <style>
 .newsbar{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:16px;padding:12px 18px;
   border-radius:var(--r-lg);background:var(--card);border:var(--line-w) solid var(--line);
@@ -263,8 +263,25 @@ window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   if (to) location.replace(to);
 })();
 </script>
+<script>
+/* And an account is required to be here at all.
+ *
+ * This is the teacher's own site: the studio, the quizzes, the board. The
+ * addresses a class is sent to are different sites and stay open — a child who
+ * has to make an account before they can answer a question is a child who does
+ * not answer the question.
+ *
+ * Run after the scripts rather than before them, because it needs account.js;
+ * the redirect above runs first and on its own so a returning teacher never
+ * watches this page paint before being sent to their board.
+ */
+window.addEventListener('load', () => {
+  if (/[?&]stay=1/.test(location.search)) return;
+  if (window.NovaAccount) NovaAccount.requireAccount();
+});
+</script>
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=ac877a6b"></script>
+<script src="launch.js?v=84f84eb9"></script>
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
@@ -273,7 +290,7 @@ window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
 <script src="rules.js?v=69bf1ad8"></script>
 <script src="live.js?v=b7190675"></script>
 <script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=00c10e3c"></script>
+<script src="account.js?v=8e0658a3"></script>
 <script src="qr.js?v=b8307384"></script>
 <script>
 const { $, api, el, esc, toast, modal, ago, classroomUrl, copy } = Nova;
@@ -341,9 +358,13 @@ async function showcase() {
   if (!stats || (!stats.games && !stats.liveNow)) return;     // nothing honest to show yet
 
   const faces = [0, 13, 26].map(i => `<span class="av">${Sprite.face(i, 26)}</span>`).join('');
+  /* Both numbers, always. "3 games on right now" on its own is a moment; the
+     total is the thing somebody actually wants to know, and burying it in a
+     tooltip is the same as not saying it. */
+  const total = `${stats.games.toLocaleString()} game${stats.games === 1 ? '' : 's'} played`;
   const say = stats.liveNow
-    ? `${stats.liveNow} game${stats.liveNow === 1 ? '' : 's'} on right now`
-    : `${stats.games.toLocaleString()} games played`;
+    ? `${stats.liveNow} on right now · ${total}`
+    : total;
   strip.innerHTML = faces + ' ' + say;
   strip.hidden = false;
   strip.title = `${stats.games.toLocaleString()} games hosted and `

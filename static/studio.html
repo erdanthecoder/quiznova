@@ -1118,6 +1118,13 @@ async function homeworkLink(quiz) {
     return host + code;
   } catch { return fallback; }
 }
+
+/* The studio is part of the teacher's own site, so it wants an account too. A
+   quiz already open in this browser is not lost by it — the sign-in page comes
+   back here afterwards. */
+window.addEventListener('load', () => {
+  if (window.NovaAccount) NovaAccount.requireAccount();
+});
 </script>
 </body>
 </html>

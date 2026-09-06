@@ -302,9 +302,21 @@ function detailsPane(role) {
 
 /* Somebody signed in, but the account may never have been given a side. */
 async function afterSignIn(pane) {
-  let profile = null;
+  let profile = null, reachable = true;
   try { profile = await NovaAccount.loadProfile(true); }
-  catch (err) { if (pane) say(pane, 'Signed in, but your account would not load. Check the connection.', 'bad'); return; }
+  catch (err) { reachable = false; }
+
+  if (!reachable) {
+    /* The account is real but the row would not load — a dropped connection, a
+     * school firewall. Somebody who has been here before still knows which board
+     * they belong on, so use that rather than stranding them on a form they have
+     * already filled in. With nothing remembered there is nothing to guess, and
+     * saying so beats a page that does nothing at all. */
+    if (NovaAccount.roleHint) return leave(NovaAccount.roleHint);
+    if (pane) say(pane, 'Signed in, but your account would not load. Check the connection and try again.', 'bad');
+    else paint(shell(signInPane()));
+    return;
+  }
   if (profile && profile.role) return leave(profile.role);
   paint(shell(askRole({
     title: 'One more thing',
@@ -331,22 +343,26 @@ function googleMark() {
    second and then bounced. The stored hint says which board is likely, but the
    row is what decides — so the wait is short and honest rather than a guess. */
 (function start() {
-  const known = NovaAccount.user;
-  if (!known && !NovaAccount.roleHint) return paint(shell(signInPane()));
-
+  /* Always ask, even when this browser remembers nothing.
+   *
+   * The old version showed the form the instant the page opened unless a flag
+   * happened to be in storage — so somebody who really was signed in, on a
+   * machine that had lost the flag, was asked to sign in again and had no way
+   * to tell the page it was wrong. This page's one job is to know who is here,
+   * so it waits for an answer rather than assuming one.
+   */
   let settled = false;
+  const done = (fn) => { if (settled) return; settled = true; off(); fn(); };
   const off = NovaAccount.onChange((user) => {
-    if (settled) return;
-    if (!user) {
-      // the sign-in library has loaded and there is nobody: show the form
-      if (NovaAccount.roleHint) { settled = true; off(); paint(shell(signInPane())); }
-      return;
-    }
-    settled = true; off();
-    afterSignIn(null);
+    if (user) done(() => afterSignIn(null));
   });
-  // a browser that cannot reach Firebase should still see something to do
-  setTimeout(() => { if (!settled) { settled = true; off(); paint(shell(signInPane())); } }, 6000);
+  NovaAccount.wake().catch(() => { /* the library never arrived */ });
+
+  // long enough for a session to be recognised, short enough that nobody with
+  // no account is left staring at a spinner
+  setTimeout(() => done(() => paint(shell(signInPane()))), 2600);
+  // and a hard stop, in case the library hangs rather than fails
+  setTimeout(() => done(() => paint(shell(signInPane()))), 7000);
 })();
 </script>
 </body>

@@ -262,13 +262,61 @@
   // somebody who has signed in before should still be signed in when they return
   try { if (localStorage.getItem('nova:signedIn')) firebase(); } catch { /* private mode */ }
 
+  /* Ask the sign-in library who is here, whatever this browser remembers.
+   *
+   * The flag above is only a hint, and it can be missing while the session is
+   * perfectly real — storage cleared, a different profile on the same machine,
+   * a browser that dropped it. A page whose whole job is to know whether
+   * somebody is signed in must not take that hint's word for it. */
+  const wake = () => firebase();
+
+  /* ── the door ─────────────────────────────────────────────
+   * Quoldek's own site needs an account. The pages a class is sent to — the
+   * join page, a board with a PIN, a homework link — never do and never will:
+   * a child who has to make an account before they can answer a question is a
+   * child who does not answer the question.
+   *
+   * The one rule that matters here is what happens when the sign-in library
+   * cannot be reached at all. A school that blocks gstatic would otherwise get
+   * a locked door with no handle, so after a short wait the page is let through
+   * rather than trapped. A site nobody can use is worse than a site somebody
+   * signed out can look at.
+   */
+  function requireAccount(opts) {
+    const o = opts || {};
+    const wait = o.wait || 5000;
+    if (!global.document || !global.location) return;
+    const gate = (o.gate || 'https://quoldek.web.app/signin.html')
+      + '?next=' + encodeURIComponent(location.href);
+
+    if (user || roleHint()) { firebase(); return; }
+
+    let settled = false;
+    const done = () => { settled = true; off(); };
+    const off = onChange((who) => {
+      if (settled) return;
+      if (who) done();
+    });
+    // nothing stored and nobody signed in: ask the library, and give it a moment
+    firebase().then(() => {
+      setTimeout(() => {
+        if (settled || user || roleHint()) return;
+        done();
+        location.replace(gate);
+      }, 900);
+    }).catch(() => { /* the library never arrived: let them through */ });
+    setTimeout(() => { if (!settled) done(); }, wait);
+  }
+
+  function onChange(fn) { listeners.add(fn); fn(user, profile); return () => listeners.delete(fn); }
+
   global.NovaAccount = {
     signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon,
-    loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES,
+    loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES, requireAccount, wake,
     get user() { return user; },
     get profile() { return profile; },
     get role() { return (profile && profile.role) || ''; },
     get roleHint() { return roleHint(); },
-    onChange(fn) { listeners.add(fn); fn(user, profile); return () => listeners.delete(fn); }
+    onChange
   };
 })(typeof window !== 'undefined' ? window : globalThis);

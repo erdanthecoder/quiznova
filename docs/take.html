@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="nova.css?v=2e40604c">
+<link rel="stylesheet" href="nova.css?v=7831630d">
 <style>
 .shell{max-width:740px;margin:0 auto;padding:28px 20px 90px}
 .progress{position:fixed;top:0;left:0;right:0;height:8px;background:var(--paper);z-index:80;border-bottom:2px solid var(--line)}
@@ -80,7 +80,7 @@
 <script src="rules.js?v=69bf1ad8"></script>
 <script src="live.js?v=b7190675"></script>
 <script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=00c10e3c"></script>
+<script src="account.js?v=8e0658a3"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
@@ -118,13 +118,40 @@ const shortCode = (function () {
 })();
 let quiz = null, order = [], answers = {}, step = -1, startedAt = 0, name = Nova.store.get('studentName') || '';
 
+/* Fetching the quiz behind a homework code, with an end to it.
+ *
+ * A class on school wifi is the whole audience for this page, and a request
+ * with no timeout on a bad connection is a child sitting in front of a blank
+ * screen with nothing to read and nothing to press. So: a limit, one quiet
+ * retry, and then a sentence and a button — never nothing.
+ */
+function fetchQuiz(ms) {
+  const asked = shortCode ? NovaLive.sharedQuiz(shortCode) : api('/quizzes/' + quizId);
+  let timer;
+  const gaveUp = new Promise((_, no) => {
+    timer = setTimeout(() => no(Object.assign(new Error('slow'), { slow: true })), ms);
+  });
+  return Promise.race([asked, gaveUp]).finally(() => clearTimeout(timer));
+}
+
 async function boot() {
   if (!quizId && !hasPayload && !shortCode) return fail('This link is missing its quiz.');
   try {
-    quiz = shortCode ? await NovaLive.sharedQuiz(shortCode) : await api('/quizzes/' + quizId);
+    quiz = await fetchQuiz(9000);
   } catch (err) {
-    return fail(shortCode ? 'That homework link is not valid any more.'
-                          : 'This quiz link is not valid any more.');
+    if (err && err.slow) {
+      // one more go before saying anything: most of these come back second time
+      try { quiz = await fetchQuiz(12000); }
+      catch (again) {
+        return fail(again && again.slow
+          ? 'That is taking a long time. Check the wifi, then try again.'
+          : (shortCode ? 'That homework link is not valid any more.'
+                       : 'This quiz link is not valid any more.'), true);
+      }
+    } else {
+      return fail(shortCode ? 'That homework link is not valid any more.'
+                            : 'This quiz link is not valid any more.');
+    }
   }
   quiz.settings = quiz.settings || {};
   if (!quiz.questions.length) return fail('Your teacher has not added any questions yet.');
@@ -134,7 +161,13 @@ async function boot() {
   cover();
 }
 
-const fail = (msg) => { $('#app').innerHTML = `<div class="card pad empty"><span class="em" data-icon="ghost"></span>${esc(msg)}</div>`; };
+const fail = (msg, retry) => {
+  $('#app').innerHTML = `<div class="card pad empty"><span class="em" data-icon="ghost"></span>${esc(msg)}`
+    + (retry ? `<div style="margin-top:14px"><button class="btn primary" id="again">Try again</button></div>` : '')
+    + `</div>`;
+  const again = document.getElementById('again');
+  if (again) again.onclick = () => { $('#app').innerHTML = '<div class="card pad empty">Looking…</div>'; boot(); };
+};
 
 function cover() {
   const totalPoints = quiz.questions.reduce((s, q) => s + (q.points || 100), 0);

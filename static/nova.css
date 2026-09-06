@@ -368,6 +368,35 @@ body.dark .toast{color:var(--text)}
 .launch-garden .launch-card{background:rgba(14,8,24,.68);border-color:rgba(255,216,107,.34);
   backdrop-filter:blur(9px);box-shadow:0 12px 40px rgba(0,0,0,.5)}
 .launch-garden .launch-card span{opacity:.86}
+/* the blooks get the floor to themselves — they are the payoff, not scenery */
+.launch-garden .launch-cards{bottom:19%}
+@media (max-width:640px){ .launch-garden .launch-cards{bottom:26%} }
+
+/* ── the cutscene ────────────────────────────────────────
+ * Bars top and bottom while it runs. They are not decoration: they say "this is
+ * a thing to watch, it will end, you do not have to do anything" — which is the
+ * difference between a cutscene and a page that has gone strange. */
+.launch-bar-t,.launch-bar-b{position:absolute;left:0;right:0;height:0;background:#000;
+  z-index:3;transition:height .8s cubic-bezier(.16,.9,.24,1);pointer-events:none}
+.launch-bar-t{top:0} .launch-bar-b{bottom:0}
+.launch.bars .launch-bar-t,.launch.bars .launch-bar-b{height:5.5vh}
+
+/* what the shot is of. Comes in from the left on its own line, the way a title
+   card does, and leaves before the next cut rather than dissolving into it. */
+.launch-shot{position:absolute;left:clamp(20px,6vw,86px);bottom:16vh;z-index:4;
+  max-width:min(560px,74vw);opacity:0;pointer-events:none;
+  transform:translateX(-22px)}
+.launch-shot.on{animation:shot-in .55s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes shot-in{to{opacity:1;transform:none}}
+.launch-shot b{display:block;font-size:clamp(1.6rem,4.4vw,3.1rem);font-weight:900;
+  letter-spacing:-.03em;color:#FFF7E4;line-height:1.04;
+  text-shadow:0 4px 26px rgba(0,0,0,.7),0 0 60px rgba(255,197,61,.35)}
+.launch-shot i{display:block;font-style:normal;margin-top:8px;font-weight:700;
+  font-size:clamp(.86rem,1.5vw,1.08rem);color:rgba(255,247,228,.82);line-height:1.4;
+  text-shadow:0 2px 14px rgba(0,0,0,.8)}
+.launch-shot b::after{content:'';display:block;width:58px;height:4px;border-radius:99px;
+  margin-top:12px;background:linear-gradient(90deg,#FFC53D,#FF7A45)}
+@media (max-width:640px){ .launch-shot{bottom:22vh} }
 @media (max-width:560px){ .launch-card{width:100%;max-width:300px} .launch-cards{bottom:8%} }
 @media (prefers-reduced-motion:reduce){
   .launch-word .up,.launch-cards.on .launch-card{animation-duration:.01ms}

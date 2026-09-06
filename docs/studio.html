@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="nova.css?v=2e40604c">
+<link rel="stylesheet" href="nova.css?v=7831630d">
 <style>
 .studio{display:grid;grid-template-columns:250px minmax(0,1fr) 380px;gap:22px;max-width:1560px;margin:0 auto;padding:22px;align-items:start}
 .col{position:sticky;top:94px;max-height:calc(100vh - 116px);overflow:auto}
@@ -301,7 +301,7 @@ tr:hover td{background:var(--paper)}
 </main>
 
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=ac877a6b"></script>
+<script src="launch.js?v=84f84eb9"></script>
 
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
@@ -311,7 +311,7 @@ tr:hover td{background:var(--paper)}
 <script src="rules.js?v=69bf1ad8"></script>
 <script src="live.js?v=b7190675"></script>
 <script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=00c10e3c"></script>
+<script src="account.js?v=8e0658a3"></script>
 <script src="qr.js?v=b8307384"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
@@ -1134,6 +1134,13 @@ async function homeworkLink(quiz) {
     return host + code;
   } catch { return fallback; }
 }
+
+/* The studio is part of the teacher's own site, so it wants an account too. A
+   quiz already open in this browser is not lost by it — the sign-in page comes
+   back here afterwards. */
+window.addEventListener('load', () => {
+  if (window.NovaAccount) NovaAccount.requireAccount();
+});
 </script>
 </body>
 </html>
