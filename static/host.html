@@ -1369,7 +1369,11 @@ function overView() {
 }
 
 $('#end').onclick = () => {
-  if (!hostToken) return toast('Only the host device can end the game', 'bad');
+  // Same rule as Start: never a dead button. A board that cannot end the game
+  // says so when asked, rather than refusing quietly.
+  if (!hostToken) {
+    return toast('End this game from the device that made it, or make a new one', 'bad');
+  }
   const close = modal(`
     <h2 style="margin-bottom:6px">End the game?</h2>
     <p class="muted" style="margin-bottom:20px">Everyone stops where they are and the final scores go up.</p>
