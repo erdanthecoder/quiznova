@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in · Quoldek</title>
+<link href="fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
+<meta name="theme-color" content="#7C4DFF">
+<meta name="description" content="Sign in to Quoldek, or make an account as a teacher or a student.">
+<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<style>
+/* Two halves: what this is on the left, what to do about it on the right. On a
+   phone the left half is a header and the form takes the screen. */
+.gate{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr}
+.gate .say{position:relative;overflow:hidden;padding:48px 46px;display:flex;flex-direction:column;
+  justify-content:center;gap:18px;color:#fff;
+  background:radial-gradient(70% 60% at 20% 25%,rgba(124,77,255,.55),transparent 70%),
+             radial-gradient(60% 60% at 85% 80%,rgba(43,168,255,.42),transparent 70%),
+             linear-gradient(160deg,#1B1240,#0A0718)}
+.gate .say h1{font-size:clamp(2rem,3.6vw,3.2rem);font-weight:900;letter-spacing:-.03em;line-height:1.06;margin:0}
+.gate .say p{margin:0;font-size:1.05rem;line-height:1.55;color:rgba(255,255,255,.8);max-width:44ch}
+.gate .mark{display:flex;align-items:center;gap:12px;font-weight:900;font-size:1.15rem}
+.gate .points{display:flex;flex-direction:column;gap:11px;margin-top:8px}
+.gate .points div{display:flex;gap:11px;align-items:flex-start;font-weight:650;
+  color:rgba(255,255,255,.86);font-size:.95rem}
+.gate .points i{flex:none;width:26px;height:26px;border-radius:9px;display:grid;place-items:center;
+  background:rgba(255,255,255,.13)}
+/* a few blooks bobbing about behind the words, so the page has life in it */
+.gate .float{position:absolute;inset:0;pointer-events:none;opacity:.5}
+.gate .float span{position:absolute;animation:drift 9s ease-in-out infinite;line-height:0}
+@keyframes drift{50%{transform:translateY(-16px) rotate(4deg)}}
+
+.gate .doing{display:flex;align-items:center;justify-content:center;padding:40px 30px;background:var(--paper)}
+.pane{width:100%;max-width:420px}
+.pane h2{font-size:1.7rem;font-weight:900;letter-spacing:-.02em;margin:0 0 6px}
+.pane .lede{color:var(--muted);margin:0 0 22px;line-height:1.5}
+.pane .field{margin-bottom:13px}
+.pane .btn.block{margin-top:6px}
+.or{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--faint);font-size:.82rem;font-weight:700}
+.or::before,.or::after{content:'';flex:1;height:1px;background:var(--line-soft)}
+.swap{margin-top:18px;text-align:center;font-size:.9rem;color:var(--muted)}
+.swap button{background:none;border:none;font:inherit;font-weight:800;color:var(--brand);cursor:pointer;padding:0}
+.swap button:hover{text-decoration:underline}
+.said{margin-top:14px;font-weight:700;font-size:.9rem;line-height:1.45;min-height:1.2em}
+.said.bad{color:var(--coral)} .said.good{color:var(--mint)}
+
+/* the one question that decides everything else */
+.roles{display:grid;gap:13px}
+.role{display:flex;gap:14px;align-items:flex-start;text-align:left;padding:16px 18px;border-radius:18px;
+  border:3px solid var(--line);background:var(--card);cursor:pointer;font:inherit;color:inherit;
+  box-shadow:var(--pop-1);transition:transform .14s,box-shadow .14s}
+.role:hover{transform:translateY(-2px);box-shadow:var(--pop-2)}
+.role[aria-pressed=true]{border-color:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 22%,transparent)}
+.role .ic{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:#fff}
+.role b{display:block;font-size:1.05rem}
+.role span{display:block;color:var(--muted);font-size:.87rem;line-height:1.45;margin-top:2px}
+.google{display:flex;align-items:center;justify-content:center;gap:10px}
+.hold{display:grid;place-items:center;min-height:100vh;gap:14px;text-align:center;padding:30px}
+.spin{width:34px;height:34px;border-radius:50%;border:4px solid var(--line-soft);border-top-color:var(--brand);
+  animation:turn .8s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
+@media (max-width:880px){
+  .gate{grid-template-columns:1fr;min-height:0}
+  .gate .say{padding:30px 24px;gap:12px}
+  .gate .say p,.gate .points{display:none}
+  .gate .say h1{font-size:1.7rem}
+  .gate .doing{padding:26px 20px 44px}
+}
+@media (prefers-reduced-motion:reduce){.gate .float span,.spin{animation:none}}
+</style>
+</head>
+<body class="light">
+
+<div id="app"><div class="hold"><div class="spin"></div><p class="muted">One moment…</p></div></div>
+
+<script src="sprites.js?v=6073d7a1"></script>
+<script src="nova.js?v=30a2cc36"></script>
+<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="realtime.js?v=75e1623c"></script>
+<script src="arena.js?v=fb3b6182"></script>
+<script src="paste.js?v=3032c005"></script>
+<script src="rules.js?v=2b1ca27f"></script>
+<script src="live.js?v=1cdb2620"></script>
+<script src="nova-local.js?v=340f2f93"></script>
+<script src="account.js?v=00c10e3c"></script>
+
+<script>
+window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
+  : 'https://playquoldek.web.app/?pin=';
+window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
+  : 'https://hwquoldek.web.app/';
+/* The way in.
+ *
+ * There are three states this page can be in, and only three: working out who
+ * you already are, asking you to sign in, and asking the one question that
+ * decides which board you land on. Everything else is a variation on those.
+ *
+ * The role question is asked once and never again. It is answered against the
+ * account, not this browser, so a teacher who signs in on a school laptop lands
+ * on the teacher's board there too — which is the whole point of having it.
+ */
+const { el, esc } = Nova;
+const app = document.getElementById('app');
+const paint = (node) => { app.replaceChildren(node); };
+
+const ROLES = [
+  { id: 'teacher', tint: '#6C4CF1', icon: 'flag', title: "I'm a teacher",
+    line: 'Make quizzes, host live games, and see how the class did.' },
+  { id: 'student', tint: '#12BE8E', icon: 'medal', title: "I'm a student",
+    line: 'Play, collect blooks and hats, level up, and revise on your own.' }
+];
+
+/* Where to go after. A page can be opened with ?next= to come back to whatever
+   sent you here, but only to somewhere on Quoldek: an open redirect is how a
+   sign-in page becomes somebody else's phishing page. */
+function nextStop() {
+  const asked = new URLSearchParams(location.search).get('next') || '';
+  if (!asked) return '';
+  try {
+    const url = new URL(asked, location.href);
+    const ok = /(^|\.)quoldek\.web\.app$/.test(url.hostname)
+      || /^(teachboard|studentboard|play|live|hw)-?quoldek\.web\.app$/.test(url.hostname)
+      || url.hostname === location.hostname;
+    return ok ? url.href : '';
+  } catch { return ''; }
+}
+
+function leave(role) {
+  const back = nextStop();
+  if (back) { location.replace(back); return; }
+  if (!NovaAccount.sendToBoard(role)) location.replace('/');
+}
+
+/* ── the shell ────────────────────────────────────────────── */
+function shell(inner) {
+  const say = el('div', { class: 'say' });
+  const float = el('div', { class: 'float' });
+  [[6, 12, 74], [80, 20, 58], [16, 72, 62], [86, 66, 70]].forEach(([x, y, size], i) => {
+    float.append(el('span', { style: `left:${x}%;top:${y}%;animation-delay:${i * 1.4}s`,
+                              html: Sprite.face(i * 13 + 4, size) }));
+  });
+  say.append(float,
+    el('div', { class: 'mark' }, el('span', { style: 'line-height:0', html: Sprite.logo(40) }), 'Quoldek'),
+    el('h1', {}, 'A class, a question, and everyone answering at once.'),
+    el('p', {}, 'Make an account and Quoldek remembers which side of the room you are on — your quizzes and your board if you teach, your blooks and your level if you play.'),
+    el('div', { class: 'points' },
+      ...[['spark', 'Every game mode in real three dimensions'],
+          ['medal', 'Levels, coins, blooks and hats to unlock'],
+          ['bolt', 'Works offline, in the app and in the browser']]
+        .map(([ic, text]) => el('div', {},
+          el('i', { html: Sprite.icon(ic, 15, '#fff') }), el('span', {}, text)))));
+
+  return el('div', { class: 'gate' }, say, el('div', { class: 'doing' }, inner));
+}
+
+const say = (node, text, kind) => {
+  const line = node.querySelector('.said');
+  if (line) { line.textContent = text || ''; line.className = 'said ' + (kind || ''); }
+};
+
+/* ── asking which side of the room ────────────────────────── */
+function askRole(opts) {
+  const o = opts || {};
+  let picked = '';
+  const pane = el('div', { class: 'pane' });
+  const list = el('div', { class: 'roles' });
+  const go = el('button', { class: 'btn primary lg block', disabled: true }, o.cta || 'Continue');
+
+  ROLES.forEach(r => {
+    const card = el('button', { class: 'role', type: 'button', 'aria-pressed': 'false',
+      onclick: () => {
+        picked = r.id;
+        list.querySelectorAll('.role').forEach(n => n.setAttribute('aria-pressed', 'false'));
+        card.setAttribute('aria-pressed', 'true');
+        go.disabled = false;
+      } },
+      el('span', { class: 'ic', style: `background:${r.tint}`, html: Sprite.icon(r.icon, 22, '#fff') }),
+      el('span', {}, el('b', {}, r.title), el('span', {}, r.line)));
+    list.append(card);
+  });
+
+  go.onclick = () => { if (picked) o.onPick(picked, pane, go); };
+
+  pane.append(
+    el('h2', {}, o.title || 'Which are you?'),
+    el('p', { class: 'lede' }, o.lede || 'This decides which board you land on. It is asked once.'),
+    list, go, el('div', { class: 'said' }));
+  if (o.under) pane.append(o.under);
+  return pane;
+}
+
+/* ── signing in ───────────────────────────────────────────── */
+function signInPane() {
+  const pane = el('div', { class: 'pane' });
+  const email = el('input', { class: 'input', type: 'email', autocomplete: 'email', placeholder: 'you@school.org' });
+  const pass = el('input', { class: 'input', type: 'password', autocomplete: 'current-password', placeholder: 'Your password' });
+  const go = el('button', { class: 'btn primary lg block' }, 'Sign in');
+  const google = el('button', { class: 'btn lg block google' },
+    el('span', { style: 'line-height:0', html: googleMark() }), 'Continue with Google');
+
+  const busy = (on, node, label) => { node.disabled = on; node.textContent = on ? label : node.dataset.was; };
+
+  go.dataset.was = 'Sign in';
+  go.onclick = async () => {
+    say(pane, '');
+    if (!email.value.trim() || !pass.value) return say(pane, 'Fill both boxes in.', 'bad');
+    busy(true, go, 'Signing in…');
+    try {
+      await NovaAccount.signInWithPassword(email.value, pass.value);
+      await afterSignIn(pane);
+    } catch (err) { say(pane, err.message, 'bad'); busy(false, go); }
+  };
+
+  google.dataset.was = 'Continue with Google';
+  google.onclick = async () => {
+    say(pane, '');
+    busy(true, google, 'Opening Google…');
+    try { await NovaAccount.signIn(); await afterSignIn(pane); }
+    catch (err) { say(pane, err.message || 'Google would not open.', 'bad'); busy(false, google); }
+  };
+
+  pane.append(
+    el('h2', {}, 'Welcome back'),
+    el('p', { class: 'lede' }, 'Sign in and Quoldek takes you to your own board.'),
+    el('label', { class: 'field' }, el('span', { class: 'label' }, 'Email'), email),
+    el('label', { class: 'field' }, el('span', { class: 'label' }, 'Password'), pass),
+    go, el('div', { class: 'or' }, 'or'), google,
+    el('div', { class: 'said' }),
+    el('div', { class: 'swap' }, 'No account yet? ',
+      el('button', { onclick: () => paint(shell(signUpFlow())) }, 'Make one'),
+      el('br'),
+      el('button', { style: 'font-weight:650;color:var(--muted)', onclick: () => forgot(pane, email.value) },
+        'I have forgotten my password')));
+
+  pass.addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); });
+  return pane;
+}
+
+async function forgot(pane, address) {
+  if (!address || !address.trim()) return say(pane, 'Type your email above first, then press this.', 'bad');
+  try { await NovaAccount.resetPassword(address); say(pane, 'Sent. Look in your email for the link.', 'good'); }
+  catch (err) { say(pane, err.message, 'bad'); }
+}
+
+/* ── making an account ────────────────────────────────────── */
+function signUpFlow() {
+  return askRole({
+    title: 'Make an account',
+    lede: 'First, which are you? This decides which board you land on, and it is asked once.',
+    cta: 'Next',
+    onPick: (role) => paint(shell(detailsPane(role))),
+    under: el('div', { class: 'swap' }, 'Already have one? ',
+      el('button', { onclick: () => paint(shell(signInPane())) }, 'Sign in'))
+  });
+}
+
+function detailsPane(role) {
+  const pane = el('div', { class: 'pane' });
+  const name = el('input', { class: 'input', autocomplete: 'name',
+    placeholder: role === 'teacher' ? 'Miss Carter' : 'Your name' });
+  const email = el('input', { class: 'input', type: 'email', autocomplete: 'email', placeholder: 'you@school.org' });
+  const pass = el('input', { class: 'input', type: 'password', autocomplete: 'new-password', placeholder: 'At least six characters' });
+  const go = el('button', { class: 'btn primary lg block' }, 'Make my account');
+  const google = el('button', { class: 'btn lg block google' },
+    el('span', { style: 'line-height:0', html: googleMark() }), 'Use my Google account');
+  go.dataset.was = 'Make my account';
+  google.dataset.was = 'Use my Google account';
+
+  go.onclick = async () => {
+    say(pane, '');
+    if (!name.value.trim()) return say(pane, 'What should the class call you?', 'bad');
+    if (!email.value.trim()) return say(pane, 'An email, so you can get back in.', 'bad');
+    if (pass.value.length < 6) return say(pane, 'A password needs at least six characters.', 'bad');
+    go.disabled = true; go.textContent = 'Making it…';
+    try {
+      await NovaAccount.signUp(email.value, pass.value, name.value.trim(), role);
+      leave(role);
+    } catch (err) { say(pane, err.message, 'bad'); go.disabled = false; go.textContent = go.dataset.was; }
+  };
+
+  google.onclick = async () => {
+    say(pane, '');
+    google.disabled = true; google.textContent = 'Opening Google…';
+    try {
+      await NovaAccount.signIn();
+      const had = await NovaAccount.loadProfile(true);
+      if (had) return leave(had.role);          // an account that already exists keeps its side
+      await NovaAccount.setRole(role, NovaAccount.user && NovaAccount.user.name);
+      leave(role);
+    } catch (err) {
+      say(pane, err.message || 'Google would not open.', 'bad');
+      google.disabled = false; google.textContent = google.dataset.was;
+    }
+  };
+
+  pane.append(
+    el('h2', {}, role === 'teacher' ? 'A teacher account' : 'A student account'),
+    el('p', { class: 'lede' }, role === 'teacher'
+      ? 'Your quizzes follow you to every computer you sign in on.'
+      : 'Your level, your coins and everything you unlock follow you about.'),
+    el('label', { class: 'field' }, el('span', { class: 'label' }, 'Name'), name),
+    el('label', { class: 'field' }, el('span', { class: 'label' }, 'Email'), email),
+    el('label', { class: 'field' }, el('span', { class: 'label' }, 'Password'), pass),
+    go, el('div', { class: 'or' }, 'or'), google,
+    el('div', { class: 'said' }),
+    el('div', { class: 'swap' },
+      el('button', { onclick: () => paint(shell(signUpFlow())) }, 'Back'), ' · ',
+      el('button', { onclick: () => paint(shell(signInPane())) }, 'I already have an account')));
+
+  pass.addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); });
+  return pane;
+}
+
+/* Somebody signed in, but the account may never have been given a side. */
+async function afterSignIn(pane) {
+  let profile = null;
+  try { profile = await NovaAccount.loadProfile(true); }
+  catch (err) { if (pane) say(pane, 'Signed in, but your account would not load. Check the connection.', 'bad'); return; }
+  if (profile && profile.role) return leave(profile.role);
+  paint(shell(askRole({
+    title: 'One more thing',
+    lede: 'Your account has no side yet. Which are you?',
+    cta: 'Finish',
+    onPick: async (role, node, button) => {
+      button.disabled = true; button.textContent = 'Setting up…';
+      try { await NovaAccount.setRole(role, NovaAccount.user && NovaAccount.user.name); leave(role); }
+      catch (err) { say(node, err.message, 'bad'); button.disabled = false; button.textContent = 'Finish'; }
+    }
+  })));
+}
+
+function googleMark() {
+  return '<svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true">'
+    + '<path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2.5 24 .5 14.6.5 6.5 5.9 2.6 13.7l7.8 6.1C12.3 13.9 17.6 9.5 24 9.5z"/>'
+    + '<path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9c4.4-4.1 7.1-10.2 7.1-17.4z"/>'
+    + '<path fill="#FBBC05" d="M10.4 28.2a14.6 14.6 0 0 1 0-8.4l-7.8-6.1a24 24 0 0 0 0 20.6l7.8-6.1z"/>'
+    + '<path fill="#34A853" d="M24 47.5c6.2 0 11.5-2 15.4-5.6l-7.6-5.9c-2.1 1.4-4.8 2.3-7.8 2.3-6.4 0-11.7-4.4-13.6-10.3l-7.8 6.1C6.5 42.1 14.6 47.5 24 47.5z"/></svg>';
+}
+
+/* ── on arrival ───────────────────────────────────────────── */
+/* Somebody who is already signed in should not be shown a sign-in form for a
+   second and then bounced. The stored hint says which board is likely, but the
+   row is what decides — so the wait is short and honest rather than a guess. */
+(function start() {
+  const known = NovaAccount.user;
+  if (!known && !NovaAccount.roleHint) return paint(shell(signInPane()));
+
+  let settled = false;
+  const off = NovaAccount.onChange((user) => {
+    if (settled) return;
+    if (!user) {
+      // the sign-in library has loaded and there is nobody: show the form
+      if (NovaAccount.roleHint) { settled = true; off(); paint(shell(signInPane())); }
+      return;
+    }
+    settled = true; off();
+    afterSignIn(null);
+  });
+  // a browser that cannot reach Firebase should still see something to do
+  setTimeout(() => { if (!settled) { settled = true; off(); paint(shell(signInPane())); } }, 6000);
+})();
+</script>
+</body>
+</html>

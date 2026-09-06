@@ -144,7 +144,7 @@
    * child's phone is exactly where a half-written or hand-edited value turns up,
    * and a monster maker that throws is worse than one that starts again.
    */
-  const BLANK = () => ({ coins: 0, lifetime: 0, games: 0, owned: {}, face: null, seenLevel: 1 });
+  const BLANK = () => ({ coins: 0, lifetime: 0, games: 0, owned: {}, face: null, hat: 0, seenLevel: 1 });
 
   function read() {
     let raw = null;
@@ -157,6 +157,7 @@
       clean.games = Math.max(0, Math.round(Number(raw.games) || 0));
       clean.seenLevel = Math.max(1, Math.round(Number(raw.seenLevel) || 1));
       clean.face = Number.isFinite(Number(raw.face)) ? Number(raw.face) : null;
+      clean.hat = Math.max(0, Math.round(Number(raw.hat) || 0));
       if (raw.owned && typeof raw.owned === 'object') {
         for (const [kind, list] of Object.entries(raw.owned)) {
           if (Array.isArray(list)) {
@@ -202,12 +203,29 @@
     return { ok: true, coins: state.coins, spent: info.cost };
   }
 
-  /** Remember the monster this phone plays as, so it comes back next game. */
+  /** Remember the blook this phone plays as, so it comes back next game. */
   function remember(face) {
     const state = read();
     state.face = Number(face);
     return write(state).face;
   }
+
+  /* A hat is worn, not bought again: buy() already put it in `owned`, and this
+   * only says which of the owned ones is on. Nought is bare-headed and is
+   * always allowed, so there is no way to end up with nothing to wear. */
+  function wearHat(hat) {
+    const state = read();
+    const n = Math.max(0, Math.round(Number(hat) || 0));
+    if (n !== 0 && !(state.owned.hat || []).includes(n) && tierOf('hat', n, { hat: HAT_COUNT }) !== 0) {
+      return state.hat;
+    }
+    state.hat = n;
+    return write(state).hat;
+  }
+  /* How many hats there are. Kept here rather than read off Sprite so the
+     arithmetic can be tested without a drawing library in the room. */
+  let HAT_COUNT = 13;
+  const countHats = (n) => { HAT_COUNT = Math.max(1, Math.round(n) || 1); return HAT_COUNT; };
 
   /** The level the child has already been shown, so a level-up is announced once. */
   function markSeen(level) {
@@ -221,7 +239,7 @@
   global.NovaProgress = {
     KEY, LEVELS, MAX_LEVEL, TIER_LEVEL, TIER_COST, TIER_NAME,
     levelFor, tierOf, partState, coinsFor, award, buy,
-    read, write, remember, markSeen, reset
+    read, write, remember, wearHat, countHats, markSeen, reset
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

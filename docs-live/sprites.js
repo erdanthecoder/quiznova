@@ -122,13 +122,81 @@
       + MOUTHS_N * w(pattern, PATTERNS_N))));
   };
 
+  /* ── hats ─────────────────────────────────────────────────
+   * A hat is not part of the packed character number. It is a separate thing a
+   * child owns and puts on, and it has to be, because the number is what the
+   * game uses to tell two players apart across a room — a hat that changed it
+   * would change who you look like every time you tried one on.
+   *
+   * Each is drawn in the same 64x64 box as the character, sitting on a head
+   * whose circle is centred at (32, 26) with a radius of 18, so the brim lands
+   * around y=12 and the crown goes up from there. Index 0 is no hat.
+   */
+  const HATS = [
+    '',
+    // party cone
+    '<path d="M32 -2 L42 15 H22z" fill="#F4364C"/>' +
+    '<path d="M32 -2 L37 6.5 L27 6.5z" fill="#FFC53D"/>' +
+    '<ellipse cx="32" cy="15" rx="10.5" ry="2.6" fill="#C42539"/>' +
+    '<circle cx="32" cy="-3" r="3" fill="#FFC53D"/>',
+    // top hat
+    '<rect x="23" y="-3" width="18" height="16" rx="1.6" fill="#221541"/>' +
+    '<rect x="23" y="7" width="18" height="4" fill="#F4364C"/>' +
+    '<ellipse cx="32" cy="13.5" rx="15" ry="3.2" fill="#161036"/>',
+    // crown
+    '<path d="M19 14 L21 1 L26.5 8 L32 -1 L37.5 8 L43 1 L45 14z" fill="#FFC53D"/>' +
+    '<rect x="19" y="12" width="26" height="4" rx="1.6" fill="#E8A400"/>' +
+    '<circle cx="26.5" cy="9" r="1.8" fill="#F4364C"/><circle cx="37.5" cy="9" r="1.8" fill="#4F6BFF"/>',
+    // cap, worn forwards
+    '<path d="M17 13 a15 15 0 0 1 30 0z" fill="#2BA8FF"/>' +
+    '<path d="M17 12.5 h20 a6 6 0 0 1 6 4 H17z" fill="#1E86CC"/>' +
+    '<circle cx="32" cy="-1" r="2.4" fill="#1E86CC"/>',
+    // bobble hat
+    '<path d="M19 14 a13 13 0 0 1 26 0z" fill="#12BE8E"/>' +
+    '<rect x="17" y="11" width="30" height="5.5" rx="2.7" fill="#F6F2FF"/>' +
+    '<circle cx="32" cy="0" r="4.4" fill="#F6F2FF"/>',
+    // headphones
+    '<path d="M15 22 a17 17 0 0 1 34 0" stroke="#221541" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+    '<rect x="10" y="18" width="8" height="12" rx="3.6" fill="#F4364C"/>' +
+    '<rect x="46" y="18" width="8" height="12" rx="3.6" fill="#F4364C"/>',
+    // wizard hat
+    '<path d="M32 -6 C36 4 40 10 46 15 H18 C24 10 28 4 32 -6z" fill="#6C4CF1"/>' +
+    '<ellipse cx="32" cy="15" rx="16" ry="3.4" fill="#5238C8"/>' +
+    '<path d="M30 4 l1.4 3 3 1.4 -3 1.4 -1.4 3 -1.4-3 -3-1.4 3-1.4z" fill="#FFC53D"/>',
+    // flower crown
+    '<path d="M17 13 q15 -5 30 0" stroke="#12BE8E" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="21" cy="11" r="3.4" fill="#FF5D73"/><circle cx="32" cy="7.5" r="3.8" fill="#FFC53D"/>' +
+    '<circle cx="43" cy="11" r="3.4" fill="#4F6BFF"/>' +
+    '<circle cx="32" cy="7.5" r="1.5" fill="#fff"/>',
+    // hard hat
+    '<path d="M18 14 a14 14 0 0 1 28 0z" fill="#FF7A45"/>' +
+    '<rect x="30" y="0" width="4" height="12" rx="1.6" fill="#E0602C"/>' +
+    '<rect x="15" y="12" width="34" height="4.4" rx="2.2" fill="#FFC53D"/>',
+    // pirate
+    '<path d="M15 13 q17 -12 34 0z" fill="#221541"/>' +
+    '<rect x="14" y="11" width="36" height="4.6" rx="2.3" fill="#161036"/>' +
+    '<circle cx="32" cy="6.5" r="2.4" fill="#F6F2FF"/>' +
+    '<rect x="30.6" y="8.4" width="2.8" height="3.4" rx="1" fill="#F6F2FF"/>',
+    // halo
+    '<ellipse cx="32" cy="3" rx="11" ry="3.6" fill="none" stroke="#FFC53D" stroke-width="3"/>',
+    // beanie with a stripe
+    '<path d="M19 14 a13 13 0 0 1 26 0z" fill="#7C4DFF"/>' +
+    '<rect x="18" y="9" width="28" height="3.4" fill="#FFC53D"/>' +
+    '<rect x="17" y="12" width="30" height="4.6" rx="2.3" fill="#5238C8"/>'
+  ];
+  const HAT_NAMES = ['No hat', 'Party cone', 'Top hat', 'Crown', 'Cap', 'Bobble hat',
+                     'Headphones', 'Wizard hat', 'Flower crown', 'Hard hat', "Captain's cap",
+                     'Halo', 'Beanie'];
+  const HATS_N = HATS.length;
+
   let uid = 0;
 
   /**
    * One child's character, drawn whole: feet, arms, body, head, face.
    * `index` is stored with the player, so their character never changes.
+   * `hat` is separate and optional — nought, or nothing at all, is bare-headed.
    */
-  function face(index, size = 48) {
+  function face(index, size = 48, hat = 0) {
     const part = unpack(index);
     const base = SKIN[part.colour];
     const crest = CREST[part.shape];
@@ -165,6 +233,8 @@
       '<ellipse cx="44" cy="32" rx="4" ry="2.6" fill="rgba(0,0,0,.09)"/>' +
       ink(EYES[part.eyes]) +
       ink(MOUTHS[part.mouth]) +
+      // the hat goes on last, over everything, because that is where a hat is
+      (HATS[((Math.round(Number(hat) || 0) % HATS_N) + HATS_N) % HATS_N] || '') +
       '</g>' +
     '</svg>';
   }
@@ -460,6 +530,7 @@
                     COMBINATIONS, ALL, COLOURS, SHAPES,
                     EYES: EYES_N, MOUTHS: MOUTHS_N, PATTERNS: PATTERNS_N,
                     palette: SKIN.slice(), combine, partsOf, pack, unpack,
+                    HATS_N, HAT_NAMES: HAT_NAMES.slice(),
                     names: Object.keys(ICON), scenes: Object.keys(SCENE) };
 })(typeof window !== 'undefined' ? window : globalThis);
 

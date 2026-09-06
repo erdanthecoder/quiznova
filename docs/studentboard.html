@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your board · Quoldek</title>
+<link href="fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
+<meta name="theme-color" content="#7C4DFF">
+<meta name="description" content="A student's board: join a game, collect blooks and hats, level up, and practise on your own.">
+<meta name="category" content="Education">
+<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="boards.css?v=f6f648d2">
+<style>
+/* the one thing on this page that is purely for the joy of it */
+.showcase{position:relative;display:grid;place-items:center;min-height:230px;border-radius:var(--r-lg);
+  overflow:hidden;background:radial-gradient(60% 70% at 50% 30%,rgba(124,77,255,.35),transparent 70%),
+  linear-gradient(160deg,#1B1240,#0A0718)}
+.showcase .star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;opacity:.5;
+  animation:twink 3.4s ease-in-out infinite}
+@keyframes twink{50%{opacity:.12;transform:scale(.6)}}
+.showcase .hero{position:relative;line-height:0;animation:hover 3.6s ease-in-out infinite;
+  filter:drop-shadow(0 22px 20px rgba(0,0,0,.55))}
+@keyframes hover{50%{transform:translateY(-14px)}}
+.showcase .ring{position:absolute;width:190px;height:190px;border-radius:50%;
+  border:2px dashed rgba(255,255,255,.22);animation:turn 18s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
+.showcase .plinth{position:absolute;bottom:26px;width:150px;height:26px;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(124,77,255,.55),transparent)}
+.showcase .say{position:absolute;bottom:12px;color:rgba(255,255,255,.8);font-weight:800;font-size:.85rem}
+.hats{display:flex;gap:9px;overflow-x:auto;padding:2px 2px 8px}
+.hats .blook{flex:none;width:92px}
+@media (prefers-reduced-motion:reduce){.showcase .hero,.showcase .ring,.showcase .star{animation:none}}
+</style>
+</head>
+<body class="light">
+
+<div id="app"></div>
+
+<script src="sprites.js?v=6073d7a1"></script>
+<script src="progress.js?v=8177d194"></script>
+<script src="nova.js?v=30a2cc36"></script>
+<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="realtime.js?v=75e1623c"></script>
+<script src="arena.js?v=fb3b6182"></script>
+<script src="paste.js?v=3032c005"></script>
+<script src="rules.js?v=2b1ca27f"></script>
+<script src="live.js?v=1cdb2620"></script>
+<script src="nova-local.js?v=340f2f93"></script>
+<script src="account.js?v=00c10e3c"></script>
+
+
+
+<script src="boards.js?v=338a6c58"></script>
+<script>
+window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
+  : 'https://playquoldek.web.app/?pin=';
+window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
+  : 'https://hwquoldek.web.app/';
+/* The student's board.
+ *
+ * What a child came here to do is join a game, so that is the first thing and it
+ * is the biggest thing. Everything under it is the reason to come back when
+ * there is no game on: the blooks, the hats, the level, and somewhere to
+ * practise.
+ *
+ * Blooks are bought with coins and opened by levels, and both of those come out
+ * of NovaProgress — which is arithmetic over one lump of storage, so this page
+ * never has to ask a server whether a child owns a hat.
+ */
+const { el, esc } = Nova;
+const B = NovaBoards, P = NovaProgress;
+
+P.countHats(Sprite.HATS_N);
+const app = document.getElementById('app');
+
+/* Which blooks there are. A blook is a colour and a silhouette — the pair the
+   game uses to tell two children apart across a room — so there are as many
+   blooks as there are pairs, and the eyes and mouth are expression on top. */
+const BLOOK_COUNT = Sprite.COMBINATIONS;
+const BLOOK_STRIDE = 13;                   // shares no factor with 144: visits every pair once
+const blookAt = (n) => (n * BLOOK_STRIDE) % BLOOK_COUNT;
+
+let tab = 'blooks';
+
+
+function draw() {
+  const state = P.read();
+  const name = (NovaAccount.user && NovaAccount.user.name) || 'You';
+  const lv = P.levelFor(state.lifetime);
+  const wearing = state.face == null ? blookAt(0) : state.face;
+
+  const deck = el('div', { class: 'deck' });
+
+  deck.append(el('div', { class: 'hi' },
+    el('h1', {}, hello() + ', ' + firstWord(name) + '.'),
+    el('p', {}, lv.top ? 'Level 20. There is nothing left to unlock — well done.'
+      : `Level ${lv.level}. ${lv.toNext} more coins and you are level ${lv.level + 1}.`)));
+
+  /* ── join ─────────────────────────────────────────────── */
+  const pin = el('input', { inputmode: 'numeric', maxlength: '6', placeholder: '000000',
+    autocomplete: 'off', spellcheck: 'false' });
+  const said = el('div', { class: 'said' });
+  const join = () => {
+    const digits = pin.value.replace(/\D/g, '');
+    if (digits.length !== 6) { said.textContent = 'A PIN is six digits.'; said.className = 'said bad'; return; }
+    location.href = 'https://playquoldek.web.app/?pin=' + digits;
+  };
+  pin.addEventListener('input', () => {
+    pin.value = pin.value.replace(/\D/g, '').slice(0, 6);
+    said.textContent = '';
+  });
+  pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'Join a game'),
+    el('p', { class: 'sub' }, 'Type the six digits on the board at the front.'),
+    el('div', { class: 'pinbox' }, pin, el('button', { class: 'btn primary lg', onclick: join }, 'Go')),
+    said));
+
+  /* ── the showcase and the numbers ─────────────────────── */
+  const show = el('div', { class: 'showcase' });
+  for (let i = 0; i < 26; i++) {
+    show.append(el('span', { class: 'star', style:
+      `left:${Math.round(Math.random() * 96)}%;top:${Math.round(Math.random() * 90)}%;` +
+      `animation-delay:${(Math.random() * 3).toFixed(2)}s` }));
+  }
+  show.append(el('span', { class: 'ring' }), el('span', { class: 'plinth' }),
+    el('span', { class: 'hero', html: Sprite.face(wearing, 150, state.hat) }),
+    el('span', { class: 'say' }, Sprite.HAT_NAMES[state.hat % Sprite.HATS_N] === 'No hat'
+      ? 'Pick a hat below' : Sprite.HAT_NAMES[state.hat % Sprite.HATS_N]));
+
+  deck.append(el('div', { class: 'two' },
+    el('section', { class: 'panel' }, show),
+    el('section', { class: 'panel' },
+      el('h2', {}, 'How you are doing'),
+      el('p', { class: 'sub' }, 'Coins come from playing — answering, getting them right, and keeping a run going.'),
+      B.figures([[state.games, 'games played'], [state.coins, 'coins now'],
+                 [state.lifetime, 'coins ever'], [ownedCount(state), 'things owned']]),
+      el('div', { style: 'margin-top:16px' }, B.levelTrack(5)))));
+
+  /* ── hats ─────────────────────────────────────────────── */
+  const hats = el('div', { class: 'hats' });
+  for (let h = 0; h < Sprite.HATS_N; h++) {
+    const info = P.partState('hat', h, { hat: Sprite.HATS_N }, state);
+    const card = el('button', { class: 'blook' + (info.owned ? '' : ' shut'), type: 'button',
+      'aria-pressed': String(h === state.hat),
+      title: info.owned ? 'Wear it' : info.levelReached ? `${info.cost} coins` : `Level ${info.needsLevel}` },
+      el('span', { class: 'art', html: Sprite.face(wearing, 62, h) }),
+      el('span', { class: 'nm' }, Sprite.HAT_NAMES[h]));
+    if (!info.owned) {
+      card.append(el('span', { class: 'price' + (info.canBuy ? '' : ' no') },
+        info.levelReached ? String(info.cost) : 'Lv ' + info.needsLevel));
+    }
+    card.onclick = () => {
+      if (info.owned) { P.wearHat(h); return again(); }
+      const out = P.buy('hat', h, { hat: Sprite.HATS_N });
+      if (!out.ok) { flash(out.why); return; }
+      P.wearHat(h);
+      again();
+    };
+    hats.append(card);
+  }
+
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'Hats'),
+    el('p', { class: 'sub' }, 'Buy one with coins, then tap it to put it on. Some of them wait for a level.'),
+    hats));
+
+  /* ── the blook wall ───────────────────────────────────── */
+  const wall = el('div', { class: 'wall' });
+  for (let n = 0; n < 48; n++) {
+    const idx = blookAt(n);
+    const info = P.partState('blook', n, { blook: 48 }, state);
+    const card = el('button', { class: 'blook' + (info.owned ? '' : ' shut'), type: 'button',
+      'aria-pressed': String(idx === wearing),
+      title: info.owned ? 'Play as this one' : info.levelReached ? `${info.cost} coins` : `Level ${info.needsLevel}` },
+      el('span', { class: 'art', html: Sprite.face(idx, 62, info.owned ? state.hat : 0) }),
+      el('span', { class: 'nm' }, blookName(idx)));
+    if (!info.owned) {
+      card.append(el('span', { class: 'price' + (info.canBuy ? '' : ' no') },
+        info.levelReached ? String(info.cost) : 'Lv ' + info.needsLevel));
+    }
+    card.onclick = () => {
+      if (info.owned) { P.remember(idx); return again(); }
+      const out = P.buy('blook', n, { blook: 48 });
+      if (!out.ok) { flash(out.why); return; }
+      P.remember(idx);
+      again();
+    };
+    wall.append(card);
+  }
+
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'Your blooks'),
+    el('p', { class: 'sub' }, `${countOwned(state, 'blook', 48)} of 48. Tap one you own to play as it.`),
+    wall,
+    el('p', { class: 'note' }, 'Everything you unlock is kept on this device and copied to your account, so it is here again next time you sign in.')));
+
+  /* ── practise ─────────────────────────────────────────── */
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'On your own'),
+    el('p', { class: 'sub' }, 'No game on? Revise with a homework code, or write a short quiz to test yourself.'),
+    el('div', { class: 'row wrap-r', style: 'gap:10px' },
+      el('a', { class: 'btn primary', href: 'https://hwquoldek.web.app/' }, 'Open a homework code'),
+      el('a', { class: 'btn', href: 'https://quoldek.web.app/studio.html' }, 'Write a short quiz'),
+      el('a', { class: 'btn ghost', href: 'https://quoldek.web.app/whatsnew.html' }, "What's new")),
+    el('p', { class: 'note' }, 'Quizzes you write are yours and stay in this browser. Your teacher does not see them unless you send them the link.')));
+
+  app.replaceChildren(
+    B.topbar({ name, role: 'student', face: Sprite.face(wearing, 38, state.hat) }),
+    deck);
+}
+
+/* Redraw after a purchase, and copy the new state up. Cheap enough to do whole:
+   the page is a few hundred nodes and a rebuild cannot leave half of it stale. */
+function again() {
+  draw();
+  try { NovaAccount.saveProgress(P.read()); } catch { /* not signed in */ }
+}
+
+function flash(why) {
+  const line = document.querySelector('.said');
+  if (!line) return;
+  line.textContent = why;
+  line.className = 'said bad';
+  setTimeout(() => { if (line.textContent === why) { line.textContent = ''; line.className = 'said'; } }, 2600);
+}
+
+const countOwned = (state, kind, n) => {
+  let owned = 0;
+  for (let i = 0; i < n; i++) if (P.partState(kind, i, { [kind]: n }, state).owned) owned++;
+  return owned;
+};
+const ownedCount = (state) =>
+  countOwned(state, 'blook', 48) + countOwned(state, 'hat', Sprite.HATS_N);
+
+/* A name for each blook, made from its own colour and silhouette rather than a
+   list, so adding a silhouette later does not mean writing 144 more names. */
+const HUES = ['Ruby', 'Coral', 'Amber', 'Honey', 'Lime', 'Mint', 'Jade', 'Teal', 'Sky', 'Indigo', 'Violet', 'Rose'];
+const KINDS = ['Bud', 'Pip', 'Tuft', 'Spike', 'Fluff', 'Bolt', 'Wisp', 'Nub', 'Crest', 'Fang', 'Frill', 'Pod'];
+function blookName(index) {
+  const p = Sprite.partsOf(index);
+  return HUES[p.colour % HUES.length] + ' ' + KINDS[p.shape % KINDS.length];
+}
+
+const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';
+function hello() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+/* Painted last, on purpose: draw() reaches every helper in this file, and a
+   const declared below a call that needs it is a page that throws on load. */
+if (B.guard('student')) draw();
+</script>
+</body>
+</html>

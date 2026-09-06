@@ -145,6 +145,7 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
     <div class="grow"></div>
     <span id="store-pill" class="chip hide-sm">checking</span>
     <span id="ai-pill" class="chip hide-sm">checking</span>
+    <a class="btn sm" href="/signin.html" id="top-in">Sign in</a>
     <a class="btn primary sm" href="#new" id="top-new">＋ New quiz</a>
   </div>
 </header>
@@ -233,18 +234,6 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
   </footer>
 </main>
 
-<script src="sprites.js?v=a7a8749e"></script>
-<script src="launch.js?v=b9d6e0d6"></script>
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
-<script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
-<script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2b1ca27f"></script>
-<script src="live.js?v=1cdb2620"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=ff127e8f"></script>
-<script src="qr.js?v=b8307384"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
@@ -254,6 +243,39 @@ window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
   : 'https://hwquoldek.web.app/';
+/* Somebody who has signed in has a board of their own, and this is not it.
+ *
+ * The check runs before anything else on the page so a returning teacher does
+ * not watch the hub paint and then jump. It leans on a remembered role for the
+ * instant answer and lets the account settle the matter behind it, because the
+ * remembered one can be stale — a shared laptop, a signed-out account — and a
+ * wrong redirect is worse than a short wait.
+ *
+ * ?stay=1 turns it off, which is how somebody signed in reaches the hub on
+ * purpose. The links on both boards carry it.
+ */
+(function () {
+  if (/[?&]stay=1/.test(location.search)) return;
+  let hint = '';
+  try { hint = localStorage.getItem('quoldek:role') || ''; } catch { /* private mode */ }
+  const to = { teacher: 'https://teachboard-quoldek.web.app/',
+               student: 'https://studentboard-quoldek.web.app/' }[hint];
+  if (to) location.replace(to);
+})();
+</script>
+<script src="sprites.js?v=6073d7a1"></script>
+<script src="launch.js?v=b9d6e0d6"></script>
+<script src="nova.js?v=30a2cc36"></script>
+<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="realtime.js?v=75e1623c"></script>
+<script src="arena.js?v=fb3b6182"></script>
+<script src="paste.js?v=3032c005"></script>
+<script src="rules.js?v=2b1ca27f"></script>
+<script src="live.js?v=1cdb2620"></script>
+<script src="nova-local.js?v=340f2f93"></script>
+<script src="account.js?v=00c10e3c"></script>
+<script src="qr.js?v=b8307384"></script>
+<script>
 const { $, api, el, esc, toast, modal, ago, classroomUrl, copy } = Nova;
 
 /* Interface icons are drawn, not typed: emoji change shape on every device. */

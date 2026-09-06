@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your board · Quoldek</title>
+<link href="fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
+<meta name="theme-color" content="#7C4DFF">
+<meta name="description" content="A teacher's board: start a live game, write a quiz, set homework, and see how the class is doing.">
+<meta name="category" content="Education">
+<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="boards.css?v=f6f648d2">
+</head>
+<body class="light">
+
+<div id="app"></div>
+
+<script src="sprites.js?v=6073d7a1"></script>
+<script src="progress.js?v=8177d194"></script>
+<script src="nova.js?v=30a2cc36"></script>
+<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="realtime.js?v=75e1623c"></script>
+<script src="arena.js?v=fb3b6182"></script>
+<script src="paste.js?v=3032c005"></script>
+<script src="rules.js?v=2b1ca27f"></script>
+<script src="live.js?v=1cdb2620"></script>
+<script src="nova-local.js?v=340f2f93"></script>
+<script src="account.js?v=00c10e3c"></script>
+
+
+
+<script src="boards.js?v=338a6c58"></script>
+<script>
+window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
+  : 'https://playquoldek.web.app/?pin=';
+window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
+  : 'https://hwquoldek.web.app/';
+/* The teacher's board.
+ *
+ * A teacher standing in front of a class has about four seconds before the room
+ * notices they are looking at a screen. So the first thing on this page is the
+ * one thing they came for — pick a game, pick a quiz, go — and everything else
+ * is underneath it.
+ *
+ * The quizzes shown are the ones in this browser. Signing in copies them up and
+ * back down, so the list is the same on the laptop at home, but the copy on the
+ * screen is always the local one: a board that waits for the network to draw is
+ * a board that is blank when the wifi is slow.
+ */
+const { el, esc, qs } = Nova;
+const global0 = () => window;
+const B = NovaBoards, P = NovaProgress, R = NovaRules;
+const app = document.getElementById('app');
+
+
+const MODE_TINT = {
+  normal: '#6C4CF1', laser: '#F4364C', kart: '#2BA8FF', tower: '#FF7A45',
+  treasure: '#FFC53D', boss: '#7C4DFF', snow: '#4FC3F7', balloon: '#FF5D73',
+  tug: '#12BE8E', heist: '#E8A400', cards: '#4F6BFF'
+};
+
+let chosen = { mode: 'normal', quiz: '' };
+
+function draw() {
+  const name = (NovaAccount.user && NovaAccount.user.name) || 'Teacher';
+  const quizzes = Object.values(Nova.allQuizzes ? Nova.allQuizzes() : {})
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const questions = quizzes.reduce((n, q) => n + ((q.questions || []).length), 0);
+  const state = P.read();
+
+  const deck = el('div', { class: 'deck' });
+
+  deck.append(el('div', { class: 'hi' },
+    el('h1', {}, hello() + ', ' + firstWord(name) + '.'),
+    el('p', {}, quizzes.length
+      ? `${quizzes.length} ${quizzes.length === 1 ? 'quiz' : 'quizzes'} ready, ${questions} questions between them.`
+      : 'Nothing written yet. The quickest way in is to paste something you already have.')));
+
+  /* ── start a game ─────────────────────────────────────── */
+  const modes = el('div', { class: 'modes' });
+  // launch.js is not on this page's list; if it ever is, it gets the last word
+  const all = Object.keys(R.MODES);
+  const open = global0().NovaLaunch ? NovaLaunch.openModes(all) : all;
+  Object.entries(R.MODES).forEach(([id, m]) => {
+    const locked = !open.includes(id);
+    const card = el('button', { class: 'mode' + (locked ? ' locked' : ''), type: 'button',
+      'aria-pressed': String(id === chosen.mode), disabled: locked,
+      style: `--c:${MODE_TINT[id] || '#6C4CF1'}`,
+      onclick: () => { chosen.mode = id; refreshModes(modes); } },
+      el('span', { class: 'ic', html: Sprite.icon(m.icon, 26, '#fff') }),
+      el('b', {}, m.label), el('span', {}, m.blurb));
+    if (locked) card.append(el('span', { class: 'lock' }, 'Soon'));
+    modes.append(card);
+  });
+
+  const pick = el('select', { class: 'select' });
+  pick.append(el('option', { value: '' }, quizzes.length ? 'Choose a quiz…' : 'No quizzes yet'));
+  quizzes.forEach(q => pick.append(el('option', { value: q.id },
+    `${q.title || 'Untitled'} · ${(q.questions || []).length} questions`)));
+  pick.onchange = () => { chosen.quiz = pick.value; };
+
+  const go = el('button', { class: 'btn primary lg' }, 'Start the live game');
+  const said = el('div', { class: 'said' });
+  go.onclick = () => {
+    if (!chosen.quiz) { said.textContent = 'Pick a quiz first.'; said.className = 'said bad'; return; }
+    location.href = 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(chosen.quiz)
+      + '&live=1&mode=' + encodeURIComponent(chosen.mode);
+  };
+
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'Put a game on the board'),
+    el('p', { class: 'sub' }, 'Pick how it plays, pick what it asks, and the room joins on their own devices.'),
+    modes,
+    el('div', { class: 'row wrap-r', style: 'margin-top:16px;gap:11px' },
+      el('div', { style: 'flex:1;min-width:220px' }, pick), go),
+    said));
+
+  /* ── quizzes and the rest ─────────────────────────────── */
+  const things = el('div', { class: 'things' });
+  if (!quizzes.length) {
+    things.append(el('div', { class: 'empty' }, 'Nothing here yet. Write one, or paste a list of questions and let Quoldek sort it out.'));
+  } else {
+    quizzes.slice(0, 9).forEach(q => things.append(
+      el('a', { class: 'thing', href: 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(q.id) },
+        el('b', {}, q.title || 'Untitled'),
+        el('span', {}, `${(q.questions || []).length} questions · edited ${Nova.ago ? Nova.ago(q.updatedAt) : 'recently'}`))));
+  }
+
+  const lv = P.levelFor(state.lifetime);
+  deck.append(el('div', { class: 'two' },
+    el('section', { class: 'panel' },
+      el('h2', {}, 'Your quizzes'),
+      el('p', { class: 'sub' }, 'Kept in this browser, and copied to your account so they follow you.'),
+      things,
+      el('div', { class: 'row wrap-r', style: 'margin-top:16px;gap:10px' },
+        el('a', { class: 'btn primary', href: 'https://quoldek.web.app/studio.html' }, 'Write a new quiz'),
+        el('a', { class: 'btn', href: 'https://quoldek.web.app/index.html?stay=1' }, 'All my quizzes'),
+        el('a', { class: 'btn ghost', href: 'https://quoldek.web.app/whatsnew.html' }, "What's new"))),
+
+    el('section', { class: 'panel' },
+      el('h2', {}, 'You, so far'),
+      el('p', { class: 'sub' }, lv.top ? 'Top level. Nothing left to unlock.'
+        : `${lv.toNext} more coins and you are level ${lv.level + 1}.`),
+      B.figures([[state.games, 'games played'], [quizzes.length, 'quizzes written'],
+                 [questions, 'questions asked'], [state.coins, 'coins']]),
+      el('div', { style: 'margin-top:16px' }, B.levelTrack(5)),
+      el('p', { class: 'note' }, 'Coins come from playing, not from teaching — host a game and join it on your own phone if you want to earn them.'))));
+
+  /* ── homework ─────────────────────────────────────────── */
+  deck.append(el('section', { class: 'panel' },
+    el('h2', {}, 'Set it as homework instead'),
+    el('p', { class: 'sub' }, 'Every quiz has a short code. A class types hwquoldek.web.app and the code, and it marks itself.'),
+    el('div', { class: 'row wrap-r', style: 'gap:10px' },
+      el('a', { class: 'btn', href: 'https://hwquoldek.web.app/' }, 'Open the homework site'),
+      el('a', { class: 'btn ghost', href: 'https://livequoldek.web.app/' }, 'Open a board by PIN'),
+      el('a', { class: 'btn ghost', href: 'https://playquoldek.web.app/' }, 'The join page'))));
+
+  app.replaceChildren(
+    B.topbar({ name, role: 'teacher', face: Sprite.face(faceFor(name), 38) }),
+    deck);
+}
+
+function refreshModes(modes) {
+  modes.querySelectorAll('.mode').forEach((n, i) => {
+    n.setAttribute('aria-pressed', String(Object.keys(NovaRules.MODES)[i] === chosen.mode));
+  });
+}
+
+const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';
+function hello() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+/* A face that is always the same face for the same name, so a teacher's own
+   picture on their own board does not change every time they open it. */
+function faceFor(name) {
+  let n = 0;
+  for (const ch of String(name)) n = (n * 31 + ch.charCodeAt(0)) % 100000;
+  return n;
+}
+
+/* Painted last, on purpose: draw() reaches every helper in this file, and a
+   const declared below a call that needs it is a page that throws on load. */
+if (B.guard('teacher')) draw();
+</script>
+</body>
+</html>

@@ -145,6 +145,7 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
     <div class="grow"></div>
     <span id="store-pill" class="chip hide-sm">checking</span>
     <span id="ai-pill" class="chip hide-sm">checking</span>
+    <a class="btn sm" href="/signin.html" id="top-in">Sign in</a>
     <a class="btn primary sm" href="#new" id="top-new">＋ New quiz</a>
   </div>
 </header>
@@ -233,6 +234,27 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
   </footer>
 </main>
 
+<script>
+/* Somebody who has signed in has a board of their own, and this is not it.
+ *
+ * The check runs before anything else on the page so a returning teacher does
+ * not watch the hub paint and then jump. It leans on a remembered role for the
+ * instant answer and lets the account settle the matter behind it, because the
+ * remembered one can be stale — a shared laptop, a signed-out account — and a
+ * wrong redirect is worse than a short wait.
+ *
+ * ?stay=1 turns it off, which is how somebody signed in reaches the hub on
+ * purpose. The links on both boards carry it.
+ */
+(function () {
+  if (/[?&]stay=1/.test(location.search)) return;
+  let hint = '';
+  try { hint = localStorage.getItem('quoldek:role') || ''; } catch { /* private mode */ }
+  const to = { teacher: 'https://teachboard-quoldek.web.app/',
+               student: 'https://studentboard-quoldek.web.app/' }[hint];
+  if (to) location.replace(to);
+})();
+</script>
 <script src="/sprites.js"></script>
 <script src="/launch.js"></script>
 <script src="/nova.js"></script>

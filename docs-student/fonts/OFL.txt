@@ -1,0 +1,10 @@
+Outfit (Copyright 2020 The Outfit Project Authors, https://github.com/Outfitio/Outfit-Fonts)
+Nunito  (Copyright 2014 The Nunito Project Authors, https://github.com/googlefonts/nunito)
+
+Both typefaces are licensed under the SIL Open Font License, Version 1.1.
+The full licence text is published at https://openfontlicense.org and is
+included with each project at the addresses above.
+
+In short: these font files may be used, studied, modified and redistributed
+freely, including inside this application, provided they are not sold on their
+own and any modified version is not released under the reserved font names.

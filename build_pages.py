@@ -36,8 +36,22 @@ HOMEWORK_OUT = os.path.join(ROOT, "docs-homework")
 # the whole link short enough to read off a board: hwquoldek.web.app/ab2c9k
 HOMEWORK_HOST = "hwquoldek.web.app"
 
-PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html"]
-ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+# And since 4.0 there are two more, because a teacher and a student want
+# different things the moment they sign in and a single page that tries to be
+# both is second best at each. Signing in decides which of these two you land
+# on, and it decides it against the account rather than this browser, so it is
+# the same answer on the laptop at home.
+TEACH_OUT = os.path.join(ROOT, "docs-teach")
+TEACH_HOST = "teachboard-quoldek.web.app"
+STUDENT_OUT = os.path.join(ROOT, "docs-student")
+STUDENT_HOST = "studentboard-quoldek.web.app"
+BOARD_ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
+                "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "paste.js",
+                "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
+
+PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html",
+         "signin.html", "teachboard.html", "studentboard.html"]
+ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -88,6 +102,11 @@ def build():
                             '<script src="account.js"></script>')
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')
+        html = html.replace('href="/boards.css"', 'href="boards.css"')
+        html = html.replace('<script src="/boards.js"></script>', '<script src="boards.js"></script>')
+        # the bundle inserted at /nova.js already carries these two
+        html = html.replace('<script src="/rules.js"></script>', '')
+        html = html.replace('<script src="/account.js"></script>', '')
         html = html.replace('href="/fonts.css"', 'href="fonts.css"')
         html = html.replace('href="/logo.svg"', 'href="logo.svg"')
 
@@ -155,6 +174,8 @@ def build():
     build_play(stamps)
     build_live(stamps)
     build_homework(stamps)
+    build_board(TEACH_OUT, TEACH_HOST, "teachboard.html", "the teacher's board")
+    build_board(STUDENT_OUT, STUDENT_HOST, "studentboard.html", "the student's board")
 
 
 def build_play(stamps):
@@ -218,6 +239,34 @@ def build_live(stamps):
     open(os.path.join(LIVE_OUT, ".nojekyll"), "w").close()
     print("built docs-live/:", ", ".join(sorted(os.listdir(LIVE_OUT))))
 
+
+
+def build_board(out, host, page, label):
+    """One of the two dashboards, as the root of its own address.
+
+    Built from docs/ rather than from static/ so it goes through exactly the
+    same rewrites as everything else and cannot drift from them. The links out
+    are absolute, because from here every other page is on another site.
+    """
+    os.makedirs(out, exist_ok=True)
+    for name in os.listdir(out):
+        path = os.path.join(out, name)
+        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+
+    copy_fonts(out)
+    for asset in BOARD_ASSETS:
+        src = os.path.join(SRC, asset)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(out, asset))
+
+    html = open(os.path.join(OUT, page), encoding="utf-8").read()
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(html)
+    # the sign-in page rides along on both boards, so a signed-out visitor who
+    # lands here directly is asked to sign in where they already are
+    signin = open(os.path.join(OUT, "signin.html"), encoding="utf-8").read()
+    open(os.path.join(out, "signin.html"), "w", encoding="utf-8").write(signin)
+    open(os.path.join(out, ".nojekyll"), "w").close()
+    print(f"built {os.path.basename(out)}/ ({label} at {host}):", ", ".join(sorted(os.listdir(out))))
 
 
 def build_homework(stamps):
