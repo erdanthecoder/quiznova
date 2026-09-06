@@ -134,6 +134,17 @@
 .mcard.gap{background:rgba(255,255,255,.1);border-style:dashed;border-color:rgba(255,255,255,.3)}
 
 /* a little track, tower, fort or bar, depending on the game */
+/* Fishing: three places to cast, priced in odds rather than in words, because a
+   child deciding whether to gamble needs the number and not an adjective. */
+.casts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px;width:100%}
+.cast{padding:9px 6px;border-radius:13px;font:inherit;color:inherit;cursor:pointer;
+  background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.14);
+  transition:transform .13s,border-color .13s,background .13s}
+.cast:hover{transform:translateY(-2px)}
+.cast b{display:block;font-size:.85rem;font-weight:900}
+.cast span{display:block;font-size:.68rem;font-weight:750;opacity:.72;margin-top:2px}
+.cast.on{background:rgba(43,168,255,.2);border-color:#2BA8FF;
+  box-shadow:0 0 0 3px rgba(43,168,255,.22)}
 .minitrack{width:100%;height:22px;border-radius:99px;background:rgba(0,0,0,.32);position:relative;
   border:1px solid var(--line-soft);overflow:hidden}
 .minitrack i{position:absolute;top:2px;bottom:2px;left:2px;border-radius:99px;
@@ -290,6 +301,7 @@
 <script src="/launch.js"></script>
 <script src="/progress.js"></script>
 <script src="/arena.js"></script>
+<script src="/rules.js"></script>
 <script src="/nova.js"></script>
 <script>
 const { $, api, el, esc, qs, toast, stream, store, confetti, SHAPES, modal } = Nova;
@@ -818,6 +830,55 @@ function askArenaQuestion() {
   });
 }
 
+/* Factory's one decision, on the phone where the player is.
+ *
+ * A machine is bought with coins already earned, and every machine after the
+ * first costs more, so buying is a real trade: the coins spent are points given
+ * up now for points that arrive whether you answer or not. The button says the
+ * price rather than making anybody work it out. */
+function buildButton() {
+  const cost = NovaRules.machineCost(me);
+  const can = (me.coins || 0) >= cost;
+  const btn = el('button', { class: 'btn' + (can ? ' primary' : ''), disabled: !can },
+    can ? `Build a machine · ${cost}` : `${cost - (me.coins || 0)} more coins for a machine`);
+  btn.onclick = () => {
+    btn.disabled = true;
+    api(`/games/${pin}/build`, { method: 'POST', body: { playerId: me.id } })
+      .then(out => {
+        if (!out || out.ok === false) { toast(out && out.why ? out.why : 'Not enough coins.', 'bad'); btn.disabled = false; return; }
+        if (out.view) apply(out.view);
+      })
+      .catch(err => { toast(err.message, 'bad'); btn.disabled = false; });
+  };
+  return btn;
+}
+
+/* Fishing's one decision. Chosen before the answer and kept until it is changed,
+ * so a child who picks the deep water and gets three wrong in a row can feel it
+ * — which is the game. */
+function castPicker() {
+  const spots = NovaRules.SPOTS;
+  const here = spots[me.target] ? me.target : 'shallows';
+  const row = el('div', { class: 'casts' });
+  Object.entries(spots).forEach(([id, spot]) => {
+    const odds = Math.round(spot.odds * 100);
+    const btn = el('button', { class: 'cast' + (id === here ? ' on' : ''), type: 'button',
+      title: `${odds} times in a hundred you catch something` },
+      el('b', {}, spot.label.replace('The ', '')),
+      el('span', {}, `${spot.low}–${spot.high} · ${odds}%`));
+    btn.onclick = () => {
+      if (id === here) return;
+      row.querySelectorAll('.cast').forEach(n => n.classList.remove('on'));
+      btn.classList.add('on');
+      api(`/games/${pin}/cast`, { method: 'POST', body: { playerId: me.id, spot: id } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(err => toast(err.message, 'bad'));
+    };
+    row.append(btn);
+  });
+  return el('div', {}, el('span', { class: 'cap' }, 'Where are you casting?'), row);
+}
+
 /* Your own side of whatever game is being played, under the question.
  *
  * The board shows the whole class; this shows only you, because a child looking
@@ -873,6 +934,34 @@ function stagePanel() {
     box.append(el('span', { class: 'cap' }, `${held.length} of 8 cards`), hand,
                me.spares ? el('span', { class: 'cap' }, `${me.spares} spare — three trades for one you need`)
                          : el('span', {}));
+  } else if (game.mode === 'volcano') {
+    const gap = Math.round((me.height || 0) - (game.lava || 0));
+    box.append(el('span', { class: 'cap' },
+                 me.safe ? (gap > 40 ? 'Well clear of it' : 'The lava is close')
+                         : 'The lava has you — climb!'),
+      el('div', { class: 'rowline' },
+        el('span', { class: 'mini-face', html: Sprite.icon('flame', 40, me.safe ? '#FF7A45' : '#F4364C') }),
+        el('span', { class: 'big-num' }, String(Math.round(me.height || 0)))),
+      el('div', { class: 'minitrack' },
+        el('i', { style: `width:${Math.max(3, Math.min(100, 50 + gap / 2))}%;` +
+                         `background:${me.safe ? 'linear-gradient(90deg,#12BE8E,#FFC53D)' : '#F4364C'}` })),
+      el('span', { class: 'cap' }, me.safe ? `${gap} above the lava` : `${-gap} under it`));
+  } else if (game.mode === 'factory') {
+    box.append(el('span', { class: 'cap' }, 'Your factory'),
+      el('div', { class: 'rowline' },
+        el('span', { class: 'mini-face', html: Sprite.icon('coin', 40, '#FFC53D') }),
+        el('span', { class: 'big-num' }, String(me.coins || 0))),
+      el('span', { class: 'cap' },
+        `${me.machines || 0} machine${me.machines === 1 ? '' : 's'}`
+        + (me.output ? ` · they paid you ${me.output} last round` : '')),
+      buildButton());
+  } else if (game.mode === 'fishing') {
+    box.append(el('span', { class: 'cap' }, 'Your catch'),
+      el('div', { class: 'rowline' },
+        el('span', { class: 'mini-face', html: Sprite.icon('drop', 40, '#2BA8FF') }),
+        el('span', { class: 'big-num' }, String(me.weight || 0))),
+      me.catch ? el('span', { class: 'cap' }, me.catch) : el('span', {}),
+      castPicker());
   } else if (game.mode === 'treasure') {
     box.append(el('span', { class: 'cap' }, 'Your coins'),
       el('div', { class: 'rowline' },

@@ -211,6 +211,57 @@
 .figure.knocked{filter:grayscale(1) brightness(.62)}
 .figure.knocked .tag{background:rgba(10,7,20,.6);color:var(--faint)}
 
+/* ── Volcano Climb: a wall, seen from the side ────────────
+ * The one board that is not a floor. The whole game is a single axis, so a
+ * top-down arena would be a picture of nothing; a wall with a line coming up it
+ * is the game itself. */
+.wall3d{position:relative;height:100%;min-height:300px;border-radius:26px;overflow:hidden;
+  background:linear-gradient(180deg,#1A1030 0%,#2A1436 55%,#3A1420 100%)}
+.wall3d .rock{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(115deg,rgba(255,255,255,.05) 1px,transparent 1px),
+                   linear-gradient(65deg,rgba(0,0,0,.35) 1px,transparent 1px);
+  background-size:56px 74px,74px 56px}
+.wall3d .lava{position:absolute;left:0;right:0;bottom:0;
+  background:linear-gradient(180deg,#FF7A45,#F4364C 40%,#7A0F1E);
+  box-shadow:0 -14px 40px rgba(255,122,69,.55);transition:height 1s var(--ease)}
+.wall3d .lava .lip{position:absolute;left:0;right:0;top:-7px;height:14px;border-radius:50%;
+  background:linear-gradient(180deg,#FFD86B,#FF7A45);filter:blur(2px);
+  animation:bubble 2.6s ease-in-out infinite}
+@keyframes bubble{50%{transform:translateY(-4px) scaleY(1.25)}}
+.wall3d .lava .lvl{position:absolute;right:14px;top:8px;font-size:.74rem;font-weight:900;
+  letter-spacing:.05em;color:#3A0A12;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.wall3d .climber{position:absolute;margin-left:-24px;display:flex;flex-direction:column;
+  align-items:center;gap:2px;transition:bottom 1s var(--ease);z-index:2}
+.wall3d .climber .tag{font-size:.7rem;font-weight:800;white-space:nowrap;padding:2px 7px;
+  border-radius:99px;background:rgba(10,7,20,.78);border:1px solid rgba(255,255,255,.16)}
+.wall3d .climber.lead .tag{background:var(--sun);color:#1b1330;border-color:#0b0718}
+.wall3d .climber.caught{filter:saturate(.4) brightness(.7);animation:flail .7s ease-in-out infinite}
+@keyframes flail{50%{transform:translateX(4px) rotate(5deg)}}
+
+/* ── Factory: a shop floor rather than an arena ───────────
+ * One line per player, because what is being compared is what they have built,
+ * and a row of sheds compares at a glance in a way a scatter of figures does not. */
+.floorplan{display:flex;flex-direction:column;gap:9px;overflow:auto;padding-right:2px}
+.bay{display:flex;align-items:center;gap:11px;padding:9px 13px;border-radius:16px;
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.09)}
+.bay.lead{border-color:var(--sun);background:rgba(255,197,61,.12)}
+.bay .nm{font-weight:850;font-size:.95rem;min-width:6.5ch;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.bay .sheds{flex:1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:30px}
+.bay .machine{width:30px;height:26px;border-radius:5px 5px 3px 3px;display:grid;place-items:center;
+  background:linear-gradient(180deg,#FFD86B,#E8A400);border:2px solid #7A4F00;
+  box-shadow:0 3px 0 #7A4F00;animation:clank 2.4s ease-in-out infinite}
+@keyframes clank{50%{transform:translateY(-3px)}}
+.bay .takings{font-weight:900;font-size:1.05rem;text-align:right;min-width:7ch}
+.bay .takings em{display:block;font-style:normal;font-size:.7rem;font-weight:800;color:var(--mint)}
+
+/* ── Fishing: bands of water running away from the camera ─ */
+.floor.water{background:linear-gradient(0deg,rgba(9,6,22,0) 40%,rgba(9,6,22,.8) 96%),
+  linear-gradient(180deg,#0A2E52,#062038 45%,#04121F)}
+.floor .band{position:absolute;left:0;right:0;height:2px;background:rgba(255,255,255,.16)}
+.floor .band span{position:absolute;left:12px;top:-15px;font-size:.66rem;font-weight:900;
+  letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+
 /* maps: the same arena, dressed differently */
 .map-hall,.map-arena,.map-city,.map-site,.map-cave,.map-lair{--floor:linear-gradient(180deg,#2A2547,#151129)}
 .map-space{--floor:linear-gradient(180deg,#131A4A,#05060F)}
@@ -231,6 +282,14 @@
 .map-fair{--floor:linear-gradient(180deg,#6B4A2A,#22160C)}
 .map-clouds{--floor:linear-gradient(180deg,#3C5A86,#101828)}
 .map-night{--floor:linear-gradient(180deg,#241C50,#080614)}
+.map-crater{--floor:linear-gradient(180deg,#5E2318,#180806)}
+.map-ashfall{--floor:linear-gradient(180deg,#3E3A3E,#100E12)}
+.map-obsidian{--floor:linear-gradient(180deg,#2A2436,#08060C)}
+.map-works{--floor:linear-gradient(180deg,#4A4436,#141210)}
+.map-foundry{--floor:linear-gradient(180deg,#5A3220,#160C08)}
+.map-orbital{--floor:linear-gradient(180deg,#1E2A52,#06080F)}
+.map-pier{--floor:linear-gradient(180deg,#0A3A5E,#04141F)}
+.map-reef{--floor:linear-gradient(180deg,#0E5468,#031C24)}
 .scene.map-space{filter:hue-rotate(200deg) saturate(.9)}
 .scene.map-jungle{filter:hue-rotate(80deg) saturate(1.2)}
 .scene.map-bunker{filter:saturate(.5) brightness(.92)}
@@ -512,7 +571,7 @@
 
 <main class="stage" id="stage"></main>
 
-<script src="sprites.js?v=6073d7a1"></script>
+<script src="sprites.js?v=756a85b1"></script>
 <script src="music.js?v=ede898c4"></script>
 
 <script src="nova.js?v=30a2cc36"></script>
@@ -520,8 +579,8 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2b1ca27f"></script>
-<script src="live.js?v=1cdb2620"></script>
+<script src="rules.js?v=69bf1ad8"></script>
+<script src="live.js?v=b7190675"></script>
 <script src="nova-local.js?v=340f2f93"></script>
 <script src="account.js?v=00c10e3c"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -1014,7 +1073,8 @@ function extraInto(host) {
   if (!host) return;
   const views = { laser: arena, kart: raceTrack, tower: skyline, treasure: treasureBoard,
                   boss: bossArena, snow: snowField, balloon: balloonField,
-                  tug: tugField, heist: heistBoard, cards: cardTable };
+                  tug: tugField, heist: heistBoard, cards: cardTable,
+                  volcano: volcanoWall, factory: factoryFloor, fishing: fishingLake };
   const view = views[game.mode];
   // laser and boss carry their own standings, so a table underneath would repeat them
   if (view) host.append(view());
@@ -1162,6 +1222,79 @@ const CARD_ICON = { star: 'star', moon: 'moon', leaf: 'leaf', flame: 'flame',
                     drop: 'drop', bolt: 'bolt', gem: 'gem', crown: 'crown' };
 const CARD_COLOUR = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
                       drop: '#2BA8FF', bolt: '#F4364C', gem: '#7C4DFF', crown: '#E5A02A' };
+
+/* Volcano Climb. A wall seen from the side rather than a floor seen from above,
+ * because the whole game is one axis — how high you are — and the lava is a line
+ * across it that everybody can see coming.
+ *
+ * Everything is placed as a percentage of the highest climber, so the wall
+ * rescales as the room climbs and the leader is always near the top. That means
+ * the lava line appears to *chase*, which is what it is doing. */
+function volcanoWall() {
+  const highest = Math.max(40, game.lava || 0, ...game.players.map(p => p.height || 0));
+  const up = (n) => Math.max(2, Math.min(92, (n || 0) / highest * 88 + 4));
+  const wall = el('div', { class: 'wall3d' });
+  wall.append(el('div', { class: 'rock' }),
+              el('div', { class: 'lava', style: `height:${up(game.lava)}%` },
+                 el('span', { class: 'lip' }),
+                 el('span', { class: 'lvl' }, 'Lava · ' + Math.round(game.lava || 0))));
+
+  game.players.slice(0, 14).forEach((p, i) => {
+    const lane = 5 + (i % 7) * 13.5 + (i > 6 ? 6 : 0);
+    wall.append(el('div', { class: 'climber' + (p.safe ? '' : ' caught') + (i === 0 ? ' lead' : ''),
+      'data-id': p.id, style: `left:${lane}%;bottom:${up(p.height)}%` },
+      el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 46) }),
+      el('span', { class: 'tag' }, `${p.name} · ${Math.round(p.height || 0)}`)));
+  });
+  if (!game.players.length) wall.append(el('p', { class: 'faint tiny' }, 'Nobody on the wall yet.'));
+  return wall;
+}
+
+/* Factory. What matters here is not where anybody is standing but what they have
+ * built, so this is a shop floor: a row of machines per player, and the payout
+ * they made last round said out loud. */
+function factoryFloor() {
+  const box = el('div', { class: 'floorplan' });
+  game.players.slice(0, 12).forEach((p, i) => {
+    const line = el('div', { class: 'bay' + (i === 0 ? ' lead' : ''), 'data-id': p.id });
+    const shed = el('div', { class: 'sheds' });
+    for (let n = 0; n < Math.min(10, p.machines || 0); n++) {
+      shed.append(el('i', { class: 'machine', style: `animation-delay:${n * 90}ms`,
+                            html: Sprite.icon('bricks', 16, '#1B1233') }));
+    }
+    if (!p.machines) shed.append(el('span', { class: 'faint tiny' }, 'no machines yet'));
+    line.append(
+      el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 40) }),
+      el('span', { class: 'nm' }, p.name),
+      shed,
+      el('span', { class: 'takings' }, `${p.coins || 0}`,
+         p.output ? el('em', {}, `+${p.output}/round`) : ''));
+    box.append(line);
+  });
+  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'Nobody has opened a factory yet.'));
+  return box;
+}
+
+/* Fishing Frenzy. Three bands of water running away from the camera — the
+ * shallows nearest, the deep furthest — and everybody standing in the band they
+ * cast into, so the room can see who is gambling. */
+function fishingLake() {
+  const BANDS = [['shallows', 'The shallows', 14], ['channel', 'The channel', 45], ['deep', 'The deep', 76]];
+  return stage((world, floor) => {
+    floor.classList.add('water');
+    BANDS.forEach(([id, label, y]) => {
+      floor.append(el('div', { class: 'band', style: `top:${100 - y - 12}%` },
+        el('span', {}, label)));
+    });
+    game.players.slice(0, 14).forEach((p, i) => {
+      const band = BANDS.find(b => b[0] === (p.target || 'shallows')) || BANDS[0];
+      const x = 8 + (i % 7) * 12.5;
+      world.append(standing(p, x, band[2] + (i > 6 ? 7 : 0),
+        `${p.name} · ${p.weight || 0}`, i === 0 ? ' lead' : ''));
+    });
+    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody has cast a line yet.'));
+  });
+}
 
 function treasureBoard() {
   const richest = Math.max(1, ...game.players.map(p => p.coins || 0));
@@ -1312,6 +1445,9 @@ const unitFor = (p) => game.mode === 'kart' ? `${p.distance || 0}m`
   : game.mode === 'treasure' ? `${p.coins || 0} coins`
   : game.mode === 'snow' ? `${p.hits || 0} blocks`
   : game.mode === 'balloon' ? `${p.score} · ${p.balloons || 0} left`
+  : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
+  : game.mode === 'factory' ? `${p.coins || 0} · ${p.machines || 0} machine${p.machines === 1 ? '' : 's'}`
+  : game.mode === 'fishing' ? `${p.weight || 0} caught`
   : String(p.score);
 
 /* Who climbed and who slipped. The comparison is against where everyone stood at
@@ -1461,7 +1597,10 @@ function overView() {
     const win = { kart: `${top[0].distance}m driven`, tower: `${top[0].blocks} blocks high`,
                   heist: `${top[0].coins} gold`, cards: `${(top[0].cards || []).length} of 8 cards`,
                   tug: `pulled ${top[0].hits}`,
-                  treasure: `${top[0].coins} coins` }[game.mode];
+                  treasure: `${top[0].coins} coins`,
+                  volcano: `${Math.round(top[0].height || 0)} up the wall`,
+                  factory: `${top[0].coins} banked from ${top[0].machines || 0} machines`,
+                  fishing: `${top[0].weight || 0} caught` }[game.mode];
     headline = `${top[0].name} wins`;
     sub = win || `${top[0].score} points`;
   }

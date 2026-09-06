@@ -22,7 +22,10 @@
     balloon:  { label: 'Balloon Drop', icon: 'balloon', blurb: 'Three balloons each. Get one wrong and one pops' },
     tug:      { label: 'Tug of War',   icon: 'rope', blurb: 'Two teams, one rope. Every right answer pulls it your way' },
     heist:    { label: 'Gold Heist',   icon: 'coin', blurb: 'Every right answer opens a chest — and some of them rob somebody' },
-    cards:    { label: 'Card Collector', icon: 'cards', blurb: 'Win a card for every right answer. First to all eight' }
+    cards:    { label: 'Card Collector', icon: 'cards', blurb: 'Win a card for every right answer. First to all eight' },
+    volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Climb, and keep climbing — the lava is rising under everyone' },
+    factory:  { label: 'Factory',       icon: 'bricks', blurb: 'Buy machines with what you earn. They pay you every round after' },
+    fishing:  { label: 'Fishing Frenzy', icon: 'drop', blurb: 'Cast near or far. The deep water pays more and gives less' }
   };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
    * it changes what the board looks like, not how the scoring works. */
@@ -37,7 +40,10 @@
     balloon:  [['fair', 'Summer Fair'], ['clouds', 'Above the Clouds'], ['night', 'Night Sky']],
     tug:      [['field', 'Sports Field'], ['deck', 'Ship Deck'], ['lowg', 'Low Gravity']],
     heist:    [['mine', 'Old Mine'], ['bank', 'The Bank'], ['island', 'Treasure Island']],
-    cards:    [['attic', 'The Attic'], ['market', 'Card Market'], ['museum', 'The Museum']]
+    cards:    [['attic', 'The Attic'], ['market', 'Card Market'], ['museum', 'The Museum']],
+    volcano:  [['crater', 'The Crater'], ['ashfall', 'Ashfall'], ['obsidian', 'Obsidian Cliffs']],
+    factory:  [['works', 'The Works'], ['foundry', 'Foundry'], ['orbital', 'Orbital Yard']],
+    fishing:  [['pier', 'The Old Pier'], ['reef', 'Coral Reef'], ['ice', 'Ice Hole']]
   };
   /* How a game finishes. Playing every question is the default, but a class with
    * ten minutes left before lunch wants the clock to decide, and a race to a
@@ -349,6 +355,70 @@
                            + (fort.blocks ? '' : ' — it is down!'));
     },
 
+    /* Volcano Climb: everybody on one wall, with the lava coming up under all
+     * of them. A right answer climbs, a wrong one costs a little ground, and
+     * anyone the lava has passed is marked unsafe rather than removed — they can
+     * climb back out, and the board shows them trying. */
+    volcano(game, p, q, ok, speed) {
+      if (ok) {
+        const climb = Math.round(CLIMB_PER * (0.45 + 0.55 * speed) * streakBonus(game, p));
+        p.height += climb;
+        p.lastGain = climb;
+        if (p.streak >= 3) game.lastEvents.push(`${p.name} is going up fast`);
+      } else {
+        const slip = Math.round(CLIMB_PER * 0.35);
+        p.height = Math.max(0, p.height - slip);
+        p.lastGain = 0;
+        game.lastEvents.push(`${p.name} slipped ${slip}`);
+      }
+      const wasSafe = p.safe;
+      p.safe = p.height >= (game.lava || 0);
+      if (wasSafe && !p.safe) game.lastEvents.push(`The lava caught ${p.name}`);
+      if (!wasSafe && p.safe) game.lastEvents.push(`${p.name} climbed back out`);
+      // the score is the height, so every board and every table already sorts it
+      p.score = p.height;
+    },
+
+    /* Factory: answering earns, and what is earned can be spent on machines that
+     * earn again. The buying happens between questions on the phone, so all this
+     * has to do is pay for the answer itself. */
+    factory(game, p, q, ok, speed) {
+      if (!ok) { p.lastGain = 0; return; }
+      const base = pointsFor(game, q);
+      const gain = Math.round((base * 0.35 + base * 0.35 * speed) * streakBonus(game, p));
+      p.coins += gain;
+      p.lastGain = gain;
+      p.score = p.coins + p.output * 3;   // a machine is worth something in itself
+    },
+
+    /* Fishing Frenzy: the answer decides whether the line comes up at all, and
+     * where it was cast decides what is on it. A wrong answer is a lost cast,
+     * not a lost fish, so the deep water is only worth it if you know the work. */
+    fishing(game, p, q, ok, speed) {
+      const spot = SPOTS[p.target] ? p.target : 'shallows';
+      const where = SPOTS[spot];
+      if (!ok) {
+        p.catch = 'The line came up empty';
+        p.lastGain = 0;
+        return;
+      }
+      if (Math.random() > where.odds) {
+        p.catch = 'Caught ' + JUNK[Math.floor(Math.random() * JUNK.length)];
+        p.lastGain = 0;
+        return;
+      }
+      const spread = where.high - where.low;
+      const big = Math.random() < where.big;
+      const weight = Math.round((where.low + spread * (0.4 + 0.6 * speed)) * (big ? 2.6 : 1));
+      const kind = FISH[Math.min(FISH.length - 1, Math.floor(weight / 40))];
+      p.weight += weight;
+      p.best_catch = Math.max(p.best_catch, weight);
+      p.catch = (big ? 'Landed a monster ' : 'Landed ') + kind + ` — ${weight}`;
+      p.lastGain = weight;
+      p.score = p.weight;
+      if (big) game.lastEvents.push(`${p.name} landed ${kind} out of ${where.label.toLowerCase()}`);
+    },
+
     /* Balloon Drop: three balloons each, and a wrong answer pops one. Being out
      * has to still be worth watching, so a child with no balloons left keeps
      * answering for points — they simply cannot win it any more. */
@@ -386,6 +456,38 @@
     }
   };
 
+  /* ── Volcano Climb ──
+   * Everyone climbs the same wall and the lava climbs with them, at a rate set
+   * by how well the room as a whole is doing: a class that is getting them right
+   * gets a harder game, which is the only way a shared threat can stay a threat.
+   * Being caught is not being out — a caught climber keeps answering to get back
+   * above it — because a child watching the last four minutes has stopped
+   * learning anything. */
+  const CLIMB_PER = 14;          // the most one very fast right answer gains
+  const LAVA_BASE = 5;           // the least it rises in a round
+  const LAVA_CHASE = 7;          // and how much of the room's average it adds
+
+  /* ── Factory ──
+   * The one game with a decision in it that is not "answer faster". Coins buy
+   * machines; machines pay out at the end of every round whether you answered or
+   * not. Buying early costs you the lead and wins you the game, which is a real
+   * trade and the reason this mode exists. */
+  const MACHINE_COST = 120;      // what the first machine costs
+  const MACHINE_STEP = 60;       // and how much more each one after it costs
+  const MACHINE_YIELD = 34;      // what each machine pays every round
+
+  /* ── Fishing Frenzy ──
+   * Cast near or far, chosen on the phone before the question. Near water almost
+   * always gives you something small; deep water often gives you nothing at all
+   * and sometimes gives you the fish that wins the game. */
+  const SPOTS = {
+    shallows: { label: 'The shallows', odds: 0.92, low: 12, high: 30, big: 0.04 },
+    channel:  { label: 'The channel',  odds: 0.68, low: 30, high: 70, big: 0.12 },
+    deep:     { label: 'The deep',     odds: 0.42, low: 70, high: 150, big: 0.26 }
+  };
+  const FISH = ['a minnow', 'a perch', 'a bream', 'a pike', 'a carp', 'a catfish', 'a sturgeon'];
+  const JUNK = ['an old boot', 'a bag of weed', 'a rusty can', 'nothing at all', 'a lost sock'];
+
   const BOSS_NAMES = ['Professor Puzzle', 'The Grumbling Grammarian', 'Baron Blunder',
                       'Countess Confusion', 'The Number Nibbler', 'Sir Slipsalot'];
   /* A fresh player, with every game's own state on them from the start, so no
@@ -394,12 +496,78 @@
     id: row.id, name: row.name, avatar: Number(row.avatar) || 0, team: row.team || 'red',
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, distance: 0, blocks: 0, coins: 0, chest: '', lastGain: 0, target: '',
-    balloons: BALLOONS, hits: 0, cards: [], spares: 0
+    balloons: BALLOONS, hits: 0, cards: [], spares: 0,
+    height: 0, safe: true, machines: 0, output: 0, catch: '', weight: 0, best_catch: 0
   });
 
   /* Some games end themselves before the questions run out: a fort falls, a boss
    * dies, a rope crosses the line, somebody completes the set. Asked in one place
    * so the website, the app and the Flask edition cannot drift apart on it. */
+  /* What happens between the questions.
+   *
+   * Three of the games have something that moves on its own — lava that rises
+   * whether anybody climbed or not, machines that pay out whether their owner
+   * answered or not — and that has to happen once per round, in one place. Doing
+   * it inside a scorer would run it once per player, which is a different game
+   * with ten in the room than with two.
+   *
+   * Called the moment a round closes, before the reveal is drawn.
+   */
+  function afterRound(game) {
+    if (!game || !game.players) return;
+    const everyone = Object.values(game.players);
+
+    if (game.mode === 'volcano') {
+      // the lava chases the room: the better everybody is doing, the faster it
+      // comes, so a strong class is not simply strolling up a wall
+      const average = everyone.length
+        ? everyone.reduce((n, p) => n + (p.height || 0), 0) / everyone.length : 0;
+      const rise = Math.round(LAVA_BASE + (average - (game.lava || 0)) * (LAVA_CHASE / 100));
+      game.lava = Math.max(0, (game.lava || 0) + Math.max(LAVA_BASE, rise));
+      everyone.forEach(p => {
+        const wasSafe = p.safe;
+        p.safe = (p.height || 0) >= game.lava;
+        if (wasSafe && !p.safe) game.lastEvents.push(`The lava caught ${p.name}`);
+      });
+    }
+
+    if (game.mode === 'factory') {
+      everyone.forEach(p => {
+        if (!p.machines) return;
+        const paid = p.machines * MACHINE_YIELD;
+        p.coins += paid;
+        p.output = paid;
+        p.score = p.coins + p.output * 3;
+      });
+      const busiest = everyone.filter(p => p.machines > 0)
+        .sort((a, b) => b.machines - a.machines)[0];
+      if (busiest) {
+        game.lastEvents.push(`${busiest.name}'s ${busiest.machines} machine`
+          + (busiest.machines === 1 ? '' : 's') + ` paid out ${busiest.machines * MACHINE_YIELD}`);
+      }
+    }
+
+    game.lastEvents = game.lastEvents.slice(-6);
+  }
+
+  /* Buying a machine, which is the one thing a player does between questions
+   * rather than during one. Priced so the second is dearer than the first: a
+   * runaway leader who can buy five in a round is not a game.
+   *
+   * Returns what happened, so the phone can say it without knowing the prices.
+   */
+  function buyMachine(game, p) {
+    if (!game || game.mode !== 'factory' || !p) return { ok: false, why: 'Not that kind of game.' };
+    const cost = MACHINE_COST + MACHINE_STEP * (p.machines || 0);
+    if ((p.coins || 0) < cost) return { ok: false, why: `${cost - (p.coins || 0)} more coins needed`, cost };
+    p.coins -= cost;
+    p.machines = (p.machines || 0) + 1;
+    p.score = p.coins + (p.output || 0) * 3;
+    game.lastEvents.push(`${p.name} built machine number ${p.machines}`);
+    return { ok: true, cost, machines: p.machines, next: MACHINE_COST + MACHINE_STEP * p.machines };
+  }
+  const machineCost = (p) => MACHINE_COST + MACHINE_STEP * ((p && p.machines) || 0);
+
   function modeFinished(game) {
     if (game.mode === 'snow') {
       return ['red', 'blue'].some(side => game.teams[side].max && game.teams[side].blocks <= 0);
@@ -408,6 +576,12 @@
     if (game.mode === 'tug') return Math.abs(game.rope || 0) >= ROPE_LENGTH;
     if (game.mode === 'cards') {
       return Object.values(game.players).some(p => (p.cards || []).length >= CARD_SET.length);
+    }
+    /* Volcano Climb ends when the lava has everybody, which is a real ending
+     * rather than a countdown: the room can see it coming and can stop it. */
+    if (game.mode === 'volcano') {
+      const everyone = Object.values(game.players);
+      return everyone.length > 0 && everyone.every(p => !p.safe);
     }
     return false;
   }
@@ -418,6 +592,8 @@
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
+    afterRound, buyMachine, machineCost, SPOTS, FISH, JUNK,
+    CLIMB_PER, LAVA_BASE, LAVA_CHASE, MACHINE_COST, MACHINE_STEP, MACHINE_YIELD,
     TRACK_LENGTH, BOSS_HP_PER_QUESTION, FORT_BLOCKS, BALLOONS, MAX_PLAYER_HIT,
     ROPE_LENGTH, CARD_SET, SPARES_PER_SWAP
   };

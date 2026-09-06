@@ -393,7 +393,44 @@
       '<path d="M27 41l3.4 7 7.6.8-5.7 5 1.7 7.5L27 57.6 20 61.3l1.7-7.5-5.7-5 7.6-.8z" fill="#FFC53D"/>' +
       '<path d="M61 38c7 2 10 8 8 14s-9 8-15 5c6 1 10-3 11-8s-1-9-4-11z" fill="#4F6BFF"/>' +
       '<path d="M95 38c7 4 9 12 4 18-4 5-11 4-13-1 4 2 8 0 9-4s0-9-1-13z" fill="#F4364C"/>' +
-      '<rect y="88" width="160" height="12" fill="#DCCFF5"/>'
+      '<rect y="88" width="160" height="12" fill="#DCCFF5"/>',
+    volcano:
+      '<rect width="160" height="100" fill="#2B1030"/>' +
+      '<path d="M0 100 L44 26 L70 60 L96 18 L160 100z" fill="#3E2033"/>' +
+      '<path d="M0 100 L44 26 L58 44 L36 100z" fill="#4E2A3C"/>' +
+      '<path d="M0 100h160V74c-16 4-30-4-46-2s-24 8-40 6-24-8-38-6z" fill="#F4364C"/>' +
+      '<path d="M0 100h160V84c-14 3-28-3-44-1s-22 7-38 5-24-7-38-5z" fill="#FF7A45"/>' +
+      '<circle cx="96" cy="14" r="5" fill="#FFD86B"/><circle cx="112" cy="24" r="3.4" fill="#FF9A3D"/>' +
+      '<circle cx="82" cy="26" r="2.6" fill="#FFD86B"/>' +
+      '<circle cx="52" cy="48" r="8" fill="#12BE8E"/><circle cx="49" cy="45" r="2.4" fill="#fff"/>' +
+      '<circle cx="106" cy="56" r="8" fill="#4F6BFF"/><circle cx="103" cy="53" r="2.4" fill="#fff"/>',
+    factory:
+      '<rect width="160" height="100" fill="#E7E2D2"/>' +
+      '<rect y="76" width="160" height="24" fill="#C9C2AC"/>' +
+      '<g stroke="#2A2140" stroke-width="2">' +
+      '<rect x="14" y="44" width="34" height="32" rx="3" fill="#FFC53D"/>' +
+      '<rect x="56" y="34" width="34" height="42" rx="3" fill="#FF7A45"/>' +
+      '<rect x="98" y="50" width="34" height="26" rx="3" fill="#2BA8FF"/>' +
+      '<rect x="24" y="28" width="9" height="18" rx="2" fill="#8C86A6"/>' +
+      '<rect x="66" y="16" width="9" height="20" rx="2" fill="#8C86A6"/></g>' +
+      '<circle cx="30" cy="22" r="6" fill="#fff" opacity=".75"/>' +
+      '<circle cx="40" cy="14" r="4.5" fill="#fff" opacity=".6"/>' +
+      '<circle cx="72" cy="9" r="6" fill="#fff" opacity=".7"/>' +
+      '<circle cx="115" cy="40" r="8" fill="#12BE8E"/><circle cx="112" cy="37" r="2.4" fill="#fff"/>' +
+      '<path d="M28 58h8v8h-8zM38 58h8v8h-8z" fill="#E8A400"/>',
+    fishing:
+      '<rect width="160" height="100" fill="#BFE6FF"/>' +
+      '<circle cx="132" cy="20" r="13" fill="#FFD86B"/>' +
+      '<rect y="44" width="160" height="56" fill="#2B7FBF"/>' +
+      '<path d="M0 44h160v6c-14 4-26-2-40 0s-22 6-36 4-24-6-40-4-30 4-44 0z" fill="#4FA8DE"/>' +
+      '<rect x="10" y="34" width="46" height="8" rx="2" fill="#8B5A34"/>' +
+      '<rect x="14" y="42" width="6" height="24" fill="#6E441F"/><rect x="46" y="42" width="6" height="24" fill="#6E441F"/>' +
+      '<circle cx="32" cy="24" r="9" fill="#F4364C"/><circle cx="29" cy="21" r="2.6" fill="#fff"/>' +
+      '<path d="M40 26 L96 40" stroke="#2A2140" stroke-width="1.6" fill="none"/>' +
+      '<circle cx="96" cy="42" r="3" fill="#F6F2FF" stroke="#2A2140" stroke-width="1.6"/>' +
+      '<path d="M104 66c8-6 18-6 24 0-6 6-16 6-24 0z" fill="#FFC53D"/>' +
+      '<path d="M128 66l8-5v10z" fill="#E8A400"/><circle cx="110" cy="65" r="1.6" fill="#2A2140"/>' +
+      '<path d="M62 78c6-4 13-4 18 0-5 4-12 4-18 0z" fill="#12BE8E"/><path d="M80 78l6-4v8z" fill="#0C8E6A"/>'
   };
 
   function scene(name, width = 160) {

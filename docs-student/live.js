@@ -68,6 +68,7 @@
   const R = global.NovaRules || (typeof require === 'function' ? require('./rules.js') : null);
   const { MODES, MAPS, GOALS, SCORERS, mapsFor, defaultMap, readGoal, goalReached,
           grade, blankPlayer, pickBossName, readSetup, secondsFor, arrange, modeFinished,
+          afterRound, buyMachine, machineCost, SPOTS,
           TRACK_LENGTH, BOSS_HP_PER_QUESTION, FORT_BLOCKS, BALLOONS } = R;
 
 
@@ -130,7 +131,7 @@
       // their phone needs the set. A child who digs into the page can read the
       // answers; the same is true of every game of this shape.
       quiz: game.mode === 'laser' && game.state === 'arena' ? questions : null,
-      setup: game.setup || null, rope: game.rope || 0,
+      setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
       boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES.normal,
       goal: game.goal || { kind: 'questions', value: 0 },
       startedAt: game.startedAt || 0, music: game.music !== false
@@ -208,7 +209,7 @@
       if (modeFinished(game)) {
         game.state = 'over'; game.endsAt = null; changed = true;
       } else if (everyone.length && everyone.every(p => p.answered)) {
-        game.state = 'reveal'; game.endsAt = null; changed = true;
+        game.state = 'reveal'; game.endsAt = null; afterRound(game); changed = true;
       } else if (game.endsAt && now() >= game.endsAt) {
         game.state = 'reveal'; game.endsAt = null;
         everyone.forEach(p => {
@@ -221,6 +222,7 @@
             game.lastEvents.push(`${p.name} ran out of time — ${p.balloons} balloon${p.balloons === 1 ? '' : 's'} left`);
           }
         });
+        afterRound(game);
         changed = true;
       }
     }
@@ -419,6 +421,16 @@
         for (const p of Object.values(game.players)) p.balloons = BALLOONS;
       }
       if (game.mode === 'tug') game.rope = 0;
+      if (game.mode === 'volcano') {
+        game.lava = 0;
+        for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
+      }
+      if (game.mode === 'factory') {
+        for (const p of Object.values(game.players)) { p.coins = 0; p.machines = 0; p.output = 0; }
+      }
+      if (game.mode === 'fishing') {
+        for (const p of Object.values(game.players)) { p.weight = 0; p.target = 'shallows'; p.catch = ''; }
+      }
       if (game.mode === 'cards') {
         for (const p of Object.values(game.players)) { p.cards = []; p.spares = 0; }
       }
@@ -431,8 +443,26 @@
       await writeGame(pin, game);
       return publicView(game);
     }
+    /* Factory's one decision, and Fishing's. Both happen between questions and
+     * both are the player's own, so neither needs the host token — but both are
+     * checked against the game's own state rather than trusting what arrived. */
+    if (tail === '/build') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const out = buyMachine(game, p);
+      if (out.ok) await writeGame(pin, game);
+      return Object.assign({ view: publicView(game) }, out);
+    }
+    if (tail === '/cast') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const where = SPOTS[body && body.spot] ? body.spot : 'shallows';
+      p.target = where;
+      await writeGame(pin, game);
+      return { ok: true, spot: where, view: publicView(game) };
+    }
     if (tail === '/next') {
-      if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; }
+      if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }
       else openQuestion(game);
       await writeGame(pin, game);
       return publicView(game);

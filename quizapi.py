@@ -889,6 +889,12 @@ MODES = {
                  "blurb": "Every right answer opens a chest — and some of them rob somebody"},
     "cards":    {"label": "Card Collector", "icon": "cards", "teams": False,
                  "blurb": "Win a card for every right answer. First to all eight"},
+    "volcano":  {"label": "Volcano Climb", "icon": "flame", "teams": False,
+                 "blurb": "Climb, and keep climbing — the lava is rising under everyone"},
+    "factory":  {"label": "Factory", "icon": "bricks", "teams": False,
+                 "blurb": "Buy machines with what you earn. They pay you every round after"},
+    "fishing":  {"label": "Fishing Frenzy", "icon": "drop", "teams": False,
+                 "blurb": "Cast near or far. The deep water pays more and gives less"},
 }
 
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -905,6 +911,9 @@ MAPS = {
     "tug":      [("field", "Sports Field"), ("deck", "Ship Deck"), ("lowg", "Low Gravity")],
     "heist":    [("mine", "Old Mine"), ("bank", "The Bank"), ("island", "Treasure Island")],
     "cards":    [("attic", "The Attic"), ("market", "Card Market"), ("museum", "The Museum")],
+    "volcano":  [("crater", "The Crater"), ("ashfall", "Ashfall"), ("obsidian", "Obsidian Cliffs")],
+    "factory":  [("works", "The Works"), ("foundry", "Foundry"), ("orbital", "Orbital Yard")],
+    "fishing":  [("pier", "The Old Pier"), ("reef", "Coral Reef"), ("ice", "Ice Hole")],
 }
 
 
@@ -958,6 +967,9 @@ def mode_finished(game):
         return abs(game.get("rope", 0)) >= ROPE_LENGTH
     if mode == "cards":
         return any(len(p.get("cards") or []) >= len(CARD_SET) for p in game["players"].values())
+    if mode == "volcano":
+        everyone = list(game["players"].values())
+        return bool(everyone) and all(not p.get("safe") for p in everyone)
     return False
 
 
@@ -1043,6 +1055,29 @@ ROPE_LENGTH = 100            # how far a team must drag the rope to win
 # eight cards to collect. Shapes rather than pictures of things, so they draw at
 # any size and mean the same in any language.
 CARD_SET = ["star", "moon", "leaf", "flame", "drop", "bolt", "gem", "crown"]
+
+# Volcano Climb: how far one very fast right answer gets you, the least the lava
+# rises in a round, and how much of the room's average it adds on top — so a
+# class that is doing well gets a harder game. Mirrors static/rules.js.
+CLIMB_PER = 14
+LAVA_BASE = 5
+LAVA_CHASE = 7
+
+# Factory: what the first machine costs, how much dearer each one after it is,
+# and what each pays every round.
+MACHINE_COST = 120
+MACHINE_STEP = 60
+MACHINE_YIELD = 34
+
+# Fishing Frenzy: near water almost always gives you something small; the deep
+# often gives you nothing and sometimes gives you the fish that wins the game.
+SPOTS = {
+    "shallows": {"label": "The shallows", "odds": 0.92, "low": 12, "high": 30, "big": 0.04},
+    "channel":  {"label": "The channel", "odds": 0.68, "low": 30, "high": 70, "big": 0.12},
+    "deep":     {"label": "The deep", "odds": 0.42, "low": 70, "high": 150, "big": 0.26},
+}
+FISH = ["a minnow", "a perch", "a bream", "a pike", "a carp", "a catfish", "a sturgeon"]
+JUNK = ["an old boot", "a bag of weed", "a rusty can", "nothing at all", "a lost sock"]
 SPARES_PER_SWAP = 3          # duplicates a child can trade for a card they need
 
 # Characters are numbers drawn by sprites.js in the browser: 12 colours x 12
@@ -1155,6 +1190,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "goal": game.get("goal") or {"kind": "questions", "value": 0},
         "setup": game.get("setup"),
         "rope": game.get("rope", 0),
+        "lava": game.get("lava", 0),
         "startedAt": game.get("startedAt", 0),
         "music": game.get("music") is not False,
         "modeInfo": MODES.get(game["mode"], MODES["normal"]),
@@ -1273,6 +1309,14 @@ def join_game(pin):
             "hits": 0,              # snowball fight: blocks knocked off
             "cards": [],            # card collector: the set so far
             "spares": 0,            # and duplicates waiting to be traded
+            "height": 0,            # volcano climb: how far up the wall
+            "safe": True,           # and whether the lava has passed them
+            "machines": 0,          # factory: what they have built
+            "output": 0,            # and what it paid last round
+            "target": "",           # fishing: where the line is cast
+            "catch": "",            # what came up
+            "weight": 0,            # and the total on the scales
+            "best_catch": 0,
             "lastGain": 0,
             "answers": {},
         }
@@ -1391,6 +1435,21 @@ def start_game(pin):
                 p["balloons"] = BALLOONS
         if game["mode"] == "tug":
             game["rope"] = 0
+        if game["mode"] == "volcano":
+            game["lava"] = 0
+            for p in game["players"].values():
+                p["height"] = 0
+                p["safe"] = True
+        if game["mode"] == "factory":
+            for p in game["players"].values():
+                p["coins"] = 0
+                p["machines"] = 0
+                p["output"] = 0
+        if game["mode"] == "fishing":
+            for p in game["players"].values():
+                p["weight"] = 0
+                p["catch"] = ""
+                p["target"] = "shallows"
         if game["mode"] == "cards":
             for p in game["players"].values():
                 p["cards"] = []
@@ -1704,11 +1763,134 @@ def score_cards(game, player, question, ok, speed):
     player["score"] = len(player["cards"]) * 100 + player.get("spares", 0) * 10
 
 
+def score_volcano(game, player, question, ok, speed):
+    """Volcano Climb. Everybody on one wall with the lava coming up under all of
+    them; being caught is not being out. Mirrors SCORERS.volcano in rules.js."""
+    if ok:
+        climb = round(CLIMB_PER * (0.45 + 0.55 * speed) * streak_bonus(game, player))
+        player["height"] = player.get("height", 0) + climb
+        player["lastGain"] = climb
+        if player.get("streak", 0) >= 3:
+            game["lastEvents"].append(f"{player['name']} is going up fast")
+    else:
+        slip = round(CLIMB_PER * 0.35)
+        player["height"] = max(0, player.get("height", 0) - slip)
+        player["lastGain"] = 0
+        game["lastEvents"].append(f"{player['name']} slipped {slip}")
+
+    was_safe = player.get("safe", True)
+    player["safe"] = player["height"] >= game.get("lava", 0)
+    if was_safe and not player["safe"]:
+        game["lastEvents"].append(f"The lava caught {player['name']}")
+    if not was_safe and player["safe"]:
+        game["lastEvents"].append(f"{player['name']} climbed back out")
+    player["score"] = player["height"]
+
+
+def score_factory(game, player, question, ok, speed):
+    """Factory. Answering earns; the machines are bought between questions and
+    paid out in after_round. Mirrors SCORERS.factory in rules.js."""
+    if not ok:
+        player["lastGain"] = 0
+        return
+    base = points_for(game, question)
+    gain = round((base * 0.35 + base * 0.35 * speed) * streak_bonus(game, player))
+    player["coins"] = player.get("coins", 0) + gain
+    player["lastGain"] = gain
+    player["score"] = player["coins"] + player.get("output", 0) * 3
+
+
+def score_fishing(game, player, question, ok, speed):
+    """Fishing Frenzy. The answer decides whether the line comes up at all; where
+    it was cast decides what is on it. Mirrors SCORERS.fishing in rules.js."""
+    spot = player.get("target") if player.get("target") in SPOTS else "shallows"
+    where = SPOTS[spot]
+    if not ok:
+        player["catch"] = "The line came up empty"
+        player["lastGain"] = 0
+        return
+    if random.random() > where["odds"]:
+        player["catch"] = "Caught " + random.choice(JUNK)
+        player["lastGain"] = 0
+        return
+    spread = where["high"] - where["low"]
+    big = random.random() < where["big"]
+    weight = round((where["low"] + spread * (0.4 + 0.6 * speed)) * (2.6 if big else 1))
+    kind = FISH[min(len(FISH) - 1, weight // 40)]
+    player["weight"] = player.get("weight", 0) + weight
+    player["best_catch"] = max(player.get("best_catch", 0), weight)
+    player["catch"] = ("Landed a monster " if big else "Landed ") + kind + f" — {weight}"
+    player["lastGain"] = weight
+    player["score"] = player["weight"]
+    if big:
+        game["lastEvents"].append(
+            f"{player['name']} landed {kind} out of {where['label'].lower()}")
+
+
+def after_round(game):
+    """What happens between the questions.
+
+    Lava rises whether anybody climbed or not; machines pay out whether their
+    owner answered or not. Once per round, in one place — inside a scorer it
+    would run once per player, which is a different game with ten in the room
+    than with two. Mirrors after_round in static/rules.js.
+    """
+    everyone = list(game.get("players", {}).values())
+
+    if game.get("mode") == "volcano":
+        average = (sum(p.get("height", 0) for p in everyone) / len(everyone)) if everyone else 0
+        rise = round(LAVA_BASE + (average - game.get("lava", 0)) * (LAVA_CHASE / 100))
+        game["lava"] = max(0, game.get("lava", 0) + max(LAVA_BASE, rise))
+        for p in everyone:
+            was_safe = p.get("safe", True)
+            p["safe"] = p.get("height", 0) >= game["lava"]
+            if was_safe and not p["safe"]:
+                game["lastEvents"].append(f"The lava caught {p['name']}")
+
+    if game.get("mode") == "factory":
+        for p in everyone:
+            if not p.get("machines"):
+                continue
+            paid = p["machines"] * MACHINE_YIELD
+            p["coins"] = p.get("coins", 0) + paid
+            p["output"] = paid
+            p["score"] = p["coins"] + p["output"] * 3
+        busiest = max((p for p in everyone if p.get("machines")),
+                      key=lambda p: p["machines"], default=None)
+        if busiest:
+            n = busiest["machines"]
+            game["lastEvents"].append(
+                f"{busiest['name']}'s {n} machine{'' if n == 1 else 's'} paid out {n * MACHINE_YIELD}")
+
+    game["lastEvents"] = game["lastEvents"][-6:]
+
+
+def machine_cost(player):
+    return MACHINE_COST + MACHINE_STEP * player.get("machines", 0)
+
+
+def buy_machine(game, player):
+    """Priced so the second is dearer than the first: a runaway leader who can
+    buy five in a round is not a game. Mirrors buyMachine in static/rules.js."""
+    if game.get("mode") != "factory":
+        return {"ok": False, "why": "Not that kind of game."}
+    cost = machine_cost(player)
+    if player.get("coins", 0) < cost:
+        return {"ok": False, "why": f"{cost - player.get('coins', 0)} more coins needed", "cost": cost}
+    player["coins"] -= cost
+    player["machines"] = player.get("machines", 0) + 1
+    player["score"] = player["coins"] + player.get("output", 0) * 3
+    game["lastEvents"].append(f"{player['name']} built machine number {player['machines']}")
+    return {"ok": True, "cost": cost, "machines": player["machines"],
+            "next": MACHINE_COST + MACHINE_STEP * player["machines"]}
+
+
 SCORERS = {
     "normal": score_normal, "laser": score_laser, "kart": score_kart,
     "tower": score_tower, "treasure": score_treasure, "boss": score_boss,
     "snow": score_snow, "balloon": score_balloon,
     "tug": score_tug, "heist": score_heist, "cards": score_cards,
+    "volcano": score_volcano, "factory": score_factory, "fishing": score_fishing,
 }
 
 
@@ -1759,6 +1941,7 @@ def answer_question(pin):
         elif everyone_in:
             game["state"] = "reveal"
             game["endsAt"] = None
+            after_round(game)
         snapshot = public_game(game)
     publish(f"game:{pin}", "game:state", snapshot)
     return jsonify({"correct": ok, "score": player["score"], "hp": player["hp"],
@@ -1767,6 +1950,47 @@ def answer_question(pin):
                     "coins": player.get("coins", 0), "chest": player.get("chest", ""),
                     "balloons": player.get("balloons", 0), "hits": player.get("hits", 0),
                     "gain": player.get("lastGain", 0)})
+
+
+@api.post("/games/<pin>/build")
+def build_machine(pin):
+    """Factory's one decision, made between questions by the player themselves.
+
+    No host token: it is the player's own coins. It is still checked against the
+    game's own state rather than against what arrived in the body.
+    """
+    body = request.get_json(silent=True) or {}
+    with _lock:
+        game, err = game_or_404(pin)
+        if err:
+            return err
+        player = game["players"].get(body.get("playerId"))
+        if not player:
+            return jsonify({"error": "Join the game first."}), 404
+        out = buy_machine(game, player)
+        snapshot = public_game(game)
+    if out.get("ok"):
+        publish(f"game:{pin}", "game:state", snapshot)
+    return jsonify(dict(out, view=snapshot))
+
+
+@api.post("/games/<pin>/cast")
+def cast_line(pin):
+    """Fishing's one decision. Kept until it is changed, so a child who picks the
+    deep water and then gets three wrong in a row can feel it."""
+    body = request.get_json(silent=True) or {}
+    with _lock:
+        game, err = game_or_404(pin)
+        if err:
+            return err
+        player = game["players"].get(body.get("playerId"))
+        if not player:
+            return jsonify({"error": "Join the game first."}), 404
+        where = body.get("spot") if body.get("spot") in SPOTS else "shallows"
+        player["target"] = where
+        snapshot = public_game(game)
+    publish(f"game:{pin}", "game:state", snapshot)
+    return jsonify({"ok": True, "spot": where, "view": snapshot})
 
 
 @api.post("/games/<pin>/end")
