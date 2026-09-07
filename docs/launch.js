@@ -220,8 +220,24 @@
       return finish;
     }
 
+    /* A cutscene covers the whole page, so it must never be able to become a
+     * black rectangle nobody can get out of. Every frame is guarded: if drawing
+     * throws — a browser without some canvas call, an image that will not
+     * decode, anything — the piece gives up and hands the page back rather than
+     * sitting there. And it always ends, even if the timeline never reaches its
+     * own last mark. */
+    const guarded = (fn) => (t) => {
+      try { fn(t); }
+      catch (err) { finish(); }
+    };
     const run = which === 'garden' ? growGarden : flyRocket;
-    run({ ctx, canvas, shell, word, cards, finish, frame: (fn) => { raf = requestAnimationFrame(fn); } });
+    try {
+      run({ ctx, canvas, shell, word, cards, finish,
+            frame: (fn) => { raf = requestAnimationFrame(guarded(fn)); } });
+    } catch (err) { finish(); return finish; }
+
+    // the hard stop: whatever happens inside, it is over by then
+    setTimeout(finish, which === 'garden' ? 34000 : 9000);
     return finish;
   }
 
