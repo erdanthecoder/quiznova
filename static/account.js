@@ -269,11 +269,26 @@
   /* Send somebody to their own board — but never off a board they are already
    * on, or a slow profile fetch would bounce the page while they were reading
    * it. Returns true if it is leaving. */
+  /* Send somebody to their own board — and tell the board who they are on the
+   * way in.
+   *
+   * The boards are separate addresses, and browser storage is per-origin: the
+   * session created by signing in on quoldek.web.app does not exist on
+   * teachboard-quoldek.web.app, and neither does anything remembered alongside
+   * it. Without a handover the board finds nobody, sends them back to sign in,
+   * and the two pages pass a signed-in teacher between them for ever.
+   *
+   * The role rides in the fragment rather than the query, so it is never sent
+   * to a server or written into a log. It is not a credential and is not
+   * treated as one — it decides which of two pages to draw, and the board
+   * strips it from the address as soon as it has read it.
+   */
   function sendToBoard(role) {
-    const where = boardFor(role || (profile && profile.role) || roleHint());
+    const which = role || (profile && profile.role) || roleHint();
+    const where = boardFor(which);
     if (!where) return false;
     try { if (location.href.indexOf(where) === 0) return false; } catch { }
-    location.replace(where);
+    location.replace(where + '#as=' + encodeURIComponent(which));
     return true;
   }
 
