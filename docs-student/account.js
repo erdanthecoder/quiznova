@@ -187,14 +187,39 @@
   /* ── the profile ──────────────────────────────────────────
    * One row, fetched once per page. A person with no row yet has not chosen a
    * role, which is exactly what the sign-in page needs to know to ask. */
+  /* A request with a deadline.
+   *
+   * A page that waits on the network needs the network to be able to say no.
+   * A request that fails is handled everywhere; a request that simply never
+   * answers — a cold function, a school proxy that swallows the connection —
+   * was leaving people on a spinner with nothing to read and nothing to press,
+   * which is the worst thing this file could do to somebody.
+   */
+  async function fetchBy(url, options, ms) {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, ms);
+    try {
+      return await fetch(url, ctrl ? Object.assign({}, options, { signal: ctrl.signal }) : options);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function profileCall(method, body) {
     const t = await token();
     if (!t) throw new Error('Not signed in.');
-    const res = await fetch(WHO, {
-      method,
-      headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined
-    });
+    let res;
+    try {
+      res = await fetchBy(WHO, {
+        method,
+        headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      }, 8000);
+    } catch (err) {
+      throw new Error(String(err && err.name) === 'AbortError'
+        ? 'Your account is taking too long to answer.'
+        : 'Could not reach your account.');
+    }
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || 'Could not reach your account.');
     return out;
@@ -291,12 +316,16 @@
 
     if (user || roleHint()) { firebase(); return; }
 
-    let settled = false;
-    const done = () => { settled = true; off(); };
-    const off = onChange((who) => {
+    /* onChange calls back once, straight away, before it has returned the
+       function that cancels it — so the handle is a `let` that is checked, not
+       a `const` that would still be in its dead zone. */
+    let settled = false, off = null;
+    const done = () => { settled = true; if (off) off(); };
+    off = onChange((who) => {
       if (settled) return;
       if (who) done();
     });
+    if (settled && off) off();
     // nothing stored and nobody signed in: ask the library, and give it a moment
     firebase().then(() => {
       setTimeout(() => {

@@ -110,14 +110,34 @@ function nextStop() {
     const ok = /(^|\.)quoldek\.web\.app$/.test(url.hostname)
       || /^(teachboard|studentboard|play|live|hw)-?quoldek\.web\.app$/.test(url.hostname)
       || url.hostname === location.hostname;
-    return ok ? url.href : '';
+    if (!ok) return '';
+
+    /* Never back to the door.
+     *
+     * `next` is for returning to a page somebody was actually trying to use —
+     * a quiz in the studio, a board. It must never be the hub root or this
+     * page, because those are the two places that send people *here*: obeying
+     * it hands them straight back to a page that asks for an account and then
+     * decides using a remembered role. When that memory does not stick — a
+     * locked-down school browser, private mode, partitioned storage — the two
+     * pages pass somebody between them for ever, and all they see is the
+     * spinner. Which is exactly what happened.
+     */
+    const path = url.pathname.replace(/\/+$/, '');
+    if (path === '' || /\/(index|signin)\.html$/.test(url.pathname)) return '';
+    return url.href;
   } catch { return ''; }
 }
 
 function leave(role) {
   const back = nextStop();
   if (back) { location.replace(back); return; }
-  if (!NovaAccount.sendToBoard(role)) location.replace('/');
+  /* Knowing the role, the board is the answer. sendToBoard only declines when
+     we are already on that board, and then there is nowhere left to send
+     anybody — so say so rather than reloading the same page again. */
+  if (NovaAccount.sendToBoard(role)) return;
+  const pane = document.querySelector('.pane');
+  if (pane) say(pane, 'You are signed in. Use the links above to carry on.', 'good');
 }
 
 /* ── the shell ────────────────────────────────────────────── */
@@ -351,11 +371,14 @@ function googleMark() {
    * to tell the page it was wrong. This page's one job is to know who is here,
    * so it waits for an answer rather than assuming one.
    */
-  let settled = false;
-  const done = (fn) => { if (settled) return; settled = true; off(); fn(); };
-  const off = NovaAccount.onChange((user) => {
+  /* onChange calls back once, straight away, before it has returned the
+     function that cancels it — so the handle is a `let` that is checked. */
+  let settled = false, off = null;
+  const done = (fn) => { if (settled) return; settled = true; if (off) off(); fn(); };
+  off = NovaAccount.onChange((user) => {
     if (user) done(() => afterSignIn(null));
   });
+  if (settled && off) off();
   NovaAccount.wake().catch(() => { /* the library never arrived */ });
 
   // long enough for a session to be recognised, short enough that nobody with
@@ -363,6 +386,24 @@ function googleMark() {
   setTimeout(() => done(() => paint(shell(signInPane()))), 2600);
   // and a hard stop, in case the library hangs rather than fails
   setTimeout(() => done(() => paint(shell(signInPane()))), 7000);
+
+  /* The backstop.
+   *
+   * Everything above hands off to something else — the library, the account,
+   * the board — and any of those can decide to take for ever. This one asks a
+   * different question: is the spinner still on the screen? It cannot be called
+   * off by a branch that thought it had finished and then hung, which is
+   * exactly how somebody signed in ended up staring at "One moment…" with no
+   * way out. Whatever else fails, there is a form here in ten seconds.
+   */
+  setTimeout(() => {
+    if (!document.querySelector('.hold')) return;
+    settled = true;
+    if (off) off();
+    paint(shell(signInPane()));
+    const pane = document.querySelector('.pane');
+    if (pane) say(pane, 'Your account was slow to answer. Sign in again to carry on.', 'bad');
+  }, 10000);
 })();
 </script>
 </body>
