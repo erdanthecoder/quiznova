@@ -483,9 +483,17 @@
    */
   async function stats() {
     if (!URL_BASE || !PUBLISHABLE) return null;
+    /* Only games written to recently. Counting every row in the table was
+       counting litter: a game that a class walked away from stays there until
+       the hourly sweep removes it, and before that sweep existed the table held
+       31 rows going back a week while one game was actually on. A live game
+       writes on every question, so an hour of silence means it is over whether
+       or not anybody pressed the button. */
+    const fresh = new Date(Date.now() - 3600e3).toISOString();
     const [totals, live] = await Promise.all([
       rest('GET', '/quoldek_totals?id=eq.all&select=games,players,started_on'),
-      rest('GET', '/quiznova_live_games?select=pin', undefined, { prefer: 'count=exact' })
+      rest('GET', '/quiznova_live_games?select=pin&updated_at=gte.'
+                  + encodeURIComponent(fresh), undefined, { prefer: 'count=exact' })
         .catch(() => [])
     ]);
     const row = (totals && totals[0]) || null;
