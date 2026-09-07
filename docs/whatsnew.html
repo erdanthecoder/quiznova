@@ -398,7 +398,7 @@ footer a{color:var(--grape)}
 </div>
 
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=64e07ace"></script>
+<script src="launch.js?v=484f4248"></script>
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
@@ -480,10 +480,11 @@ function tick() {
     clock.textContent = 'It is here';
     sub.textContent = 'Everything below is live. Open Quoldek and have a look.';
     // whoever is watching the clock when it strikes gets the reveal
-    if (window.NovaLaunch && !NovaLaunch.seen(VERSION)) {
+    if (window.NovaLaunch && NovaLaunch.showing(VERSION) && !NovaLaunch.seen(VERSION)) {
       NovaLaunch.markSeen(VERSION);
       NovaLaunch.reveal(VERSION, {});
     }
+    hideReplay();
     return;
   }
   const s = Math.floor(left / 1000);
@@ -494,6 +495,17 @@ function tick() {
   setTimeout(tick, 1000);
 }
 tick();
+
+/* The button that plays it again, while there is still something to play. On
+   the 10th the reveal retires and so does its button — an offer that does
+   nothing when pressed is worse than no offer. */
+function hideReplay() {
+  const btn = document.getElementById('replay');
+  if (!btn) return;
+  const alive = window.NovaLaunch && NovaLaunch.showing(VERSION);
+  btn.parentElement.hidden = !alive;
+}
+hideReplay();
 
 document.getElementById('replay').onclick = () =>
   window.NovaLaunch && NovaLaunch.reveal(VERSION, {});

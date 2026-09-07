@@ -329,7 +329,7 @@ function paintWho() {
 }
 </script>
 <script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=64e07ace"></script>
+<script src="launch.js?v=484f4248"></script>
 <script src="nova.js?v=30a2cc36"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
@@ -377,7 +377,10 @@ function watchLaunch() {
   /* Whichever release is next, rather than the first one for ever. Every
      release that has already landed and was never watched is shown once, oldest
      first, so a browser that was closed all evening still gets the moment. */
-  const missed = NovaLaunch.RELEASES.filter(r => NovaLaunch.live(r.version) && !NovaLaunch.seen(r.version));
+  /* Only while the reveal is still worth playing. A release that landed last
+     month is not news, and thirty seconds between a teacher and their lesson is
+     not a gift. */
+  const missed = NovaLaunch.RELEASES.filter(r => NovaLaunch.showing(r.version) && !NovaLaunch.seen(r.version));
   if (missed.length) return go(missed[missed.length - 1].version);
 
   const soon = NovaLaunch.next();

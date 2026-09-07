@@ -37,6 +37,13 @@
       version: '4.0',
       // 7 September 2026, four in the afternoon, wherever the reader is
       at: new Date(2026, 8, 7, 16, 0, 0),
+      /* And the reveal stops being shown on the 10th.
+       *
+       * A cutscene is an event, not a feature. It belongs to the few days when
+       * the update is news; after that it is thirty seconds between a teacher
+       * and the lesson they came to run. The update itself does not expire —
+       * only the film about it. */
+      until: new Date(2026, 8, 10, 0, 0, 0),
       modes: ['volcano', 'factory', 'fishing'],
       // hats past the free few wait for the update as well; the plain ones do not,
       // so nobody opens the hat shelf on the day and finds it locked end to end
@@ -65,6 +72,14 @@
 
   /** The next release nobody has seen yet, or null once they are all out. */
   const next = (at) => RELEASES.find(r => stamp(at) < r.at.getTime()) || null;
+
+  /** Is this release's reveal still worth playing? Open, and not yet stale. */
+  function showing(version, at) {
+    const r = find(version);
+    const now = stamp(at);
+    if (now < r.at.getTime()) return false;
+    return !r.until || now < r.until.getTime();
+  }
 
   /* Everything still behind a gate, at this moment. */
   function heldModes(at) {
@@ -140,11 +155,16 @@
   global.NovaLaunch = {
     RELEASES, AT, NEW_MODES, NEW_THINGS,
     out, until, live, untilVersion, next, openModes, heldModes, hatOpen,
-    seen, markSeen,
+    seen, markSeen, showing,
     rocket: (opts) => show('rocket', opts),
     garden: (opts) => show('garden', opts),
-    /** The reveal that belongs to a release, by name. */
-    reveal: (version, opts) => show(find(version).show, Object.assign({ version }, opts))
+    /* The reveal that belongs to a release, by name — and nothing at all once
+       its few days are up. The caller is told it is done, so a page waiting on
+       it carries on rather than hanging about for a film that will not play. */
+    reveal(version, opts) {
+      if (!showing(version)) { (opts && opts.onDone || function () {})(); return function () {}; }
+      return show(find(version).show, Object.assign({ version }, opts));
+    }
   };
 
   /* ══ the reveals ══════════════════════════════════════════
