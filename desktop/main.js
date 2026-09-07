@@ -1,20 +1,10 @@
 /* Quoldek for Windows.
  *
- * Since 4.0 the app is the website. It opens quoldek.web.app, so a teacher gets
- * the same account, the same board, the same quizzes and the same games as on
- * any other machine, and an update reaches them the moment it ships rather than
- * whenever they next install something.
- *
- * The one thing that still works without a connection is writing questions.
- * That is the job somebody does at a kitchen table on a Sunday, and it should
- * not need the internet to be reachable — so when there is no connection the
- * app opens its own copy of the studio, from this computer, and the quizzes go
- * into the same folder they always did. Everything else — live games, the
- * boards, joining a room — needs to be online, because it is a thing several
- * devices do together and there is nothing to be together with otherwise.
- *
- * The local server is still here and still serves that offline studio. It is no
- * longer the front door.
+ * The app is not a browser pointed at the website. It runs the whole thing on
+ * this computer: the pages, the quizzes and the live game all come from here,
+ * and the phones in the room join over the school's own wifi. Nothing needs the
+ * internet, which is the point — school wifi is unreliable and school firewalls
+ * block things, and neither can stop a lesson that never leaves the building.
  */
 const { app, BrowserWindow, ipcMain, Menu, dialog, shell, screen, nativeTheme, net } = require('electron');
 const fs = require('fs');
@@ -34,13 +24,6 @@ const CANDIDATES = [
 const ROOT = CANDIDATES.find(dir => {
   try { return fs.existsSync(path.join(dir, 'play.html')); } catch { return false; }
 }) || CANDIDATES[CANDIDATES.length - 1];
-
-/* The real site. Everything the app shows comes from here whenever it can.
- *
- * Overridable so the app can be pointed at a copy — a staging build, or a
- * harness serving the same files locally — without a separate build of the app
- * to do it with. */
-const LIVE = process.env.QUOLDEK_SITE || 'https://quoldek.web.app';
 
 let server = null, settings = null, home = null, board = null, prefs = null, joiner = null;
 const players = new Set();          // windows somebody is playing along in
@@ -73,19 +56,9 @@ function openHome() {
   }));
   home.once('ready-to-show', () => home.show());
   home.on('closed', () => { home = null; });
-
-  /* Online, the app is the site. Offline, it is a place to write questions.
-   *
-   * The fallback is wired to the failure as well as to the check: net.isOnline()
-   * says whether this machine has a network, not whether it can reach us, and a
-   * school that lets a laptop onto wifi but blocks the address would otherwise
-   * get a page that never arrives and no explanation. */
-  const goOffline = () => { if (home && !home.isDestroyed()) home.loadURL(base() + '/app/ui/offline.html'); };
-  home.webContents.on('did-fail-load', (e, code, why, url, isMainFrame) => {
-    // -3 is a navigation the app itself replaced; not a failure worth reacting to
-    if (isMainFrame && code !== -3 && url.startsWith(LIVE)) goOffline();
-  });
-  if (net.isOnline()) home.loadURL(LIVE + '/'); else goOffline();
+  // the app's own front door, not the website's — a launcher, with the address
+  // everyone types pinned where the teacher can point at it
+  home.loadURL(base() + '/app/ui/home.html');
   return home;
 }
 
