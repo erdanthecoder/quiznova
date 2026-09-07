@@ -192,6 +192,34 @@ class Server {
       }
     }
 
+    /* ── the quiz folder, and an account that has its own copy ──
+     *
+     * Signing in makes the quizzes follow you: what is written here should be
+     * on the website and on the next computer, and what was written there
+     * should be here. The merge happens on this side because this is where the
+     * folder is — a browser cannot read it, and doing it in two places is how
+     * two copies of a merge drift apart.
+     *
+     * Neither side is the master. The same quiz edited in two places keeps
+     * whichever was edited last, which is the only answer that never silently
+     * throws away somebody's work.
+     */
+    if (seg[0] === 'sync' && method === 'POST') {
+      const theirs = Array.isArray(body.quizzes) ? body.quizzes : [];
+      const mine = this.store.all();
+      let pulled = 0;
+      for (const q of theirs) {
+        if (!q || typeof q.id !== 'string' || !Array.isArray(q.questions)) continue;
+        const here = mine[q.id];
+        if (!here || (q.updatedAt || 0) > (here.updatedAt || 0)) {
+          this.store.save(q);
+          pulled++;
+        }
+      }
+      // whatever the folder holds now is what should go up
+      return this.send(res, 200, { pulled, quizzes: Object.values(this.store.all()) });
+    }
+
     if (seg[0] === 'quizzes' && seg.length >= 2) {
       const quiz = this.store.get(seg[1]);
       if (!quiz) return this.fail(res, 404, 'That quiz is not here.');

@@ -12,6 +12,53 @@
 
   const Nova = global.Nova;
 
+  /* ── what a game needs, and writing does not ───────────
+   *
+   * Since 4.0 a live game in the app runs over the internet — the same games
+   * the website runs, so a class can join from anywhere rather than only from
+   * the school's own wifi. That means no connection is no game.
+   *
+   * Writing questions is the exception, and deliberately so: that is the job
+   * somebody does at a kitchen table on a Sunday, and it should not need the
+   * internet to be reachable. So the studio, the folder and the quiz list all
+   * carry on working, and only the things that need other devices go quiet —
+   * greyed rather than removed, with a line saying why, because a button that
+   * has vanished tells nobody anything.
+   */
+  function gateGames() {
+    const off = !global.navigator.onLine;
+    document.documentElement.toggleAttribute('data-offline', off);
+
+    if (!document.getElementById('desk-offline-style')) {
+      const css = document.createElement('style');
+      css.id = 'desk-offline-style';
+      css.textContent =
+        'html[data-offline] [data-act="host"],' +
+        'html[data-offline] .nav[data-go="join"],' +
+        'html[data-offline] #present{opacity:.42;pointer-events:none;filter:grayscale(1)}' +
+        '.desk-offline-note{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:9px 16px;' +
+        'font:600 13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;text-align:center;' +
+        'background:#3A1420;color:#FFD9DF;border-top:2px solid #F4364C}';
+      document.head.append(css);
+    }
+
+    let note = document.querySelector('.desk-offline-note');
+    if (off && !note) {
+      note = document.createElement('div');
+      note.className = 'desk-offline-note';
+      note.textContent = 'No connection — you can still write questions. '
+                       + 'Live games need the internet, so a class can join from anywhere.';
+      document.body.append(note);
+    } else if (!off && note) {
+      note.remove();
+    }
+  }
+
+  global.addEventListener('online', gateGames);
+  global.addEventListener('offline', gateGames);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', gateGames);
+  else gateGames();
+
   /* The address everyone types, always on screen. In a browser this would be a
    * nuisance; on the teacher's own machine it is the one thing they are asked
    * for over and over in the first two minutes of a lesson. */

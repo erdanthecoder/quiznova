@@ -368,8 +368,15 @@
 
   function onChange(fn) { listeners.add(fn); fn(user, profile); return () => listeners.delete(fn); }
 
+  /* The account's own copy of the quizzes, for a caller that keeps its quizzes
+     somewhere this file knows nothing about — the Windows app, whose quizzes
+     are a folder on a disk rather than anything in a browser. */
+  const quizzes = () => call('GET');
+  const pushQuizzes = (list) => call('POST', { quizzes: list });
+
   global.NovaAccount = {
     signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon,
+    quizzes, pushQuizzes,
     loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES, requireAccount, wake,
     get user() { return user; },
     get profile() { return profile; },
