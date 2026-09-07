@@ -145,7 +145,7 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
     <div class="grow"></div>
     <span id="store-pill" class="chip hide-sm">checking</span>
     <span id="ai-pill" class="chip hide-sm">checking</span>
-    <a class="btn sm" href="/signin.html" id="top-in">Sign in</a>
+    <span id="top-who"></span>
     <a class="btn primary sm" href="#new" id="top-new">＋ New quiz</a>
   </div>
 </header>
@@ -279,9 +279,46 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
  * watches this page paint before being sent to their board.
  */
 window.addEventListener('load', () => {
-  if (/[?&]stay=1/.test(location.search)) return;
-  if (window.NovaAccount) NovaAccount.requireAccount();
+  if (!/[?&]stay=1/.test(location.search) && window.NovaAccount) NovaAccount.requireAccount();
+  paintWho();
 });
+
+/* Who is here, said once and honestly.
+ *
+ * This corner used to be a "Sign in" button that was there whatever your state
+ * — so somebody who had just signed in, landed on their board, and come back
+ * here was told to sign in again. Two sign-ins where there is only one account.
+ *
+ * It now says what is actually true: your board and a way out when you are
+ * signed in, an invitation when you are not, and nothing at all until it knows
+ * which — a button that guesses is how this went wrong in the first place.
+ */
+function paintWho() {
+  const box = document.getElementById('top-who');
+  if (!box || !window.NovaAccount) return;
+
+  const draw = () => {
+    const role = NovaAccount.role || NovaAccount.roleHint;
+    const user = NovaAccount.user;
+    if (!role && !user) {
+      box.innerHTML = '<a class="btn sm" href="/signin.html">Sign in</a>';
+      return;
+    }
+    const board = role === 'student' ? '/student/' : '/teach/';
+    const name = (user && user.name) ? user.name.split(/\s+/)[0] : '';
+    box.innerHTML =
+      `<a class="btn primary sm" href="${board}">Your board</a>`
+      + `<button class="btn ghost sm" id="top-out" style="margin-left:8px">`
+      + (name ? `Sign ${esc(name)} out` : 'Sign out') + `</button>`;
+    const out = document.getElementById('top-out');
+    if (out) out.onclick = () => {
+      NovaAccount.signOut().finally(() => location.replace('/signin.html'));
+    };
+  };
+
+  draw();
+  NovaAccount.onChange(draw);
+}
 </script>
 <script src="/sprites.js"></script>
 <script src="/launch.js"></script>
