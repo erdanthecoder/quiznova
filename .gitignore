@@ -13,3 +13,6 @@ serviceAccountKey.json
 desktop/node_modules/
 desktop/dist/
 desktop/out/
+
+# built app binaries: they are made by the Windows workflow, not committed
+desktop/dist/

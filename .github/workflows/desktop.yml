@@ -66,9 +66,16 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           fail_on_unmatched_files: true
           body: |
-            **Quoldek for Windows.** It runs the whole thing on your own computer —
-            the pages, the quizzes and the live game — and phones join over your
-            wifi. It works with no internet at all.
+            **Quoldek for Windows.** Its own app, not a browser pointed at the
+            website: its own home screen, its own board for the projector, and
+            your quizzes in a folder on your own disk.
+
+            Sign in and those quizzes follow you — what you write here is what
+            you see on quoldek.web.app and on any other computer you sign in on.
+
+            With no connection you can still write and edit questions, which is
+            the point of having an app at all. Live games need the internet,
+            because a game is several devices doing something together.
 
             - **Quoldek-Setup-x.y.z.exe** — the installer. Most people want this one.
             - **Quoldek-x.y.z-windows-x64.zip** — the same app, nothing to install.
