@@ -4,39 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Your board · Quoldek</title>
-<link href="fonts.css?v=40a238ef" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
+<link href="/fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg?v=662a6df7">
 <meta name="theme-color" content="#7C4DFF">
 <meta name="description" content="A teacher's board: start a live game, write a quiz, set homework, and see how the class is doing.">
 <meta name="category" content="Education">
-<link rel="stylesheet" href="nova.css?v=7831630d">
-<link rel="stylesheet" href="boards.css?v=f6f648d2">
+<link rel="stylesheet" href="/nova.css?v=7831630d">
+<link rel="stylesheet" href="/boards.css?v=f6f648d2">
 </head>
 <body class="light">
 
 <div id="app"></div>
 
-<script src="sprites.js?v=756a85b1"></script>
-<script src="progress.js?v=4849abb2"></script>
-<script src="launch.js?v=64e07ace"></script>
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
-<script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
-<script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=69bf1ad8"></script>
-<script src="live.js?v=b7190675"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=bfb00c91"></script>
+<script src="/sprites.js?v=756a85b1"></script>
+<script src="/progress.js?v=4849abb2"></script>
+<script src="/launch.js?v=64e07ace"></script>
+<script src="/nova.js?v=30a2cc36"></script>
+<script src="/quizbank.js?v=f18e8cbc"></script>
+<script src="/realtime.js?v=75e1623c"></script>
+<script src="/arena.js?v=fb3b6182"></script>
+<script src="/paste.js?v=3032c005"></script>
+<script src="/rules.js?v=69bf1ad8"></script>
+<script src="/live.js?v=b7190675"></script>
+<script src="/nova-local.js?v=340f2f93"></script>
+<script src="/account.js?v=bfb00c91"></script>
 
 
 
-<script src="boards.js?v=09751630"></script>
+<script src="/boards.js?v=09751630"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
-  : 'https://playquoldek.web.app/?pin=';
+  : '/play/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
@@ -113,7 +113,7 @@ function draw() {
   const said = el('div', { class: 'said' });
   go.onclick = () => {
     if (!chosen.quiz) { said.textContent = 'Pick a quiz first.'; said.className = 'said bad'; return; }
-    location.href = 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(chosen.quiz)
+    location.href = '/studio.html?id=' + encodeURIComponent(chosen.quiz)
       + '&live=1&mode=' + encodeURIComponent(chosen.mode);
   };
 
@@ -131,7 +131,7 @@ function draw() {
     things.append(el('div', { class: 'empty' }, 'Nothing here yet. Write one, or paste a list of questions and let Quoldek sort it out.'));
   } else {
     quizzes.slice(0, 9).forEach(q => things.append(
-      el('a', { class: 'thing', href: 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(q.id) },
+      el('a', { class: 'thing', href: '/studio.html?id=' + encodeURIComponent(q.id) },
         el('b', {}, q.title || 'Untitled'),
         el('span', {}, `${(q.questions || []).length} questions · edited ${Nova.ago ? Nova.ago(q.updatedAt) : 'recently'}`))));
   }
@@ -143,9 +143,9 @@ function draw() {
       el('p', { class: 'sub' }, 'Kept in this browser, and copied to your account so they follow you.'),
       things,
       el('div', { class: 'row wrap-r', style: 'margin-top:16px;gap:10px' },
-        el('a', { class: 'btn primary', href: 'https://quoldek.web.app/studio.html' }, 'Write a new quiz'),
-        el('a', { class: 'btn', href: 'https://quoldek.web.app/index.html?stay=1' }, 'All my quizzes'),
-        el('a', { class: 'btn ghost', href: 'https://quoldek.web.app/whatsnew.html' }, "What's new"))),
+        el('a', { class: 'btn primary', href: '/studio.html' }, 'Write a new quiz'),
+        el('a', { class: 'btn', href: '/index.html?stay=1' }, 'All my quizzes'),
+        el('a', { class: 'btn ghost', href: '/whatsnew.html' }, "What's new"))),
 
     el('section', { class: 'panel' },
       el('h2', {}, 'You, so far'),
@@ -163,7 +163,7 @@ function draw() {
     el('div', { class: 'row wrap-r', style: 'gap:10px' },
       el('a', { class: 'btn', href: 'https://hwquoldek.web.app/' }, 'Open the homework site'),
       el('a', { class: 'btn ghost', href: 'https://livequoldek.web.app/' }, 'Open a board by PIN'),
-      el('a', { class: 'btn ghost', href: 'https://playquoldek.web.app/' }, 'The join page'))));
+      el('a', { class: 'btn ghost', href: '/play/' }, 'The join page'))));
 
   app.replaceChildren(
     B.topbar({ name, role: 'teacher', face: Sprite.face(faceFor(name), 38) }),

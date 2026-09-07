@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>Quoldek</title>
-<link href="fonts.css?v=40a238ef" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
-<link rel="apple-touch-icon" href="logo.svg?v=662a6df7">
+<link href="/fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg?v=662a6df7">
+<link rel="apple-touch-icon" href="/logo.svg?v=662a6df7">
 <meta name="theme-color" content="#7C4DFF">
 <meta name="description" content="Quoldek is a teaching tool for classrooms and families: write or paste a quiz, put it on the board, and everyone answers on their own device. Made for lessons, revision and formative assessment.">
 <meta name="application-name" content="Quoldek">
@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="nova.css?v=7831630d">
+<link rel="stylesheet" href="/nova.css?v=7831630d">
 <style>
 .shell{max-width:640px;margin:0 auto;padding:20px 16px 40px;min-height:100vh;display:flex;flex-direction:column}
 .hud{display:flex;gap:9px;align-items:center;padding:8px 12px;border-radius:99px;background:rgba(255,255,255,.06);
@@ -297,25 +297,25 @@
 <body class="dark">
 <main class="shell" id="app"></main>
 
-<script src="sprites.js?v=756a85b1"></script>
-<script src="launch.js?v=64e07ace"></script>
-<script src="progress.js?v=4849abb2"></script>
+<script src="/sprites.js?v=756a85b1"></script>
+<script src="/launch.js?v=64e07ace"></script>
+<script src="/progress.js?v=4849abb2"></script>
 
 
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
-<script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
-<script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=69bf1ad8"></script>
-<script src="live.js?v=b7190675"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=bfb00c91"></script>
+<script src="/nova.js?v=30a2cc36"></script>
+<script src="/quizbank.js?v=f18e8cbc"></script>
+<script src="/realtime.js?v=75e1623c"></script>
+<script src="/arena.js?v=fb3b6182"></script>
+<script src="/paste.js?v=3032c005"></script>
+<script src="/rules.js?v=69bf1ad8"></script>
+<script src="/live.js?v=b7190675"></script>
+<script src="/nova-local.js?v=340f2f93"></script>
+<script src="/account.js?v=bfb00c91"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
-  : 'https://playquoldek.web.app/?pin=';
+  : '/play/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
@@ -366,7 +366,7 @@ function askPin() {
       $('#pin').value = ''; $('#pin').focus();
       return toast('No game with that PIN. Check the board.', 'bad');
     }
-    pin = v; history.replaceState(null, '', './?pin=' + pin);
+    pin = v; history.replaceState(null, '', 'play.html?pin=' + pin);
     me = store.get('player:' + pin) || null;
     start();
   };
@@ -437,7 +437,7 @@ function askName() {
       </div>
 
       <button class="btn primary lg block" style="margin-top:18px" id="join">Join the game</button>
-      <p class="tiny faint" style="margin-top:10px;text-align:center">Wrong PIN? <a href="./" style="text-decoration:underline">Change it</a></p>
+      <p class="tiny faint" style="margin-top:10px;text-align:center">Wrong PIN? <a href="play.html" style="text-decoration:underline">Change it</a></p>
     </div>`;
 
   const pv = $('#pv'), tabsBox = $('#tabs'), choices = $('#choices');
@@ -549,7 +549,7 @@ function askName() {
 function gone() {
   store.del('player:' + pin);
   $('#app').innerHTML = `<div class="card pad empty" style="margin-top:14vh"><span class="em">${Sprite.icon('ghost', 44)}</span>
-    That game is not running any more.<br><a class="btn sm" style="margin-top:14px" href="./">Try another PIN</a></div>`;
+    That game is not running any more.<br><a class="btn sm" style="margin-top:14px" href="play.html">Try another PIN</a></div>`;
 }
 
 function waiting() {
@@ -1237,7 +1237,7 @@ function overCard() {
       : String(p.score)))));
   card.append(lb);
   if (paidOut) card.append(payoutCard(paidOut));
-  card.append(el('a', { class: 'btn block', style: 'margin-top:18px;justify-content:center', href: './' }, 'Play another game'));
+  card.append(el('a', { class: 'btn block', style: 'margin-top:18px;justify-content:center', href: 'play.html' }, 'Play another game'));
   return card;
 }
 

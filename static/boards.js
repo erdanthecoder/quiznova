@@ -122,8 +122,7 @@
       try { bounced = global.sessionStorage.getItem('quoldek:asked') === '1'; } catch { }
       if (!bounced) {
         try { global.sessionStorage.setItem('quoldek:asked', '1'); } catch { }
-        global.location.replace('https://quoldek.web.app/signin.html?next='
-                                + encodeURIComponent(global.location.href));
+        global.location.replace('/signin.html?next=' + encodeURIComponent(global.location.href));
         return false;
       }
     }

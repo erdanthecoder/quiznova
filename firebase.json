@@ -143,7 +143,7 @@
       ]
     },
     {
-      "//": "A teacher's own board: signing in as a teacher lands here every time after.",
+      "//": "The name people were given, kept working. The board itself is a folder on the main site now, because a browser keeps the sign-in session per origin and a board on its own address could never see it.",
       "site": "teachboard-quoldek",
       "public": "docs-teach",
       "ignore": [
@@ -171,10 +171,17 @@
             }
           ]
         }
+      ],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://quoldek.web.app/teach",
+          "type": 302
+        }
       ]
     },
     {
-      "//": "A student's own board: blooks, hats, levels, and the box to type a PIN in.",
+      "//": "The name people were given, kept working. The board itself is a folder on the main site now, because a browser keeps the sign-in session per origin and a board on its own address could never see it.",
       "site": "studentboard-quoldek",
       "public": "docs-student",
       "ignore": [
@@ -201,6 +208,13 @@
               "value": "no-cache"
             }
           ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://quoldek.web.app/student",
+          "type": 302
         }
       ]
     }

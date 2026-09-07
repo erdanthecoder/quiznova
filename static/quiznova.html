@@ -250,9 +250,20 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
   if (/[?&]stay=1/.test(location.search)) return;
   let hint = '';
   try { hint = localStorage.getItem('quoldek:role') || ''; } catch { /* private mode */ }
-  const to = { teacher: 'https://teachboard-quoldek.web.app/',
-               student: 'https://studentboard-quoldek.web.app/' }[hint];
-  if (to) location.replace(to);
+  /* Folders on this site, not addresses of their own.
+   *
+   * These were the old board domains, and sending people there is what kept the
+   * loop alive after the boards themselves had moved: a browser keeps its
+   * sign-in session per origin, so a board on another address could never see
+   * it and sent everybody straight back here. The names still work — they
+   * redirect to these paths — but nothing inside the site should ever cross the
+   * boundary again.
+   *
+   * This list exists twice: here, because it has to run before any script
+   * loads, and in account.js as SITES. If one of them ever changes, the other
+   * must too — which is exactly how this survived one fix already. */
+  const to = { teacher: '/teach/', student: '/student/' }[hint];
+  if (to && location.pathname !== to) location.replace(to);
 })();
 </script>
 <script>

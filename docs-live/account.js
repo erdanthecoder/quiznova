@@ -260,9 +260,23 @@
   /* ── which board somebody belongs on ──────────────────────
    * Named here rather than in each page, because a wrong address is a person
    * bounced back and forth between two sites. */
+  /* One origin, on purpose.
+   *
+   * These used to be addresses of their own — teachboard-quoldek.web.app and
+   * studentboard-quoldek.web.app — and that was the bug behind every loop in
+   * this file's history. A browser keeps storage per origin, and Firebase keeps
+   * its session in that storage: signing in on quoldek.web.app made a session
+   * the boards could not see, so a board found nobody, sent people back to sign
+   * in, and the two pages passed them between each other for ever. The same
+   * split put a child's coins in different storage from the board that shows
+   * them.
+   *
+   * Those names still work — they are addresses that redirect here — but the
+   * pages themselves are folders on the one site, where the account and the
+   * coins actually are. */
   const SITES = {
-    teacher: 'https://teachboard-quoldek.web.app/',
-    student: 'https://studentboard-quoldek.web.app/'
+    teacher: 'https://quoldek.web.app/teach/',
+    student: 'https://quoldek.web.app/student/'
   };
   const boardFor = (role) => SITES[role] || '';
 

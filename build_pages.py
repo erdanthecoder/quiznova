@@ -174,8 +174,13 @@ def build():
     build_play(stamps)
     build_live(stamps)
     build_homework(stamps)
-    build_board(TEACH_OUT, TEACH_HOST, "teachboard.html", "the teacher's board")
-    build_board(STUDENT_OUT, STUDENT_HOST, "studentboard.html", "the student's board")
+    # the boards, and the join page, all live on the one origin now
+    build_at_path("teachboard.html", "teach", "the teacher's board")
+    build_at_path("studentboard.html", "student", "the student's board")
+    build_at_path("play.html", "play", "the join page")
+    # and the addresses they used to have send people there
+    build_redirect(TEACH_OUT, TEACH_HOST, "https://quoldek.web.app/teach/", "the teacher's board")
+    build_redirect(STUDENT_OUT, STUDENT_HOST, "https://quoldek.web.app/student/", "the student's board")
 
 
 def build_play(stamps):
@@ -241,32 +246,61 @@ def build_live(stamps):
 
 
 
-def build_board(out, host, page, label):
-    """One of the two dashboards, as the root of its own address.
+def build_at_path(page, folder, label):
+    """A dashboard, as a folder on the main site rather than a site of its own.
 
-    Built from docs/ rather than from static/ so it goes through exactly the
-    same rewrites as everything else and cannot drift from them. The links out
-    are absolute, because from here every other page is on another site.
+    This is the whole point of the change. A browser keeps storage — and the
+    sign-in session with it — per origin. While the boards were separate
+    addresses, signing in on quoldek.web.app produced a session that simply did
+    not exist on teachboard-quoldek.web.app, so the board found nobody and sent
+    people back to sign in, which sent them to the board, for ever. The same
+    split meant coins earned on the join page were in different storage from the
+    board that shows them.
+
+    No amount of handing things across the boundary fixes that properly. Sharing
+    one origin does, completely, and the names the boards had are kept as
+    addresses that redirect here.
+
+    Asset links become absolute, because a page in a folder cannot reach
+    "nova.css" the way a page at the root can.
+    """
+    out = os.path.join(OUT, folder)
+    os.makedirs(out, exist_ok=True)
+    html = open(os.path.join(OUT, page), encoding="utf-8").read()
+
+    # nova.css?v=… -> /nova.css?v=…, and the same for every script
+    html = re.sub(r'(href|src)="(?!/|https?:|data:|#)([\w.-]+\.(?:css|js|svg))', r'\1="/\2', html)
+    html = html.replace('href="fonts/', 'href="/fonts/')
+
+    # every link that used to cross to another site is now a path on this one
+    html = html.replace("https://quoldek.web.app/", "/")
+    html = html.replace("https://teachboard-quoldek.web.app/", "/teach/")
+    html = html.replace("https://studentboard-quoldek.web.app/", "/student/")
+    html = html.replace("https://playquoldek.web.app/", "/play/")
+
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(html)
+    print(f"built docs/{folder}/ ({label})")
+
+
+def build_redirect(out, host, to, label):
+    """An address whose only job is to send people to where the thing now lives.
+
+    The names stay — somebody who types teachboard-quoldek.web.app still gets
+    the teacher's board — but they arrive on the one origin where their account
+    and their coins actually are.
     """
     os.makedirs(out, exist_ok=True)
     for name in os.listdir(out):
         path = os.path.join(out, name)
         shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
-
-    copy_fonts(out)
-    for asset in BOARD_ASSETS:
-        src = os.path.join(SRC, asset)
-        if os.path.exists(src):
-            shutil.copy2(src, os.path.join(out, asset))
-
-    html = open(os.path.join(OUT, page), encoding="utf-8").read()
-    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(html)
-    # the sign-in page rides along on both boards, so a signed-out visitor who
-    # lands here directly is asked to sign in where they already are
-    signin = open(os.path.join(OUT, "signin.html"), encoding="utf-8").read()
-    open(os.path.join(out, "signin.html"), "w", encoding="utf-8").write(signin)
+    # Firebase does the redirect itself; this page is only for anything that
+    # somehow gets past it, and for somebody with a very old cached copy
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(
+        '<!DOCTYPE html><meta charset="utf-8">'
+        f'<meta http-equiv="refresh" content="0;url={to}">'
+        f'<title>Quoldek</title><a href="{to}">Continue to Quoldek</a>')
     open(os.path.join(out, ".nojekyll"), "w").close()
-    print(f"built {os.path.basename(out)}/ ({label} at {host}):", ", ".join(sorted(os.listdir(out))))
+    print(f"built {os.path.basename(out)}/ ({host} -> {to}, {label})")
 
 
 def build_homework(stamps):

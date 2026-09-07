@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Your board · Quoldek</title>
-<link href="fonts.css?v=40a238ef" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="logo.svg?v=662a6df7">
+<link href="/fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg?v=662a6df7">
 <meta name="theme-color" content="#7C4DFF">
 <meta name="description" content="A student's board: join a game, collect blooks and hats, level up, and practise on your own.">
 <meta name="category" content="Education">
-<link rel="stylesheet" href="nova.css?v=7831630d">
-<link rel="stylesheet" href="boards.css?v=f6f648d2">
+<link rel="stylesheet" href="/nova.css?v=7831630d">
+<link rel="stylesheet" href="/boards.css?v=f6f648d2">
 <style>
 /* the one thing on this page that is purely for the joy of it */
 .showcase{position:relative;display:grid;place-items:center;min-height:230px;border-radius:var(--r-lg);
@@ -37,27 +37,27 @@
 
 <div id="app"></div>
 
-<script src="sprites.js?v=756a85b1"></script>
-<script src="progress.js?v=4849abb2"></script>
-<script src="launch.js?v=64e07ace"></script>
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
-<script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
-<script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=69bf1ad8"></script>
-<script src="live.js?v=b7190675"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=bfb00c91"></script>
+<script src="/sprites.js?v=756a85b1"></script>
+<script src="/progress.js?v=4849abb2"></script>
+<script src="/launch.js?v=64e07ace"></script>
+<script src="/nova.js?v=30a2cc36"></script>
+<script src="/quizbank.js?v=f18e8cbc"></script>
+<script src="/realtime.js?v=75e1623c"></script>
+<script src="/arena.js?v=fb3b6182"></script>
+<script src="/paste.js?v=3032c005"></script>
+<script src="/rules.js?v=69bf1ad8"></script>
+<script src="/live.js?v=b7190675"></script>
+<script src="/nova-local.js?v=340f2f93"></script>
+<script src="/account.js?v=bfb00c91"></script>
 
 
 
-<script src="boards.js?v=09751630"></script>
+<script src="/boards.js?v=09751630"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
-  : 'https://playquoldek.web.app/?pin=';
+  : '/play/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
@@ -109,7 +109,7 @@ function draw() {
   const join = () => {
     const digits = pin.value.replace(/\D/g, '');
     if (digits.length !== 6) { said.textContent = 'A PIN is six digits.'; said.className = 'said bad'; return; }
-    location.href = 'https://playquoldek.web.app/?pin=' + digits;
+    location.href = '/play/?pin=' + digits;
   };
   pin.addEventListener('input', () => {
     pin.value = pin.value.replace(/\D/g, '').slice(0, 6);
@@ -220,8 +220,8 @@ function draw() {
     el('p', { class: 'sub' }, 'No game on? Revise with a homework code, or write a short quiz to test yourself.'),
     el('div', { class: 'row wrap-r', style: 'gap:10px' },
       el('a', { class: 'btn primary', href: 'https://hwquoldek.web.app/' }, 'Open a homework code'),
-      el('a', { class: 'btn', href: 'https://quoldek.web.app/studio.html' }, 'Write a short quiz'),
-      el('a', { class: 'btn ghost', href: 'https://quoldek.web.app/whatsnew.html' }, "What's new")),
+      el('a', { class: 'btn', href: '/studio.html' }, 'Write a short quiz'),
+      el('a', { class: 'btn ghost', href: '/whatsnew.html' }, "What's new")),
     el('p', { class: 'note' }, 'Quizzes you write are yours and stay in this browser. Your teacher does not see them unless you send them the link.')));
 
   app.replaceChildren(
