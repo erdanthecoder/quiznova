@@ -281,6 +281,11 @@
    * is only ever stale on the single poll after a page reload, which then refetches. */
   const openIndex = Object.create(null);
 
+  /* What a player is allowed to ask for on their own behalf. Everything else on
+   * a live game belongs to the teacher's device. */
+  const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/build', '/cast', '/move',
+                                '/events']);   // read-only, and every device reads it
+
   async function handle(path, method, body) {
     if (path === '/modes') {
       return { modes: Object.entries(MODES).map(([id, m]) => Object.assign({ id, maps: mapsFor(id) }, m)) };
@@ -403,7 +408,49 @@
       return { correct: null, score: 0, hp: 100, streak: 0, state: game.state };
     }
 
-    if (!isHost) throw new Error('Only the host can control the game.');
+    /* The three things a player decides for themselves, and they have to stay
+     * on this side of the line below. They were under it, which meant every one
+     * of them answered "Only the host can control the game" to the only people
+     * who would ever call them — casting a line and building a machine had been
+     * dead on the website since the day they were written. None needs the host
+     * token, being the player's own, but all three are checked against the
+     * game's own state rather than trusting what arrived. */
+    if (tail === '/build') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const out = buyMachine(game, p);
+      if (out.ok) await writeGame(pin, game);
+      return Object.assign({ view: publicView(game) }, out);
+    }
+    if (tail === '/cast') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const where = SPOTS[body && body.spot] ? body.spot : 'shallows';
+      p.target = where;
+      await writeGame(pin, game);
+      return { ok: true, spot: where, view: publicView(game) };
+    }
+    /* The move: which way this player is playing the round. Every mode has them
+     * now, so this is the busiest thing in here — it is written while the
+     * question is still up, and read when the answer is scored. The rules decide
+     * whether a move is real and whether what it is aimed at makes sense; this
+     * only carries the message. */
+    if (tail === '/move') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const out = chooseMove(game, p, body && body.move, (body && body.on) || '');
+      if (out.ok) await writeGame(pin, game);
+      return Object.assign({ view: publicView(game) }, out);
+    }
+
+    /* Past here is the teacher's alone — but which requests are the teacher's is
+     * now stated rather than implied by where they happen to sit in this
+     * function. Three player-owned endpoints had drifted below this line and
+     * were answering "only the host" to the only people who ever called them.
+     * A list cannot drift. */
+    if (!isHost && !PLAYER_OWNED.has(tail)) {
+      throw new Error('Only the host can control the game.');
+    }
 
     if (tail === '/start') {
       await reconcile(pin, game);
@@ -459,36 +506,6 @@
       openQuestion(game);
       await writeGame(pin, game);
       return publicView(game);
-    }
-    /* Factory's one decision, and Fishing's. Both happen between questions and
-     * both are the player's own, so neither needs the host token — but both are
-     * checked against the game's own state rather than trusting what arrived. */
-    if (tail === '/build') {
-      const p = game.players[body && body.playerId];
-      if (!p) return { error: 'Not in this game.' };
-      const out = buyMachine(game, p);
-      if (out.ok) await writeGame(pin, game);
-      return Object.assign({ view: publicView(game) }, out);
-    }
-    if (tail === '/cast') {
-      const p = game.players[body && body.playerId];
-      if (!p) return { error: 'Not in this game.' };
-      const where = SPOTS[body && body.spot] ? body.spot : 'shallows';
-      p.target = where;
-      await writeGame(pin, game);
-      return { ok: true, spot: where, view: publicView(game) };
-    }
-    /* The move: which way this player is playing the round. Every mode has them
-     * now, so this is the busiest thing in here — it is written while the
-     * question is still up, and read when the answer is scored. The rules decide
-     * whether a move is real and whether what it is aimed at makes sense; this
-     * only carries the message. */
-    if (tail === '/move') {
-      const p = game.players[body && body.playerId];
-      if (!p) return { error: 'Not in this game.' };
-      const out = chooseMove(game, p, body && body.move, (body && body.on) || '');
-      if (out.ok) await writeGame(pin, game);
-      return Object.assign({ view: publicView(game) }, out);
     }
     if (tail === '/next') {
       if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }
