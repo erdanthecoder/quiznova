@@ -66,7 +66,8 @@
    * this engine cannot drift apart. Everything below is about getting them to
    * thirty phones through a shared database. */
   const R = global.NovaRules || (typeof require === 'function' ? require('./rules.js') : null);
-  const { MODES, MAPS, GOALS, SCORERS, mapsFor, defaultMap, readGoal, goalReached,
+  const { MODES, MAPS, GOALS, SCORERS, MOVES, chooseMove, movesFor, defaultMove,
+          mapsFor, defaultMap, readGoal, goalReached,
           grade, blankPlayer, pickBossName, readSetup, secondsFor, arrange, modeFinished,
           afterRound, buyMachine, machineCost, SPOTS,
           TRACK_LENGTH, BOSS_HP_PER_QUESTION, FORT_BLOCKS, BALLOONS } = R;
@@ -132,6 +133,10 @@
       // answers; the same is true of every game of this shape.
       quiz: game.mode === 'laser' && game.state === 'arena' ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
+      // the world's own state: without these the wind and the shoal are things
+      // that happen to the scores with nothing on screen to explain them
+      shoal: game.shoal || '', wind: !!game.wind,
+      moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
       boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES.normal,
       goal: game.goal || { kind: 'questions', value: 0 },
       startedAt: game.startedAt || 0, music: game.music !== false
@@ -153,6 +158,9 @@
     if (game.index >= game.questions.length) { game.state = 'over'; game.endsAt = null; return; }
     Object.values(game.players).forEach(p => {
       p.answered = false; p.correct = null; p.lastDamage = 0; p.lastGain = 0; p.chest = '';
+      // the move stands until it is changed: not touching your phone is a choice
+      // to do the same again, and it is the one a busy child will make
+      if (!p.move) p.move = defaultMove(game.mode);
     });
     beginQuestion(game);
   }
@@ -421,6 +429,15 @@
         for (const p of Object.values(game.players)) p.balloons = BALLOONS;
       }
       if (game.mode === 'tug') game.rope = 0;
+      if (game.mode === 'tower') game.wind = false;
+      if (game.mode === 'fishing') game.shoal = 'channel';
+      if (game.mode === 'boss' && game.boss) {
+        game.boss.next = 'poke';
+        game.boss.says = 'is sizing the class up';
+        game.boss.classMax = game.boss.classHp;
+      }
+      // everybody starts on the safe move rather than on nothing
+      for (const p of Object.values(game.players)) p.move = defaultMove(game.mode);
       if (game.mode === 'volcano') {
         game.lava = 0;
         for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
@@ -460,6 +477,18 @@
       p.target = where;
       await writeGame(pin, game);
       return { ok: true, spot: where, view: publicView(game) };
+    }
+    /* The move: which way this player is playing the round. Every mode has them
+     * now, so this is the busiest thing in here — it is written while the
+     * question is still up, and read when the answer is scored. The rules decide
+     * whether a move is real and whether what it is aimed at makes sense; this
+     * only carries the message. */
+    if (tail === '/move') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      const out = chooseMove(game, p, body && body.move, (body && body.on) || '');
+      if (out.ok) await writeGame(pin, game);
+      return Object.assign({ view: publicView(game) }, out);
     }
     if (tail === '/next') {
       if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }

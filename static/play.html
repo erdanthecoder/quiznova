@@ -263,6 +263,30 @@
 @keyframes breathe{50%{transform:scale(1.18);opacity:.75}}
 
 /* choosing a character */
+/* The move: the row of choices under the question. It has to read at a glance
+ * on a phone held under a desk, so each one is a short verb and one line saying
+ * what it costs. A choice whose terms you cannot see is not a choice. */
+.moves{display:grid;gap:8px;margin:12px 0 4px}
+.moves.two{grid-template-columns:1fr 1fr}
+.move{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;
+  padding:11px 13px;border-radius:14px;cursor:pointer;
+  border:2px solid color-mix(in srgb,var(--ink) 14%,transparent);
+  background:color-mix(in srgb,var(--card) 92%,var(--ink));
+  color:var(--ink);transition:transform .16s var(--ease),border-color .16s,background .16s}
+.move:active{transform:scale(.97)}
+.move b{font-size:.94rem;font-weight:800;letter-spacing:-.01em}
+.move span{font-size:.72rem;opacity:.72;line-height:1.25}
+.move.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,var(--card));
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 18%,transparent)}
+.move.on b{color:var(--brand)}
+.move:disabled{opacity:.45;cursor:default}
+/* whoever or whatever the move is aimed at */
+.aim{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.aim button{display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;
+  font-size:.8rem;font-weight:700;cursor:pointer;border:2px solid transparent;
+  background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
+.aim button.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 18%,transparent)}
+.aim svg{width:18px;height:18px}
 .picker{margin-top:18px}
 .picker .preview{display:flex;justify-content:center;line-height:0;margin-bottom:4px}
 .picker .preview svg{width:118px;height:118px;transition:transform .25s var(--ease)}
@@ -879,6 +903,100 @@ function castPicker() {
   return el('div', {}, el('span', { class: 'cap' }, 'Where are you casting?'), row);
 }
 
+/* The move — the thing that turns this from a quiz into a game.
+ *
+ * One component for all fourteen modes, because the rules describe them: what
+ * the moves are, what they say, and whether one needs pointing at somebody. A
+ * mode added later gets its picker for nothing, and none of them can drift out
+ * of step with what the scorer actually does.
+ *
+ * It sits under the question and above the answers, chosen while the clock is
+ * running, so it costs no class time at all: the seconds a child spends
+ * deciding whether to rob Ana or guard their own gold are seconds they were
+ * already spending reading the question.
+ */
+function movePicker() {
+  const moves = (game.moves || []);
+  if (!moves.length) return el('span', {});
+  const here = moves.some(m => m.id === me.move) ? me.move : moves[0].id;
+  const box = el('div', {});
+  const row = el('div', { class: 'moves' + (moves.length === 2 ? ' two' : '') });
+  const aimBox = el('div', {});
+
+  const send = (id, on) => {
+    api(`/games/${pin}/move`, { method: 'POST', body: { playerId: me.id, move: id, on: on || '' } })
+      .then(out => {
+        if (out && out.ok === false) { toast(out.why || 'Cannot do that.', 'bad'); return; }
+        if (out && out.view) apply(out.view);
+      })
+      .catch(err => toast(err.message, 'bad'));
+  };
+
+  /* Some moves need pointing at somebody, or at a card. Showing that only once
+   * the move is picked keeps the row short — a phone screen has no space for
+   * every possible target of every possible move at once. */
+  function drawAim(spec) {
+    aimBox.innerHTML = '';
+    if (!spec || !spec.needs) return;
+    const aim = el('div', { class: 'aim' });
+    if (spec.needs === 'player') {
+      const others = (game.players || []).filter(p => p.id !== me.id);
+      if (!others.length) {
+        aimBox.append(el('span', { class: 'cap' }, 'Nobody else to aim at yet'));
+        return;
+      }
+      others.forEach(p => {
+        const btn = el('button', { type: 'button', class: me.on === p.id ? 'on' : '' },
+          el('span', { html: Sprite.face(p.avatar || 0, 18) }), el('span', {}, p.name));
+        btn.onclick = () => {
+          aim.querySelectorAll('button').forEach(n => n.classList.remove('on'));
+          btn.classList.add('on');
+          me.on = p.id;
+          send(spec.id, p.id);
+        };
+        aim.append(btn);
+      });
+    } else if (spec.needs === 'card') {
+      const mine = me.cards || [];
+      const want = NovaRules.CARD_SET.filter(c => !mine.includes(c));
+      (want.length ? want : NovaRules.CARD_SET).forEach(c => {
+        const btn = el('button', { type: 'button', class: me.on === c ? 'on' : '' },
+          el('span', { html: Sprite.icon(c, 18, 'currentColor') }), el('span', {}, c));
+        btn.onclick = () => {
+          aim.querySelectorAll('button').forEach(n => n.classList.remove('on'));
+          btn.classList.add('on');
+          me.on = c;
+          send(spec.id, c);
+        };
+        aim.append(btn);
+      });
+    }
+    aimBox.append(el('span', { class: 'cap' },
+      spec.needs === 'player' ? 'At who?' : 'Which card?'), aim);
+  }
+
+  moves.forEach(spec => {
+    const btn = el('button', { class: 'move' + (spec.id === here ? ' on' : ''), type: 'button' },
+      el('b', {}, spec.label), el('span', {}, spec.note));
+    btn.onclick = () => {
+      row.querySelectorAll('.move').forEach(n => n.classList.remove('on'));
+      btn.classList.add('on');
+      me.move = spec.id;
+      drawAim(spec);
+      // a move that needs a target waits for one rather than being sent half-made
+      if (!spec.needs) send(spec.id, '');
+      else if (me.on) send(spec.id, me.on);
+    };
+    row.append(btn);
+  });
+
+  box.append(el('span', { class: 'cap' }, game.moveAsk || 'How are you playing this one?'),
+             row, aimBox);
+  const chosen = moves.find(m => m.id === here);
+  if (chosen && chosen.needs) drawAim(chosen);
+  return box;
+}
+
 /* Your own side of whatever game is being played, under the question.
  *
  * The board shows the whole class; this shows only you, because a child looking
@@ -1042,6 +1160,7 @@ function questionCard(fresh) {
   card.append(el('div', { class: 'timerbar' }, el('i', { id: 'ptimerbar' })));
   card.append(el('div', { class: 'qcard' }, el('h2', { class: 'qtext' }, q.text || 'Question')));
   card.append(stagePanel());
+  card.append(movePicker());
   if (game.mode === 'laser' && me.down)
     card.append(el('p', { class: 'tiny', style: 'color:var(--amber)' },
       'You are down. A right answer heals a teammate.'));

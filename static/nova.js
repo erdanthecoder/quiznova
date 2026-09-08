@@ -48,11 +48,32 @@
     return data;
   }
 
-  /* Realtime: SSE with an automatic polling fallback so it works behind any proxy. */
+  /* Realtime: SSE with an automatic polling fallback so it works behind any proxy.
+   *
+   * Two things here are load-bearing and both were missing, which between them
+   * meant the desktop app and the Flask edition never told a player's phone
+   * anything at all: the teacher pressed start and thirty children sat looking
+   * at a lobby.
+   *
+   * First, onmessage only ever fires for events with no name. The server sends
+   * named ones ("game:state", "hello"), so every single message was dropped on
+   * the floor. Named events have to be subscribed to by name.
+   *
+   * Second, the fallback hung off onerror — but nothing was wrong. The socket
+   * was open and healthy and delivering messages this page had not asked for, so
+   * no error ever fired and polling never started. A stream that has said
+   * nothing at all for a few seconds is not working, whatever it claims, so the
+   * poller now starts on silence rather than on failure and stops again the
+   * moment something real arrives.
+   */
+  const STREAM_EVENTS = ['game:state', 'hello', 'quiz:state', 'state'];
+  const SILENCE = 4000;      // nothing at all for this long and we stop believing it
+
   function stream(path, onMessage, pollPath) {
     let source = null;
     let poll = null;
     let alive = true;
+    let quiet = null;
 
     const startPolling = () => {
       if (poll || !pollPath) return;
@@ -60,25 +81,36 @@
         try { onMessage({ event: 'poll', data: await api(pollPath) }); } catch { /* keep trying */ }
       }, 1500);
     };
+    const stopPolling = () => { if (poll) { clearInterval(poll); poll = null; } };
+
+    const heard = (evt) => {
+      let msg;
+      try { msg = JSON.parse(evt.data); } catch { return; }   // heartbeat or comment
+      // it is genuinely carrying the game, so the poller is not needed
+      stopPolling();
+      clearTimeout(quiet);
+      quiet = setTimeout(startPolling, SILENCE);
+      // Errors thrown while rendering must not kill the stream, but swallowing
+      // them silently turns a bug into a blank screen — report and carry on.
+      try { onMessage(msg.data !== undefined && msg.event !== undefined ? msg : { event: evt.type, data: msg }); }
+      catch (err) { console.error('[nova] realtime handler failed:', err); }
+    };
 
     try {
       source = new EventSource('/api' + path);
-      source.onmessage = (evt) => {
-        let msg;
-        try { msg = JSON.parse(evt.data); } catch { return; }   // heartbeat or comment
-        // Errors thrown while rendering must not kill the stream, but swallowing
-        // them silently turns a bug into a blank screen — report and carry on.
-        try { onMessage(msg); }
-        catch (err) { console.error('[nova] realtime handler failed:', err); }
-      };
+      source.onmessage = heard;
+      STREAM_EVENTS.forEach(name => source.addEventListener(name, heard));
       source.onerror = () => { if (alive) startPolling(); };
+      // and if it says nothing at all, poll anyway
+      quiet = setTimeout(startPolling, SILENCE);
     } catch { startPolling(); }
 
     return {
       close() {
         alive = false;
+        clearTimeout(quiet);
         if (source) source.close();
-        if (poll) clearInterval(poll);
+        stopPolling();
       }
     };
   }

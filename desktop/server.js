@@ -310,6 +310,32 @@ class Server {
         if (player) player.target = String(body.target || '');
         return this.send(res, 200, { ok: true });
       }
+      /* The three things a player decides for themselves. None needs the host
+       * token — they are the player's own — but all three are checked against
+       * the game's state rather than trusting what arrived. The app was missing
+       * all of them, which meant fishing and the factory were played here
+       * without the decisions that are the point of them. */
+      if (tail === 'move' && method === 'POST') {
+        const player = game.players[body.playerId];
+        if (!player) return this.fail(res, 404, 'Not in this game.');
+        const out = R.chooseMove(game, player, body.move, body.on || '');
+        if (out.ok) this.games.changed(game);
+        return this.send(res, 200, Object.assign({ view: this.games.publicView(game) }, out));
+      }
+      if (tail === 'cast' && method === 'POST') {
+        const player = game.players[body.playerId];
+        if (!player) return this.fail(res, 404, 'Not in this game.');
+        player.target = R.SPOTS[body.spot] ? body.spot : 'shallows';
+        this.games.changed(game);
+        return this.send(res, 200, { ok: true, spot: player.target, view: this.games.publicView(game) });
+      }
+      if (tail === 'build' && method === 'POST') {
+        const player = game.players[body.playerId];
+        if (!player) return this.fail(res, 404, 'Not in this game.');
+        const out = R.buyMachine(game, player);
+        if (out.ok) this.games.changed(game);
+        return this.send(res, 200, Object.assign({ view: this.games.publicView(game) }, out));
+      }
 
       // everything past here is the teacher's alone
       if (!isHost) return this.fail(res, 403, 'Only the host can control the game.');

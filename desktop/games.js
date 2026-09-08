@@ -98,6 +98,10 @@ class Games {
       boss: game.boss || null, trackLength: R.TRACK_LENGTH,
       modeInfo: R.MODES[game.mode] || R.MODES.normal,
       goal: game.goal, setup: game.setup || null, rope: game.rope || 0,
+      // the world's own state, and the moves this mode offers. Without these the
+      // app is playing a different game from the website off the same rules.
+      lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
+      moves: R.movesFor(game.mode), moveAsk: (R.MOVES[game.mode] || {}).ask || '',
       startedAt: game.startedAt,
       music: game.music !== false
     };
@@ -153,6 +157,17 @@ class Games {
       }
     }
     if (game.mode === 'tug') game.rope = 0;
+    if (game.mode === 'tower') game.wind = false;
+    if (game.mode === 'fishing') game.shoal = 'channel';
+    if (game.mode === 'volcano') {
+      game.lava = 0;
+      for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
+    }
+    if (game.mode === 'factory') {
+      for (const p of Object.values(game.players)) { p.coins = 0; p.machines = 0; p.output = 0; }
+    }
+    // everybody starts on the safe move rather than on nothing
+    for (const p of Object.values(game.players)) p.move = R.defaultMove(game.mode);
     if (game.mode === 'cards') {
       for (const p of Object.values(game.players)) { p.cards = []; p.spares = 0; }
     }
@@ -161,7 +176,8 @@ class Games {
     }
     if (game.mode === 'boss') {
       const hp = R.BOSS_HP_PER_QUESTION * Math.max(1, game.questions.length);
-      game.boss = { hp, max: hp, name: R.pickBossName(), classHp: 100, classMax: 100 };
+      game.boss = { hp, max: hp, name: R.pickBossName(), classHp: 100, classMax: 100,
+                    next: 'poke', says: 'is sizing the class up' };
     }
     this.openQuestion(game);
     return this.changed(game);
@@ -174,6 +190,8 @@ class Games {
     for (const p of Object.values(game.players)) {
       p.answered = false; p.correct = null; p.lastGain = 0; p.chest = '';
       p.lastDamage = 0; p.target = '';
+      // the move stands until it is changed, the same as on the website
+      if (!p.move) p.move = R.defaultMove(game.mode);
     }
     game.state = 'question';
     game.endsAt = now() + R.secondsFor(game, game.questions[game.index]) * 1000 + 700;
