@@ -12,20 +12,20 @@
   const now = () => Date.now();
 
   const MODES = {
-    normal:   { label: 'Normal',       icon: 'target', blurb: 'Fastest right answer scores the most' },
-    laser:    { label: 'Laser Tag',    icon: 'laser', blurb: 'One arena. Move, shoot, and answer when your energy runs out' },
-    kart:     { label: 'Kart Race',    icon: 'kart', blurb: 'Every right answer drives your kart further' },
-    tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Stack a block for each right answer' },
-    treasure: { label: 'Treasure Run', icon: 'gem', blurb: 'Collect coins and open lucky chests' },
-    boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'The whole class fights one boss together' },
-    snow:     { label: 'Snowball Fight', icon: 'snow', blurb: 'Two teams. Every right answer knocks a block off their fort' },
-    balloon:  { label: 'Balloon Drop', icon: 'balloon', blurb: 'Three balloons each. Get one wrong and one pops' },
-    tug:      { label: 'Tug of War',   icon: 'rope', blurb: 'Two teams, one rope. Every right answer pulls it your way' },
-    heist:    { label: 'Gold Heist',   icon: 'coin', blurb: 'Every right answer opens a chest — and some of them rob somebody' },
-    cards:    { label: 'Card Collector', icon: 'cards', blurb: 'Win a card for every right answer. First to all eight' },
-    volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Climb, and keep climbing — the lava is rising under everyone' },
-    factory:  { label: 'Factory',       icon: 'bricks', blurb: 'Buy machines with what you earn. They pay you every round after' },
-    fishing:  { label: 'Fishing Frenzy', icon: 'drop', blurb: 'Cast near or far. The deep water pays more and gives less' }
+    normal:   { label: 'Normal',       icon: 'target', blurb: 'Wager your points. Safe, double, or everything' },
+    laser:    { label: 'Laser Tag',    icon: 'laser', blurb: 'Push up, take aim or take cover. One arena, two teams' },
+    kart:     { label: 'Kart Race',    icon: 'kart', blurb: 'Slipstream from behind, dive inside, or hold your line' },
+    tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Build tall and sway, or stop and brace before the wind' },
+    treasure: { label: 'Treasure Run', icon: 'gem', blurb: 'Three chests, odds on the lid. Pick one' },
+    boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'It says what it will do next. The class has to agree' },
+    snow:     { label: 'Snowball Fight', icon: 'snow', blurb: 'Throw at their fort, rebuild your own, or plant a decoy' },
+    balloon:  { label: 'Balloon Drop', icon: 'balloon', blurb: 'Three balloons. Spend one to soar, or patch one back' },
+    tug:      { label: 'Tug of War',   icon: 'rope', blurb: 'Heave for double and risk slipping, or anchor and hold' },
+    heist:    { label: 'Gold Heist',   icon: 'coin', blurb: 'Rob somebody by name — unless they guessed and guarded' },
+    cards:    { label: 'Card Collector', icon: 'cards', blurb: 'Hunt the card you need, or trade a spare with somebody' },
+    volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Three routes up. The fastest drops rocks on those below' },
+    factory:  { label: 'Factory',       icon: 'bricks', blurb: 'Work, invest, or jam somebody else\'s machines' },
+    fishing:  { label: 'Fishing Frenzy', icon: 'drop', blurb: 'The shoal moves each round and doubles the water it is in' }
   };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
    * it changes what the board looks like, not how the scoring works. */
