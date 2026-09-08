@@ -47,6 +47,35 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --win --x64 --publish never
 
+      # The build proves it compiles. This proves it runs: install the .exe the
+      # way a teacher installs it, launch what that put on the disk, and click
+      # through the first screens. A green build that opens to a white window
+      # has happened before and would pass every other check here.
+      - name: Install it and open it, like a teacher would
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install --no-save playwright@1.48.2
+          $setup = Get-ChildItem dist\Quoldek-Setup-*.exe | Select-Object -First 1
+          Write-Host "installing $($setup.Name) ($([math]::Round($setup.Length/1MB,1)) MB)"
+          # /S is NSIS silent; /D must be last and unquoted
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S','/D=C:\QuoldekTest' -Wait
+          if (-not (Test-Path 'C:\QuoldekTest\Quoldek.exe')) {
+            Get-ChildItem C:\QuoldekTest -Recurse -ErrorAction SilentlyContinue | Select-Object -First 40 FullName
+            throw 'the installer did not produce Quoldek.exe'
+          }
+          $built = Get-Item 'C:\QuoldekTest\Quoldek.exe'
+          Write-Host "installed Quoldek.exe ($([math]::Round($built.Length/1MB,1)) MB)"
+          node test\smoke.js 'C:\QuoldekTest\Quoldek.exe'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Quoldek-windows-screenshots
+          path: desktop/test/shots/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
       - uses: actions/upload-artifact@v4
         with:
           name: Quoldek-windows
