@@ -99,6 +99,16 @@ jobs:
             website: its own home screen, its own board for the projector, and
             your quizzes in a folder on your own disk.
 
+            **4.1 fixes live games, which did not work in 4.0.** The teacher
+            pressed start and the class sat looking at a lobby: the app was
+            sending every update and the phones were dropping all of them
+            unread. If you have 4.0, replace it.
+
+            Every game mode is also a different game now. You pick a move each
+            round as well as an answer — wager your points, rob somebody by
+            name, take the route that drops rocks on the climbers below you —
+            and the answer decides whether it works.
+
             Sign in and those quizzes follow you — what you write here is what
             you see on quoldek.web.app and on any other computer you sign in on.
 

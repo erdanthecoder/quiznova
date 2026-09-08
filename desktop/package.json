@@ -1,7 +1,7 @@
 {
   "name": "quoldek",
   "productName": "Quoldek",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Classroom quiz software for teachers: write or paste a quiz, put it on the board, and the class answers on their own devices. Sign in and your quizzes follow you; writing them works with no internet.",
   "main": "main.js",
   "author": "Quoldek",
