@@ -62,6 +62,7 @@ def py_run(mode, move, ok, speed):
         "blocks": g["players"]["Ana"]["blocks"], "height": g["players"]["Ana"]["height"],
         "sway": g["players"]["Ana"]["sway"], "lastGain": g["players"]["Ana"]["lastGain"],
         "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
+        "blade": g["players"]["Ana"].get("blade", ""),
         "redHp": g["teams"]["red"]["hp"], "blueHp": g["teams"]["blue"]["hp"],
     }
 
@@ -90,7 +91,7 @@ for (const [mode, move, ok, speed] of cases) {
   (R.SCORERS[mode])(g, g.players.Ana, QUESTION, ok, speed);
   const a = g.players.Ana;
   out.push({ score:a.score, hp:a.hp, blocks:a.blocks, height:a.height, sway:a.sway,
-    lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp,
+    lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp, blade:a.blade||'',
     redHp:g.teams.red.hp, blueHp:g.teams.blue.hp });
 }
 console.log(JSON.stringify(out));

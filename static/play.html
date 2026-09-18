@@ -266,6 +266,18 @@
 /* The move: the row of choices under the question. It has to read at a glance
  * on a phone held under a desk, so each one is a short verb and one line saying
  * what it costs. A choice whose terms you cannot see is not a choice. */
+/* The sword pad. Both buttons are as big as a thumb can miss, because a child
+ * in a ten-second fight is watching the boss, not their own hands. */
+.swordpad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;flex:none}
+.swordpad button{border:0;border-radius:20px;padding:26px 10px;font-size:1.05rem;font-weight:900;
+  letter-spacing:.08em;color:#fff;cursor:pointer;touch-action:manipulation;
+  transition:transform .08s ease,filter .08s ease;user-select:none;-webkit-user-select:none}
+.swordpad button:active{transform:scale(.94);filter:brightness(1.2)}
+.swordpad .swing{background:linear-gradient(180deg,#FFB020,#E07000);
+  box-shadow:0 8px 0 #9C4E00,0 14px 26px rgba(224,112,0,.4)}
+.swordpad .dodge{background:linear-gradient(180deg,#2BA8FF,#1466C8);
+  box-shadow:0 8px 0 #0B4184,0 14px 26px rgba(20,102,200,.4)}
+.swordpad button:active{box-shadow:0 3px 0 rgba(0,0,0,.4)}
 .moves{display:grid;gap:8px;margin:12px 0 4px}
 .moves.two{grid-template-columns:1fr 1fr}
 .move{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;
@@ -325,6 +337,7 @@
 <script src="/launch.js"></script>
 <script src="/progress.js"></script>
 <script src="/arena.js"></script>
+<script src="/strike.js"></script>
 <script src="/rules.js"></script>
 <script src="/nova.js"></script>
 <script>
@@ -334,6 +347,7 @@ const drawFace = (p, size) => Sprite.face(p && p.avatar, size);
 const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
+let strike = null, strikeTotal = 0;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -663,7 +677,9 @@ function render(fresh) {
 
   if (game.state === 'lobby') return app.append(lobbyCard());
   if (game.state === 'arena') return app.append(arenaCard());
+  if (game.state === 'strike') return app.append(strikeCard());
   if (arena) { arena.stop(); arena = null; }
+  if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state === 'over') return app.append(overCard());
   if (game.state === 'reveal') return app.append(revealCard());
   app.append(questionCard(fresh));
@@ -706,6 +722,77 @@ function lobbyCard() {
  * player. The joystick walks and aims at once; a keyboard uses WASD and the mouse.
  */
 let arena = null, arenaQ = 0, arenaAsking = false;
+
+/* Ten seconds with a sword.
+ *
+ * Two buttons and nothing else. A thumbstick is a menu you operate badly, and
+ * ten seconds is not long enough to learn one — so the player is always facing
+ * the boss and the only questions are when to swing and when to roll. Both
+ * buttons are enormous on purpose: a child is looking at the boss, not at their
+ * own hands, and should not have to aim at a control. */
+function strikeCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  const blade = (NovaStrike.BLADES[me.blade] || NovaStrike.BLADES.stick);
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', id: 's-dmg' }, '0 damage'),
+    el('span', { class: 'chip live', style: `border-color:${blade.colour}` }, blade.label)));
+
+  const shell = el('div', { class: 'arena-shell' });
+  shell.append(el('canvas', { class: 'arena-canvas', id: 'strike' }));
+  card.append(shell);
+
+  const pad = el('div', { class: 'swordpad' });
+  pad.innerHTML = `<button class="dodge" id="dodge">DODGE</button>
+                   <button class="swing" id="swing">SWING</button>`;
+  card.append(pad);
+  setTimeout(startStrike, 0);
+  return card;
+}
+
+function startStrike() {
+  const canvas = document.getElementById('strike');
+  if (!canvas || strike) return;
+  const others = (game.players || []).filter(p => p.id !== me.id)
+    .map(p => ({ id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
+  strike = NovaStrike.start({
+    canvas, me: { id: me.id, name: me.name, avatar: me.avatar },
+    blade: me.blade || 'stick',
+    boss: game.boss || null,
+    seed: game.strikeSeed || 1,
+    send: (event, payload) => Nova.arenaSend && Nova.arenaSend(pin, event, payload),
+    onHit: (dealt) => {
+      strikeTotal += dealt;
+      const n = document.getElementById('s-dmg');
+      if (n) n.textContent = strikeTotal + ' damage';
+    },
+    onDone: (out) => {
+      // one report at the end rather than one per swing: a phone on school wifi
+      // should not be sending thirty messages in ten seconds
+      api(`/games/${pin}/strike`, { method: 'POST',
+        body: { playerId: me.id, damage: out.damage, hits: out.hits } }).catch(() => {});
+    }
+  });
+  others.forEach(p => strike.add(p));
+  if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => strike && strike.heard(e, p));
+  wireSword();
+}
+
+function wireSword() {
+  const swing = document.getElementById('swing');
+  const dodge = document.getElementById('dodge');
+  if (!swing || !dodge) return;
+  const hit = (fn) => (e) => { e.preventDefault(); if (strike) fn(); if (navigator.vibrate) navigator.vibrate(12); };
+  swing.addEventListener('touchstart', hit(() => strike.swing()), { passive: false });
+  swing.addEventListener('mousedown', hit(() => strike.swing()));
+  dodge.addEventListener('touchstart', hit(() => strike.dodge()), { passive: false });
+  dodge.addEventListener('mousedown', hit(() => strike.dodge()));
+  // a keyboard, for anybody on a laptop
+  document.addEventListener('keydown', (e) => {
+    if (!strike) return;
+    if (e.code === 'Space' || e.key === 'j') { e.preventDefault(); strike.swing(); }
+    if (e.key === 'k' || e.key === 'Shift') strike.dodge();
+  });
+}
 
 function arenaCard() {
   const card = el('div', { class: 'play arena-wrap' });

@@ -1122,7 +1122,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
                                            "blocks", "sway", "height", "safe", "lastGain",
-                                           "move", "on")}
+                                           "blade", "struck", "move", "on")}
                     for p in players],
         "teams": game["teams"],
         "boss": game.get("boss"),
@@ -1135,6 +1135,9 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         # nothing on screen to explain them.
         "shoal": game.get("shoal", ""),
         "wind": bool(game.get("wind")),
+        # Boss Battle's fight: the script every device runs, and how long it runs
+        "strikeSeed": game.get("strikeSeed", 0),
+        "strikeMs": 10000,
         "moves": moves_for(game.get("mode")),
         "moveAsk": (MOVES.get(game.get("mode")) or {}).get("ask", ""),
         "startedAt": game.get("startedAt", 0),
@@ -1448,10 +1451,6 @@ MOVES = {
         {"id": "wide", "label": "Build wide", "note": "One block. It will never fall"},
         {"id": "tall", "label": "Build tall", "note": "Three blocks, but the tower starts to sway"},
         {"id": "brace", "label": "Brace it", "note": "No blocks. Steadies everything you have"}]},
-    "boss": {"ask": "What is the class doing?", "list": [
-        {"id": "attack", "label": "Attack", "note": "Hurt it. Nothing protects you"},
-        {"id": "guard", "label": "Guard", "note": "Soak its next hit for everyone"},
-        {"id": "heal", "label": "Heal", "note": "Put the class back on its feet"}]},
     "volcano": {"ask": "Which way up?", "list": [
         {"id": "ledge", "label": "The ledge", "note": "A short, certain climb"},
         {"id": "chimney", "label": "The chimney", "note": "Much faster. A slip costs you double"},
@@ -1596,38 +1595,25 @@ def score_tower(game, player, question, ok, speed):
 
 
 def score_boss(game, player, question, ok, speed):
-    """The boss says what it is about to do a round early, and the class has to
-    answer that as well as the question. Everyone attacking a boss winding up a
-    sweep is a wipe. Somebody has to read it out and the room has to agree."""
-    boss = game["boss"]
-    move = move_of(game, player)
-    if not ok:
-        player["lastGain"] = 0
-        player["acted"] = ""
-        return
-    player["acted"] = move
-    if move == "attack":
-        damage = round(20 + 25 * speed)
-        if player["streak"] >= 3:
-            damage = round(damage * 1.5)
-        boss["hp"] = max(0, boss["hp"] - damage)
-        player["score"] += damage
-        player["lastGain"] = damage
-        game["lastEvents"].append(f"{player['name']} hit {boss['name']} for {damage}")
-        if boss["hp"] == 0:
-            game["lastEvents"].append(f"{boss['name']} is defeated")
-    elif move == "guard":
-        player["guarding"] = True
-        player["score"] += 12
-        player["lastGain"] = 12
-    else:
-        healed = round(6 + 6 * speed)
-        boss["classHp"] = min(boss.get("classMax", 100), boss["classHp"] + healed)
-        player["score"] += healed
-        player["lastGain"] = healed
-        game["lastEvents"].append(f"{player['name']} patched the class up by {healed}")
+    """Boss Battle does not really score here any more.
 
+    It used to be the same as every other mode: answer, and a number goes up.
+    What the answer buys now is a weapon, and the damage is done in the ten
+    seconds afterwards with it — so a child who reads fast and a child who reads
+    slowly both walk into the fight, and the one who wins it is the one who
+    reads the boss rather than the question.
 
+    Right and quick is a greatsword. Right is a sword. Wrong is a stick, which
+    is weak and is still a thing to hold: nobody sits a round out watching other
+    people play. Mirrors SCORERS.boss in static/rules.js.
+    """
+    player["blade"] = "stick" if not ok else ("great" if speed >= 0.5 else "sword")
+    player["struck"] = 0
+    gain = round(10 + 10 * speed) if ok else 0     # a little for knowing it
+    player["score"] += gain
+    player["lastGain"] = gain
+    if ok and speed >= 0.5:
+        game["lastEvents"].append(f"{player['name']} picked up a greatsword")
 def score_volcano(game, player, question, ok, speed):
     """Three routes up, and the fast one drops rocks on the people below."""
     move = move_of(game, player)
@@ -1682,42 +1668,6 @@ def resolve(game):
         for p in everyone:
             p["rocks"] = False
 
-
-    if mode == "boss" and game.get("boss"):
-        boss = game["boss"]
-        move = boss.get("next", "poke")
-        guards = sum(1 for p in everyone if p.get("guarding"))
-        attackers = sum(1 for p in everyone if p.get("acted") == "attack")
-        heads = max(1, len(everyone))
-
-        if move == "sweep":
-            raw = 10 + attackers * 6
-            through = max(0, raw - min(raw, guards * 9))
-            boss["classHp"] = max(0, boss["classHp"] - through)
-            game["lastEvents"].append(
-                f"{boss['name']} swept the class for {through}" if through
-                else f"The class held the sweep — {boss['name']} hit nothing")
-        elif move == "mend":
-            if attackers < heads / 2:
-                back = round((boss.get("max") or boss["hp"]) * 0.08)
-                boss["hp"] = min(boss.get("max") or boss["hp"] + back, boss["hp"] + back)
-                game["lastEvents"].append(f"{boss['name']} caught its breath and healed {back}")
-            else:
-                game["lastEvents"].append(f"The class stopped {boss['name']} healing")
-        else:
-            through = 0 if guards else 8
-            boss["classHp"] = max(0, boss["classHp"] - through)
-            if through:
-                game["lastEvents"].append(f"{boss['name']} struck the class for {through}")
-
-        roll = random.random()
-        boss["next"] = "sweep" if roll < 0.34 else "mend" if roll < 0.6 else "poke"
-        boss["says"] = ("is winding up a huge sweep" if boss["next"] == "sweep"
-                        else "is about to heal itself" if boss["next"] == "mend"
-                        else "is sizing the class up")
-        for p in everyone:
-            p["guarding"] = False
-            p["acted"] = ""
 
     if mode == "laser":
         for p in everyone:
@@ -1838,6 +1788,48 @@ def answer_question(pin):
                     "streak": player["streak"], "state": game["state"],
                     "blocks": player.get("blocks", 0), "height": player.get("height", 0),
                     "gain": player.get("lastGain", 0)})
+
+
+# Boss Battle's fight: ten seconds, and the most one player could take off the
+# boss in them. Reported damage above this is a bug or a joke, and is treated
+# as both.
+STRIKE_MS = 10000
+STRIKE_CAP = 900
+
+
+@api.post("/games/<pin>/strike")
+def report_strike(pin):
+    """What one player did with their ten seconds.
+
+    The phone that swung the sword is the one that says so — the same trust
+    model the Laser Tag arena has always used, because thirty children fighting
+    is thirty small messages rather than one device simulating a room.
+    """
+    body = request.get_json(silent=True) or {}
+    with _lock:
+        game, err = game_or_404(pin)
+        if err:
+            return err
+        player = game["players"].get(body.get("playerId"))
+        if not player:
+            return jsonify({"error": "Join the game first."}), 404
+        if game["mode"] != "boss" or not game.get("boss"):
+            return jsonify({"ok": False, "why": "Not that kind of game."})
+        if player.get("struck"):
+            return jsonify({"ok": True, "already": True})
+        dealt = max(0, min(STRIKE_CAP, round(float(body.get("damage") or 0))))
+        player["struck"] = dealt
+        player["score"] += dealt
+        game["boss"]["hp"] = max(0, game["boss"]["hp"] - dealt)
+        if dealt:
+            game["lastEvents"].append(f"{player['name']} did {dealt} to {game['boss']['name']}")
+        if game["boss"]["hp"] == 0:
+            game["lastEvents"].append(f"{game['boss']['name']} is defeated")
+            game["state"] = "over"
+            game["endsAt"] = None
+        snapshot = public_game(game)
+    publish(f"game:{pin}", "game:state", snapshot)
+    return jsonify({"ok": True, "damage": dealt, "view": snapshot})
 
 
 @api.post("/games/<pin>/move")

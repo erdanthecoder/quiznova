@@ -588,13 +588,15 @@
 <script src="sprites.js?v=756a85b1"></script>
 <script src="music.js?v=0280affb"></script>
 
+
 <script src="nova.js?v=9fa1dfb0"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
+<script src="strike.js?v=3178e783"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2728ce31"></script>
-<script src="live.js?v=555454cf"></script>
+<script src="rules.js?v=769bc388"></script>
+<script src="live.js?v=8aa4e06f"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -880,7 +882,9 @@ function render(fresh) {
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
   if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
+  if (game.state === 'strike') { if (paint(stage, strikeView, fresh)) watchStrike(); return; }
   if (boardArena) { boardArena.stop(); boardArena = null; }
+  if (boardStrike) { boardStrike.stop(); boardStrike = null; }
   if (!game.question) return;
   if (paint(stage, () => questionView(fresh), fresh)) { bindQuestion(); runTimer(); }
 }
@@ -1024,7 +1028,7 @@ function drawQR(url) {
 }
 
 /* ── the Laser Tag arena, on the big screen ────── */
-let boardArena = null;
+let boardArena = null, boardStrike = null;
 
 function arenaView() {
   const root = el('div', { class: 'board' });
@@ -1040,6 +1044,34 @@ function arenaView() {
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
     el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
   return root;
+}
+
+/* The fight, on the projector. This is the half of Boss Battle that belongs on
+ * the big screen rather than in thirty pockets: everyone can see who is still
+ * standing, who is on the floor, and the red arc closing on half the ring. */
+function strikeView() {
+  const boss = game.boss || { name: 'The boss', hp: 1, max: 1 };
+  const root = el('div', { class: 'board' });
+  const panel = el('div', { class: 'ask' });
+  const up = game.players.filter(p => (p.blade || 'stick') !== 'stick').length;
+  panel.innerHTML = `<h1>${esc(boss.name)}</h1>
+    <div class="tally"><b>${boss.hp}</b><span>health left</span></div>
+    <p class="tiny faint" style="margin-top:8px">${up} of ${game.players.length} armed with a real blade</p>`;
+  root.append(panel);
+  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
+  return root;
+}
+
+function watchStrike() {
+  const canvas = document.getElementById('board-strike');
+  if (!canvas || boardStrike) return;
+  boardStrike = NovaStrike.start({
+    canvas, watching: true, send: () => {},
+    boss: game.boss || null, seed: game.strikeSeed || 1
+  });
+  (game.players || []).forEach(p => boardStrike.add(
+    { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
+  if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => boardStrike && boardStrike.heard(e, p));
 }
 
 function watchArena() {

@@ -71,6 +71,12 @@
           grade, blankPlayer, pickBossName, readSetup, secondsFor, arrange, modeFinished,
           afterRound, DEFAULT_MODE, BOSS_HP_PER_QUESTION } = R;
 
+  /* Boss Battle's fight: ten seconds, and the most one player could take off it
+   * in that time with the best weapon and never missing a beat. Reported damage
+   * above this is a bug or a joke and is treated as both. */
+  const STRIKE_MS = 10000;
+  const STRIKE_CAP = 900;
+
 
   /* ── state helpers ────────────────────────────────────── */
 
@@ -135,6 +141,8 @@
       // the world's own state: without these the wind and the shoal are things
       // that happen to the scores with nothing on screen to explain them
       shoal: game.shoal || '', wind: !!game.wind,
+      // Boss Battle's fight: the script every device runs, and how long is left
+      strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
       boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES[DEFAULT_MODE],
       goal: game.goal || { kind: 'questions', value: 0 },
@@ -273,7 +281,7 @@
 
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
-  const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move',
+  const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move', '/strike',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -405,6 +413,32 @@
      * dead on the website since the day they were written. None needs the host
      * token, being the player's own, but all three are checked against the
      * game's own state rather than trusting what arrived. */
+    /* What one player did with their ten seconds.
+     *
+     * The phone that swung the sword is the one that says so, the same trust
+     * model the Laser Tag arena has always used: thirty children fighting is
+     * thirty small messages rather than one device simulating a room. The
+     * damage is clamped to what the round could possibly have produced, so a
+     * fumbled message or a bored child with the console open cannot delete a
+     * boss in one go. */
+    if (tail === '/strike') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      if (game.mode !== 'boss' || !game.boss) return { ok: false, why: 'Not that kind of game.' };
+      if (p.struck) return { ok: true, already: true, view: publicView(game) };
+      const dealt = Math.max(0, Math.min(STRIKE_CAP, Math.round(Number(body.damage) || 0)));
+      p.struck = dealt;
+      p.score += dealt;
+      game.boss.hp = Math.max(0, game.boss.hp - dealt);
+      if (dealt) game.lastEvents.push(`${p.name} did ${dealt} to ${game.boss.name}`);
+      if (game.boss.hp === 0) {
+        game.lastEvents.push(`${game.boss.name} is defeated`);
+        game.state = 'over'; game.endsAt = null;
+      }
+      await writeGame(pin, game);
+      return { ok: true, damage: dealt, view: publicView(game) };
+    }
+
     /* The move: which way this player is playing the round. Every mode has them
      * now, so this is the busiest thing in here — it is written while the
      * question is still up, and read when the answer is scored. The rules decide
@@ -462,11 +496,29 @@
     }
     if (tail === '/next') {
       if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }
+      else if (game.state === 'reveal' && game.mode === 'boss' && game.boss && game.boss.hp > 0) {
+        // Boss Battle answers a question and then fights for ten seconds with
+        // whatever that answer earned. The seed goes out with the state so every
+        // device runs the same boss from the same script.
+        game.state = 'strike';
+        game.strikeSeed = Math.floor(Math.random() * 0xffffff);
+        game.endsAt = now() + STRIKE_MS + 600;
+      }
       else openQuestion(game);
       await writeGame(pin, game);
       return publicView(game);
     }
-    if (tail === '/tick') { await reconcile(pin, game); return publicView(game); }
+    if (tail === '/tick') {
+      /* The fight runs on its own clock and nobody presses anything to end it,
+       * so the host's own poll is what closes it. */
+      if (game.state === 'strike' && game.endsAt && now() >= game.endsAt) {
+        openQuestion(game);
+        await writeGame(pin, game);
+        return publicView(game);
+      }
+      await reconcile(pin, game);
+      return publicView(game);
+    }
     if (tail === '/end') { game.state = 'over'; game.endsAt = null; await writeGame(pin, game); return publicView(game); }
 
     return null;

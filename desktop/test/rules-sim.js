@@ -123,28 +123,25 @@ console.log('\n— the choice changes the game —');
      c.players.A.height < d.players.A.height, `chimney ${c.players.A.height}, ledge ${d.players.A.height}`);
 }
 
-// boss: guarding stops a sweep, and the boss telegraphs
+// boss: the answer no longer scores, it arms you for the fight
 {
-  const g = newGame('boss', ['A', 'B', 'C']);
-  g.boss.next = 'sweep';
-  const hpBefore = g.boss.classHp;
-  round(g, { A: { ok: true, speed: .8, move: 'guard' }, B: { ok: true, speed: .8, move: 'guard' },
-             C: { ok: true, speed: .8, move: 'guard' } });
-  ok('boss: a guarded sweep does nothing', g.boss.classHp === hpBefore, `${hpBefore} -> ${g.boss.classHp}`);
-
-  const h = newGame('boss', ['A', 'B', 'C']);
-  h.boss.next = 'sweep';
-  round(h, { A: { ok: true, speed: .8, move: 'attack' }, B: { ok: true, speed: .8, move: 'attack' },
-             C: { ok: true, speed: .8, move: 'attack' } });
-  ok('boss: an unguarded sweep hurts the class', h.boss.classHp < 100, `classHp ${h.boss.classHp}`);
-  ok('boss: it says what it will do next', !!h.boss.says, h.boss.says);
-
-  // and a class that does not hit it hard enough lets it heal
-  const m = newGame('boss', ['A', 'B', 'C', 'D']);
-  m.boss.next = 'mend'; m.boss.hp = 400;
-  round(m, { A: { ok: true, speed: .5, move: 'heal' }, B: { ok: true, speed: .5, move: 'heal' },
-             C: { ok: true, speed: .5, move: 'guard' }, D: { ok: false, speed: .5, move: 'attack' } });
-  ok('boss: it heals when the class did not press it', m.boss.hp > 400, `hp ${m.boss.hp}`);
+  const g = newGame('boss', ['Fast', 'Slow', 'Wrong']);
+  R.SCORERS.boss(g, g.players.Fast,  QUESTION, true,  0.9);
+  R.SCORERS.boss(g, g.players.Slow,  QUESTION, true,  0.2);
+  R.SCORERS.boss(g, g.players.Wrong, QUESTION, false, 0.9);
+  ok('boss: answering fast and right earns a greatsword', g.players.Fast.blade === 'great',
+     g.players.Fast.blade);
+  ok('boss: answering right but slowly earns a sword', g.players.Slow.blade === 'sword',
+     g.players.Slow.blade);
+  ok('boss: answering wrongly still puts something in your hands',
+     g.players.Wrong.blade === 'stick', g.players.Wrong.blade);
+  ok('boss: the boss takes no damage from the question itself',
+     g.boss.hp === 800, `hp ${g.boss.hp}`);
+  ok('boss: knowing the answer is still worth a little',
+     g.players.Fast.score > g.players.Slow.score && g.players.Wrong.score === 0,
+     `${g.players.Fast.score} / ${g.players.Slow.score} / ${g.players.Wrong.score}`);
+  ok('boss: and there is no move to pick, because the fight is the decision',
+     R.movesFor('boss').length === 0, `${R.movesFor('boss').length} moves`);
 }
 
 // laser: pushing up hits harder and costs you; cover shields a mate

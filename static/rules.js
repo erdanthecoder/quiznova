@@ -18,9 +18,7 @@
     tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Build tall and sway, or stop and brace before the wind' },
     
     boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'It says what it will do next. The class has to agree' },
-    
-    
-    
+
     
     
     volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Three routes up. The fastest drops rocks on those below' },
@@ -35,9 +33,7 @@
     tower:    [['site', 'Building Site'], ['candy', 'Candy Land'], ['castle', 'Castle Walls']],
     
     boss:     [['lair', 'Dragon Lair'], ['volcano', 'Volcano'], ['ruins', 'Old Ruins']],
-    
-    
-    
+
     
     
     volcano:  [['crater', 'The Crater'], ['ashfall', 'Ashfall'], ['obsidian', 'Obsidian Cliffs']],
@@ -221,17 +217,10 @@
       ]
     },
     
-    boss: {
-      ask: 'What is the class doing?', when: 'question',
-      list: [
-        { id: 'attack', label: 'Attack', note: 'Hurt it. Nothing protects you' },
-        { id: 'guard',  label: 'Guard',  note: 'Soak its next hit for everyone' },
-        { id: 'heal',   label: 'Heal',   note: 'Put the class back on its feet' }
-      ]
-    },
-    
-    
-    
+    /* Boss Battle has no move to pick. Its decision is a real one, made with a
+     * thumb in the ten seconds after the question: when to swing and when to
+     * roll. A menu of three words would be a worse version of that. */
+
     
     
     volcano: {
@@ -331,8 +320,6 @@
       }
     },
 
-
-
     /* Push your luck, with a wind that decides. Building tall is worth three
      * times as much and makes the tower sway; a swaying tower falls when the
      * wind gets up, which the board warns about a round in advance. So the game
@@ -364,50 +351,25 @@
       p.score = p.blocks;
     },
 
-
-
-    /* The boss now says what it is about to do, one round early, and the class
-     * has to answer that as well as the question. Everyone attacking a boss that
-     * is winding up a sweep is a wipe; everyone guarding a boss that is only
-     * poking is a wasted round and it heals. Somebody has to read it out and the
-     * room has to agree, which is the most fun thing that has ever happened in
-     * this mode. */
+    /* Boss Battle does not really score here any more.
+     *
+     * It used to be the same as every other mode: answer, and a number goes up.
+     * What the answer buys now is a weapon, and the damage is done in the ten
+     * seconds afterwards with it — so a child who reads fast and a child who
+     * reads slowly both walk into the fight, and the one who wins it is the one
+     * who reads the boss rather than the question.
+     *
+     * Right and quick is a greatsword. Right is a sword. Wrong is a stick, which
+     * is weak and is still a thing to hold: nobody sits a round out watching
+     * other people play. */
     boss(game, p, q, ok, speed) {
-      const boss = game.boss;
-      const move = moveOf(game, p);
-      if (!ok) {
-        p.lastGain = 0;
-        p.acted = '';
-        return;
-      }
-      p.acted = move;
-      if (move === 'attack') {
-        let damage = Math.round(20 + 25 * speed);
-        if (p.streak >= 3) damage = Math.round(damage * 1.5);
-        boss.hp = Math.max(0, boss.hp - damage);
-        p.score += damage; p.lastGain = damage;
-        game.lastEvents.push(`${p.name} hit ${boss.name} for ${damage}`);
-        if (boss.hp === 0) game.lastEvents.push(`${boss.name} is defeated`);
-      } else if (move === 'guard') {
-        p.guarding = true;
-        p.score += 12; p.lastGain = 12;
-      } else {
-        const healed = Math.round(6 + 6 * speed);
-        boss.classHp = Math.min(boss.classMax || 100, boss.classHp + healed);
-        p.score += healed; p.lastGain = healed;
-        game.lastEvents.push(`${p.name} patched the class up by ${healed}`);
-      }
+      p.blade = !ok ? 'stick' : speed >= 0.5 ? 'great' : 'sword';
+      p.struck = 0;
+      const gain = ok ? Math.round(10 + 10 * speed) : 0;   // a little for knowing it
+      p.score += gain;
+      p.lastGain = gain;
+      if (ok && speed >= 0.5) game.lastEvents.push(`${p.name} picked up a greatsword`);
     },
-
-
-
-
-
-
-
-
-
-
 
     /* Three routes up, and the fast one drops rocks on the people below. That is
      * the first thing in this game that made the class shout at each other. */
@@ -435,8 +397,6 @@
       if (!wasSafe && p.safe) game.lastEvents.push(`${p.name} climbed back out`);
       p.score = p.height;
     },
-
-
 
 };
 
@@ -475,50 +435,6 @@
       everyone.forEach(p => { p.rocks = false; });
     }
 
-    /* Boss Battle: the boss takes its turn, and whether it lands depends on what
-     * the class chose against what it announced it was doing. This is the only
-     * mode where the room can be wrong together, and getting it right feels like
-     * something the class did rather than something the fastest reader did. */
-    if (game.mode === 'boss' && game.boss) {
-      const boss = game.boss;
-      const move = boss.next || 'poke';
-      const guards = everyone.filter(p => p.guarding).length;
-      const attackers = everyone.filter(p => p.acted === 'attack').length;
-      const heads = Math.max(1, everyone.length);
-
-      if (move === 'sweep') {
-        // a sweep punishes attacking and is stopped by guarding
-        const raw = 10 + attackers * 6;
-        const soaked = Math.min(raw, guards * 9);
-        const through = Math.max(0, raw - soaked);
-        boss.classHp = Math.max(0, boss.classHp - through);
-        game.lastEvents.push(through
-          ? `${boss.name} swept the class for ${through}`
-          : `The class held the sweep — ${boss.name} hit nothing`);
-      } else if (move === 'mend') {
-        // if the class did not hit it hard enough, it heals
-        const hurt = everyone.reduce((n, p) => n + (p.acted === 'attack' ? 1 : 0), 0);
-        if (hurt < heads / 2) {
-          const back = Math.round((boss.max || boss.hp) * 0.08);
-          boss.hp = Math.min(boss.max || boss.hp + back, boss.hp + back);
-          game.lastEvents.push(`${boss.name} caught its breath and healed ${back}`);
-        } else {
-          game.lastEvents.push(`The class stopped ${boss.name} healing`);
-        }
-      } else {
-        const raw = 8;
-        const through = guards ? 0 : raw;
-        boss.classHp = Math.max(0, boss.classHp - through);
-        if (through) game.lastEvents.push(`${boss.name} struck the class for ${through}`);
-      }
-      // and it says what it is doing next, so the class can argue about it
-      const roll = Math.random();
-      boss.next = roll < 0.34 ? 'sweep' : roll < 0.6 ? 'mend' : 'poke';
-      boss.says = boss.next === 'sweep' ? 'is winding up a huge sweep'
-                : boss.next === 'mend'  ? 'is about to heal itself'
-                : 'is sizing the class up';
-      everyone.forEach(p => { p.guarding = false; p.acted = ''; });
-    }
 
     /* Laser Tag: shields last one round, and pushing up leaves you open to the
      * next one, so the choice has a consequence that arrives after you made it. */

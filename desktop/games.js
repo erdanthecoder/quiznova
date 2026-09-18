@@ -25,6 +25,11 @@ const STATIC = findStatic();
 const R = require(path.join(STATIC, 'rules.js'));
 const { rid, now } = require('./store.js');
 
+/* Boss Battle's fight: ten seconds, and the most one player could possibly take
+ * off the boss in them. Reported damage above this is a bug or a joke. */
+const STRIKE_MS = 10000;
+const STRIKE_CAP = 900;
+
 const ARENA_SECONDS = 20;
 const GAME_LIFETIME = 6 * 60 * 60 * 1000;   // a game nobody ended is forgotten after six hours
 
@@ -101,6 +106,7 @@ class Games {
       // the world's own state, and the moves this mode offers. Without these the
       // app is playing a different game from the website off the same rules.
       lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
+      strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
       moves: R.movesFor(game.mode), moveAsk: (R.MOVES[game.mode] || {}).ask || '',
       startedAt: game.startedAt,
       music: game.music !== false
@@ -178,7 +184,32 @@ class Games {
     game.endsAt = now() + R.secondsFor(game, game.questions[game.index]) * 1000 + 700;
   }
 
+  /* Boss Battle: the question is followed by ten seconds of fighting. */
+  strike(game, body) {
+    const p = game.players[body.playerId];
+    if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
+    if (game.mode !== 'boss' || !game.boss) return { ok: false, why: 'Not that kind of game.' };
+    if (p.struck) return { ok: true, already: true };
+    const dealt = Math.max(0, Math.min(STRIKE_CAP, Math.round(Number(body.damage) || 0)));
+    p.struck = dealt;
+    p.score += dealt;
+    game.boss.hp = Math.max(0, game.boss.hp - dealt);
+    if (dealt) game.lastEvents.push(`${p.name} did ${dealt} to ${game.boss.name}`);
+    if (game.boss.hp === 0) {
+      game.lastEvents.push(`${game.boss.name} is defeated`);
+      game.state = 'over'; game.endsAt = null;
+    }
+    this.changed(game);
+    return { ok: true, damage: dealt };
+  }
+
   next(game) {
+    if (game.state === 'reveal' && game.mode === 'boss' && game.boss && game.boss.hp > 0) {
+      game.state = 'strike';
+      game.strikeSeed = Math.floor(Math.random() * 0xffffff);
+      game.endsAt = now() + STRIKE_MS + 600;
+      return this.changed(game);
+    }
     if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; }
     else this.openQuestion(game);
     return this.changed(game);
@@ -221,6 +252,10 @@ class Games {
   /* The clock, called on a timer by the server: a question can run out with
    * nobody having answered, and a time limit can run out mid-question. */
   tick(game) {
+    if (game.state === 'strike' && game.endsAt && now() >= game.endsAt) {
+      this.openQuestion(game);
+      return this.changed(game);
+    }
     const before = game.state;
     if (game.state === 'question' && game.endsAt && now() >= game.endsAt) {
       game.state = 'reveal';
