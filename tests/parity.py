@@ -31,24 +31,17 @@ def fresh(mode, names):
         players[n] = {
             "id": n, "name": n, "avatar": i, "team": "blue" if i % 2 else "red",
             "score": 0, "hp": 100, "streak": 0, "best": 0, "answered": False,
-            "correct": None, "down": False, "lastDamage": 0, "distance": 0,
-            "blocks": 0, "coins": 0, "chest": "", "balloons": Q.BALLOONS, "hits": 0,
-            "cards": [], "spares": 0, "height": 0, "safe": True, "machines": 0,
-            "output": 0, "target": "", "catch": "", "weight": 0, "best_catch": 0,
-            "lastGain": 0, "move": "", "on": "", "job": None, "sway": 0,
-            "item": False, "run": 0, "rocks": False, "tuned": 0, "stopped": False,
+            "correct": None, "down": False, "lastDamage": 0, "lastGain": 0,
+            "blocks": 0, "sway": 0, "height": 0, "safe": True, "rocks": False,
             "guarding": False, "acted": "", "shielded": False, "exposed": False,
-            "offer": "", "answers": {},
+            "target": "", "move": "", "on": "", "answers": {},
         }
     return {
         "mode": mode, "players": players, "questions": [QUESTION], "index": 0,
         "state": "question", "lastEvents": [], "setup": Q.read_setup({}),
-        "goal": {"kind": "questions"}, "rope": 0, "lava": 0, "shoal": "channel",
-        "wind": False,
-        "teams": {"red": {"name": "Red", "score": 0, "hp": 600, "blocks": Q.FORT_BLOCKS,
-                          "max": Q.FORT_BLOCKS, "decoys": 0},
-                  "blue": {"name": "Blue", "score": 0, "hp": 600, "blocks": Q.FORT_BLOCKS,
-                           "max": Q.FORT_BLOCKS, "decoys": 0}},
+        "goal": {"kind": "questions"}, "lava": 0, "wind": False,
+        "teams": {"red": {"name": "Red", "score": 0, "hp": 600},
+                  "blue": {"name": "Blue", "score": 0, "hp": 600}},
         "boss": {"name": "Boss", "hp": 800, "max": 800, "classHp": 100,
                  "classMax": 100, "next": "poke", "says": ""},
     }
@@ -58,8 +51,6 @@ def py_run(mode, move, ok, speed):
     Q.random.random = lambda: 0.5
     Q.random.choice = lambda seq: list(seq)[0]
     g = fresh(mode, ["Ana", "Ben"])
-    for p in g["players"].values():
-        p["target"] = "channel"
     on = "Ben" if any(m.get("needs") == "player" for m in Q.moves_for(mode) if m["id"] == move) else (
          Q.CARD_SET[0] if any(m.get("needs") == "card" for m in Q.moves_for(mode) if m["id"] == move) else "")
     Q.choose_move(g, g["players"]["Ana"], move, on)
@@ -67,14 +58,11 @@ def py_run(mode, move, ok, speed):
     g["players"]["Ana"]["streak"] = 3 if ok else 0
     Q.SCORERS[mode](g, g["players"]["Ana"], QUESTION, ok, speed)
     return {
-        "score": g["players"]["Ana"]["score"], "coins": g["players"]["Ana"]["coins"],
+        "score": g["players"]["Ana"]["score"], "hp": g["players"]["Ana"]["hp"],
         "blocks": g["players"]["Ana"]["blocks"], "height": g["players"]["Ana"]["height"],
-        "distance": g["players"]["Ana"]["distance"], "hp": g["players"]["Ana"]["hp"],
-        "balloons": g["players"]["Ana"]["balloons"], "weight": g["players"]["Ana"]["weight"],
         "sway": g["players"]["Ana"]["sway"], "lastGain": g["players"]["Ana"]["lastGain"],
-        "rope": g["rope"], "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
-        "redBlocks": g["teams"]["red"]["blocks"], "blueBlocks": g["teams"]["blue"]["blocks"],
-        "cards": len(g["players"]["Ana"]["cards"]),
+        "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
+        "redHp": g["teams"]["red"]["hp"], "blueHp": g["teams"]["blue"]["hp"],
     }
 
 JS = r"""
@@ -88,13 +76,11 @@ for (const [mode, move, ok, speed] of cases) {
   const players = {};
   ['Ana','Ben'].forEach((n,i) => {
     players[n] = R.blankPlayer({ id:n, name:n, avatar:i, team: i%2 ? 'blue':'red' });
-    players[n].target = 'channel';
   });
   const g = { mode, players, questions:[QUESTION], index:0, state:'question',
     lastEvents:[], setup:R.readSetup({}), goal:{kind:'questions'},
-    rope:0, lava:0, shoal:'channel', wind:false,
-    teams:{ red:{name:'Red',score:0,hp:600,blocks:R.FORT_BLOCKS,max:R.FORT_BLOCKS,decoys:0},
-            blue:{name:'Blue',score:0,hp:600,blocks:R.FORT_BLOCKS,max:R.FORT_BLOCKS,decoys:0} },
+    lava:0, wind:false,
+    teams:{ red:{name:'Red',score:0,hp:600}, blue:{name:'Blue',score:0,hp:600} },
     boss:{ name:'Boss', hp:800, max:800, classHp:100, classMax:100, next:'poke', says:'' } };
   const spec = R.movesFor(mode).find(m => m.id === move) || {};
   const on = spec.needs === 'player' ? 'Ben' : spec.needs === 'card' ? R.CARD_SET[0] : '';
@@ -103,10 +89,9 @@ for (const [mode, move, ok, speed] of cases) {
   g.players.Ana.streak = ok ? 3 : 0;
   (R.SCORERS[mode])(g, g.players.Ana, QUESTION, ok, speed);
   const a = g.players.Ana;
-  out.push({ score:a.score, coins:a.coins, blocks:a.blocks, height:a.height,
-    distance:a.distance, hp:a.hp, balloons:a.balloons, weight:a.weight, sway:a.sway,
-    lastGain:a.lastGain, rope:g.rope, bossHp:g.boss.hp, classHp:g.boss.classHp,
-    redBlocks:g.teams.red.blocks, blueBlocks:g.teams.blue.blocks, cards:a.cards.length });
+  out.push({ score:a.score, hp:a.hp, blocks:a.blocks, height:a.height, sway:a.sway,
+    lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp,
+    redHp:g.teams.red.hp, blueHp:g.teams.blue.hp });
 }
 console.log(JSON.stringify(out));
 """
@@ -119,9 +104,7 @@ js = json.loads(subprocess.run(
 
 fails = 0
 # the paths where a dice is genuinely rolled and stubbing cannot align the two
-RANDOM = {('cards', 'grab'), ('cards', 'hunt'), ('fishing', 'cast'),
-          ('fishing', 'bait'), ('fishing', 'net'), ('treasure', 'silver'),
-          ('treasure', 'gold'), ('treasure', 'bronze')}
+RANDOM = set()   # none of the four surviving scorers rolls a dice of its own
 for (mode, move, ok, speed), got in zip(CASES, js):
     want = py_run(mode, move, ok, speed)
     if (mode, move) in RANDOM:

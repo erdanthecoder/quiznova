@@ -322,7 +322,7 @@
 <main class="shell" id="app"></main>
 
 <script src="/sprites.js?v=756a85b1"></script>
-<script src="/launch.js?v=484f4248"></script>
+<script src="/launch.js?v=61b7828a"></script>
 <script src="/progress.js?v=4849abb2"></script>
 
 
@@ -331,8 +331,8 @@
 <script src="/realtime.js?v=75e1623c"></script>
 <script src="/arena.js?v=fb3b6182"></script>
 <script src="/paste.js?v=3032c005"></script>
-<script src="/rules.js?v=d0b6da9d"></script>
-<script src="/live.js?v=1a982c87"></script>
+<script src="/rules.js?v=2728ce31"></script>
+<script src="/live.js?v=555454cf"></script>
 <script src="/nova-local.js?v=21b460e4"></script>
 <script src="/account.js?v=1f2bba77"></script>
 <script>
@@ -660,27 +660,11 @@ function hud() {
       me.team === 'red' ? 'Crimson' : 'Cobalt'));
     node.append(el('div', { class: 'stat' }, el('b', {}, me.down ? 'DOWN' : me.hp + ' HP'), el('span', {}, 'shield')));
   } else {
-    if (game.mode === 'snow') {
-      node.append(el('span', { class: 'chip ' + (me.team === 'red' ? '' : 'live'),
-        style: `border-color:${me.team === 'red' ? 'rgba(255,77,94,.5)' : 'rgba(79,107,255,.5)'}` },
-        me.team === 'red' ? 'Crimson' : 'Cobalt'));
-    }
-    const unit = { kart: ['distance', (me.distance || 0) + 'm'], tower: ['blocks', String(me.blocks || 0)],
-                   treasure: ['coins', String(me.coins || 0)], boss: ['damage', String(me.score)],
-                   snow: ['blocks off', String(me.hits || 0)], heist: ['gold', String(me.coins || 0)],
-                   cards: ['cards', `${(me.cards || []).length}/8`],
-                   tug: ['pulled', String(me.hits || 0)] }[game.mode]
+    const unit = { tower: ['blocks', String(me.blocks || 0)],
+                   boss: ['damage', String(me.score)],
+                   volcano: ['up the wall', String(me.height || 0)] }[game.mode]
                  || ['points', String(me.score)];
     node.append(el('div', { class: 'stat' }, el('b', {}, unit[1]), el('span', {}, unit[0])));
-    // in Balloon Drop what is left is more urgent than the score
-    if (game.mode === 'balloon') {
-      const strip = el('div', { class: 'balloons hud-strip' });
-      for (let b = 0; b < 3; b++) {
-        strip.append(el('i', { class: b < (me.balloons || 0) ? '' : 'popped',
-                               style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-      }
-      node.append(strip);
-    }
   }
   if (me.streak >= 2) node.append(el('span', { class: 'chip warn' },
     el('span', { class: 'mini-face', html: Sprite.icon('flame', 14) }), String(me.streak)));
@@ -715,7 +699,7 @@ function lobbyCard() {
   card.append(panel);
 
   // both team games let a child choose a side before the whistle
-  if (game.mode === 'laser' || game.mode === 'snow') {
+  if (game.mode === 'laser') {
     const pick = el('div', { class: 'team-pick', style: 'flex:none' });
     ['red', 'blue'].forEach(side => {
       const count = game.players.filter(p => p.team === side).length;
@@ -727,11 +711,6 @@ function lobbyCard() {
          el('div', { class: 'tiny faint', 'data-team-count': side }, count + ' players')));
     });
     card.append(el('p', { class: 'label', style: 'margin-top:14px;flex:none' }, 'Pick your team'), pick);
-  }
-  if (game.mode === 'balloon') {
-    const strip = el('div', { class: 'balloons lobby', style: 'flex:none' });
-    for (let b = 0; b < 3; b++) strip.append(el('i', { style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-    card.append(strip);   // the mode's own blurb above already explains them
   }
   return card;
 }
@@ -870,55 +849,6 @@ function askArenaQuestion() {
   });
 }
 
-/* Factory's one decision, on the phone where the player is.
- *
- * A machine is bought with coins already earned, and every machine after the
- * first costs more, so buying is a real trade: the coins spent are points given
- * up now for points that arrive whether you answer or not. The button says the
- * price rather than making anybody work it out. */
-function buildButton() {
-  const cost = NovaRules.machineCost(me);
-  const can = (me.coins || 0) >= cost;
-  const btn = el('button', { class: 'btn' + (can ? ' primary' : ''), disabled: !can },
-    can ? `Build a machine · ${cost}` : `${cost - (me.coins || 0)} more coins for a machine`);
-  btn.onclick = () => {
-    btn.disabled = true;
-    api(`/games/${pin}/build`, { method: 'POST', body: { playerId: me.id } })
-      .then(out => {
-        if (!out || out.ok === false) { toast(out && out.why ? out.why : 'Not enough coins.', 'bad'); btn.disabled = false; return; }
-        if (out.view) apply(out.view);
-      })
-      .catch(err => { toast(err.message, 'bad'); btn.disabled = false; });
-  };
-  return btn;
-}
-
-/* Fishing's one decision. Chosen before the answer and kept until it is changed,
- * so a child who picks the deep water and gets three wrong in a row can feel it
- * — which is the game. */
-function castPicker() {
-  const spots = NovaRules.SPOTS;
-  const here = spots[me.target] ? me.target : 'shallows';
-  const row = el('div', { class: 'casts' });
-  Object.entries(spots).forEach(([id, spot]) => {
-    const odds = Math.round(spot.odds * 100);
-    const btn = el('button', { class: 'cast' + (id === here ? ' on' : ''), type: 'button',
-      title: `${odds} times in a hundred you catch something` },
-      el('b', {}, spot.label.replace('The ', '')),
-      el('span', {}, `${spot.low}–${spot.high} · ${odds}%`));
-    btn.onclick = () => {
-      if (id === here) return;
-      row.querySelectorAll('.cast').forEach(n => n.classList.remove('on'));
-      btn.classList.add('on');
-      api(`/games/${pin}/cast`, { method: 'POST', body: { playerId: me.id, spot: id } })
-        .then(out => { if (out && out.view) apply(out.view); })
-        .catch(err => toast(err.message, 'bad'));
-    };
-    row.append(btn);
-  });
-  return el('div', {}, el('span', { class: 'cap' }, 'Where are you casting?'), row);
-}
-
 /* The move — the thing that turns this from a quiz into a game.
  *
  * One component for all fourteen modes, because the rules describe them: what
@@ -1023,16 +953,7 @@ function stagePanel() {
   const rank = game.players.findIndex(p => p.id === me.id) + 1;
   const answered = game.players.filter(p => p.answered).length;
 
-  if (game.mode === 'kart') {
-    const far = Math.max(1, game.trackLength || 1000);
-    box.append(el('span', { class: 'cap' }, 'Your kart'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('kart', 44, '#FFC53D') }),
-        el('span', { class: 'big-num' }, `${me.distance || 0}m`)),
-      el('div', { class: 'minitrack' },
-        el('i', { style: `width:${Math.max(4, Math.min(96, (me.distance || 0) / far * 96))}%` }),
-        el('span', { class: 'flag' })));
-  } else if (game.mode === 'tower') {
+  if (game.mode === 'tower') {
     const stack = el('div', { class: 'ministack' });
     for (let i = 0; i < Math.min(8, me.blocks || 0); i++) {
       stack.append(el('i', { style: `--c:${['#F4364C', '#FFC53D', '#4F6BFF', '#12BE8E'][i % 4]};animation-delay:${i * 40}ms` }));
@@ -1040,34 +961,6 @@ function stagePanel() {
     box.append(el('span', { class: 'cap' }, 'Your tower'),
                stack.children.length ? stack : el('span', { class: 'cap' }, 'Nothing built yet'),
                el('span', { class: 'big-num' }, String(me.blocks || 0)));
-  } else if (game.mode === 'tug') {
-    // the rope belongs to the room, so the phone shows which way it is going
-    const rope = Math.max(-100, Math.min(100, game.rope || 0));
-    const ours = me.team === 'red' ? -rope : rope;
-    box.append(el('span', { class: 'cap' },
-                 ours > 0 ? 'Your team is winning the rope'
-               : ours < 0 ? 'They are pulling it back' : 'Dead even'),
-      el('div', { class: 'minitrack' },
-        el('i', { style: `width:${Math.round(Math.max(2, Math.min(100, (ours + 100) / 2)))}%;` +
-                         `background:${me.team === 'red' ? '#F4364C' : '#4F6BFF'}` })),
-      el('span', { class: 'big-num' }, `${Math.abs(ours)}`));
-  } else if (game.mode === 'heist') {
-    box.append(el('span', { class: 'cap' }, 'Your gold'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('coin', 40, '#FFC53D') }),
-        el('span', { class: 'big-num' }, String(me.coins || 0))),
-      me.chest ? el('span', { class: 'cap' }, me.chest) : el('span', {}));
-  } else if (game.mode === 'cards') {
-    const all = ['star', 'moon', 'leaf', 'flame', 'drop', 'bolt', 'gem', 'crown'];
-    const tint = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
-                   drop: '#2BA8FF', bolt: '#F4364C', gem: '#7C4DFF', crown: '#E5A02A' };
-    const hand = el('div', { class: 'minihand' });
-    const held = me.cards || [];
-    all.forEach(c => hand.append(el('i', { class: 'mcard' + (held.includes(c) ? '' : ' gap'),
-                                           html: held.includes(c) ? Sprite.icon(c, 15, tint[c]) : '' })));
-    box.append(el('span', { class: 'cap' }, `${held.length} of 8 cards`), hand,
-               me.spares ? el('span', { class: 'cap' }, `${me.spares} spare — three trades for one you need`)
-                         : el('span', {}));
   } else if (game.mode === 'volcano') {
     const gap = Math.round((me.height || 0) - (game.lava || 0));
     box.append(el('span', { class: 'cap' },
@@ -1080,58 +973,12 @@ function stagePanel() {
         el('i', { style: `width:${Math.max(3, Math.min(100, 50 + gap / 2))}%;` +
                          `background:${me.safe ? 'linear-gradient(90deg,#12BE8E,#FFC53D)' : '#F4364C'}` })),
       el('span', { class: 'cap' }, me.safe ? `${gap} above the lava` : `${-gap} under it`));
-  } else if (game.mode === 'factory') {
-    box.append(el('span', { class: 'cap' }, 'Your factory'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('coin', 40, '#FFC53D') }),
-        el('span', { class: 'big-num' }, String(me.coins || 0))),
-      el('span', { class: 'cap' },
-        `${me.machines || 0} machine${me.machines === 1 ? '' : 's'}`
-        + (me.output ? ` · they paid you ${me.output} last round` : '')),
-      buildButton());
-  } else if (game.mode === 'fishing') {
-    box.append(el('span', { class: 'cap' }, 'Your catch'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('drop', 40, '#2BA8FF') }),
-        el('span', { class: 'big-num' }, String(me.weight || 0))),
-      me.catch ? el('span', { class: 'cap' }, me.catch) : el('span', {}),
-      castPicker());
-  } else if (game.mode === 'treasure') {
-    box.append(el('span', { class: 'cap' }, 'Your coins'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('gem', 40, '#FFC53D') }),
-        el('span', { class: 'big-num' }, String(me.coins || 0))));
   } else if (game.mode === 'boss' && game.boss) {
     box.append(el('span', { class: 'cap' }, game.boss.name),
       el('span', { class: 'mini-face', html: Sprite.icon('dragon', 58, '#9B7BFF') }),
       el('div', { class: 'answeredbar' },
          el('i', { style: `width:${Math.max(0, game.boss.hp / game.boss.max * 100)}%;background:linear-gradient(90deg,#F4364C,#FF7A45)` })),
       el('span', { class: 'cap' }, `${game.boss.hp} HP left`));
-  } else if (game.mode === 'snow') {
-    const foe = game.teams[me.team === 'red' ? 'blue' : 'red'] || { blocks: 0, max: 0, name: '' };
-    const fort = el('div', { class: 'minifort' });
-    const rows = Math.max(1, Math.ceil((foe.max || 1) / 3));
-    for (let r = 0; r < rows; r++) {
-      const row = el('div', { class: 'row' });
-      for (let c = 0; c < 3; c++) {
-        const nth = r * 3 + c;
-        if (nth >= (foe.max || 0)) continue;
-        row.append(el('i', { class: nth < foe.blocks ? '' : 'gone',
-                             style: `--c:${me.team === 'red' ? '#4F6BFF' : '#F4364C'}` }));
-      }
-      fort.append(row);
-    }
-    box.append(el('span', { class: 'cap' }, `Knock down the ${foe.name} fort`), fort,
-               el('span', { class: 'cap' }, `${foe.blocks} block${foe.blocks === 1 ? '' : 's'} standing`));
-  } else if (game.mode === 'balloon') {
-    const strip = el('div', { class: 'balloons' });
-    for (let b = 0; b < 3; b++) {
-      strip.append(el('i', { class: b < (me.balloons || 0) ? '' : 'popped',
-                             style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-    }
-    box.append(el('span', { class: 'cap' }, 'Your balloons'), strip,
-      el('span', { class: 'cap' }, (me.balloons || 0) > 0
-        ? `Get it wrong and one pops` : 'All gone — play on for points'));
   } else {
     box.append(el('span', { class: 'mini-face', html: drawFace(me, 74) }),
       el('span', { class: 'big-num' }, rank ? '#' + rank : '—'),
@@ -1235,17 +1082,11 @@ function revealCard() {
       el('p', { class: 'sub' }, 'Be quicker next round')));
   } else {
     const line = game.mode === 'laser' ? (me.down ? 'Teammate healed' : ok ? 'Laser fired' : 'Shield hit')
-      : game.mode === 'kart'     ? (ok ? `+${g} metres` : 'Spun out')
-      : game.mode === 'tower'    ? (ok ? `+${g} block${g > 1 ? 's' : ''}` : 'A block fell')
-      : game.mode === 'treasure' ? (ok ? `+${g} coins` : 'Empty chest')
-      : game.mode === 'tug'      ? (ok ? `Pulled ${g}` : 'Lost your grip')
-      : game.mode === 'heist'    ? (ok ? (me.chest || `+${g} gold`) : 'Empty-handed')
-      : game.mode === 'cards'    ? (ok ? (me.chest || 'A card') : 'No card this time')
+      : game.mode === 'tower'    ? (ok ? (me.move === 'brace' ? 'Braced — steady again'
+                                                             : `+${g} block${g > 1 ? 's' : ''}`)
+                                       : 'A block fell')
       : game.mode === 'boss'     ? (ok ? `${g} damage` : 'The boss hit back')
-      : game.mode === 'snow'     ? (ok ? `Direct hit · +${g}` : 'Wide of the fort')
-      : game.mode === 'balloon'  ? (ok ? `+${g || 0}`
-                                       : (me.balloons > 0 ? `A balloon popped · ${me.balloons} left`
-                                                          : 'Your last balloon popped'))
+      : game.mode === 'volcano'  ? (ok ? `Climbed ${g}` : 'Slipped back')
       :                            (ok ? `+${g || 0}` : 'No points');
     card.append(el('div', { class: 'big ' + (ok ? 'good' : 'bad') },
       el('div', { class: 'mark', html: Sprite.icon(ok ? (me.streak >= 3 ? 'flame' : 'tick') : 'cross', 86) }),
@@ -1335,11 +1176,8 @@ function overCard() {
     // or the child gets the source code of an SVG at 3.4rem
     card.append(el('div', { class: 'mini-face', style: 'line-height:0', html: medal }),
       el('h1', { style: 'font-size:1.7rem;margin:8px 0 4px' }, rank === 1 ? 'You won!' : `You finished #${rank}`),
-      el('p', { class: 'muted' }, game.mode === 'kart' ? `${me.distance || 0}m driven`
-        : game.mode === 'tower' ? `${me.blocks || 0} blocks high`
-        : game.mode === 'treasure' ? `${me.coins || 0} coins`
-        : game.mode === 'snow' ? `${me.hits || 0} blocks knocked off`
-        : game.mode === 'balloon' ? `${me.score} points · ${me.balloons || 0} balloon${me.balloons === 1 ? '' : 's'} left`
+      el('p', { class: 'muted' }, game.mode === 'tower' ? `${me.blocks || 0} blocks high`
+        : game.mode === 'volcano' ? `${me.height || 0} up the wall`
         : me.score + ' points'));
     if (rank <= 3) confetti(120);
   }
@@ -1349,10 +1187,8 @@ function overCard() {
   game.players.slice(0, 5).forEach((p, i) => lb.append(el('div', { class: 'spread', style: 'padding:7px 0' },
     el('span', { class: 'row-name' }, el('span', { class: 'mini-face', html: drawFace(p, 24) }),
        `#${i + 1} ${p.name}${p.id === me.id ? ' (you)' : ''}`),
-    el('strong', {}, game.mode === 'kart' ? `${p.distance || 0}m`
-      : game.mode === 'tower' ? `${p.blocks || 0} blocks`
-      : game.mode === 'treasure' ? `${p.coins || 0} coins`
-      : game.mode === 'snow' ? `${p.hits || 0} blocks`
+    el('strong', {}, game.mode === 'tower' ? `${p.blocks || 0} blocks`
+      : game.mode === 'volcano' ? `${p.height || 0}`
       : String(p.score)))));
   card.append(lb);
   if (paidOut) card.append(payoutCard(paidOut));

@@ -867,53 +867,23 @@ MAX_PLAYER_HIT = 40          # damage cap on any one player, so nobody is out in
 # results screens work unchanged; a mode adds its own extra state on top.
 
 MODES = {
-    "normal":   {"label": "Normal",      "icon": "target", "teams": False,
-                 "blurb": "Wager your points. Safe, double, or everything"},
     "laser":    {"label": "Laser Tag",   "icon": "laser", "teams": True,
                  "blurb": "Push up, take aim or take cover. One arena, two teams"},
-    "kart":     {"label": "Kart Race",   "icon": "kart", "teams": False,
-                 "blurb": "Slipstream from behind, dive inside, or hold your line"},
     "tower":    {"label": "Tower Build", "icon": "bricks", "teams": False,
                  "blurb": "Build tall and sway, or stop and brace before the wind"},
-    "treasure": {"label": "Treasure Run", "icon": "gem", "teams": False,
-                 "blurb": "Three chests, odds on the lid. Pick one"},
     "boss":     {"label": "Boss Battle", "icon": "dragon", "teams": False,
                  "blurb": "It says what it will do next. The class has to agree"},
-    "snow":     {"label": "Snowball Fight", "icon": "snow", "teams": True,
-                 "blurb": "Throw at their fort, rebuild your own, or plant a decoy"},
-    "balloon":  {"label": "Balloon Drop", "icon": "balloon", "teams": False,
-                 "blurb": "Three balloons. Spend one to soar, or patch one back"},
-    "tug":      {"label": "Tug of War",  "icon": "rope", "teams": True,
-                 "blurb": "Heave for double and risk slipping, or anchor and hold"},
-    "heist":    {"label": "Gold Heist",  "icon": "coin", "teams": False,
-                 "blurb": "Rob somebody by name — unless they guessed and guarded"},
-    "cards":    {"label": "Card Collector", "icon": "cards", "teams": False,
-                 "blurb": "Hunt the card you need, or trade a spare with somebody"},
     "volcano":  {"label": "Volcano Climb", "icon": "flame", "teams": False,
                  "blurb": "Three routes up. The fastest drops rocks on those below"},
-    "factory":  {"label": "Factory", "icon": "bricks", "teams": False,
-                 "blurb": "Work, invest, or jam somebody else's machines"},
-    "fishing":  {"label": "Fishing Frenzy", "icon": "drop", "teams": False,
-                 "blurb": "The shoal moves each round and doubles the water it is in"},
 }
 
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
 # it changes what the board looks like, not how the scoring works.
 MAPS = {
-    "normal":   [("hall", "School Hall"), ("space", "Space Station"), ("jungle", "Jungle Clearing")],
     "laser":    [("arena", "Neon Arena"), ("bunker", "Bunker"), ("moon", "Moon Base")],
-    "kart":     [("city", "City Circuit"), ("desert", "Desert Dash"), ("ice", "Ice Track")],
     "tower":    [("site", "Building Site"), ("candy", "Candy Land"), ("castle", "Castle Walls")],
-    "treasure": [("cave", "Cave of Coins"), ("beach", "Pirate Beach"), ("vault", "The Vault")],
     "boss":     [("lair", "Dragon Lair"), ("volcano", "Volcano"), ("ruins", "Old Ruins")],
-    "snow":     [("playground", "Playground"), ("forest", "Winter Forest"), ("peak", "Mountain Peak")],
-    "balloon":  [("fair", "Summer Fair"), ("clouds", "Above the Clouds"), ("night", "Night Sky")],
-    "tug":      [("field", "Sports Field"), ("deck", "Ship Deck"), ("lowg", "Low Gravity")],
-    "heist":    [("mine", "Old Mine"), ("bank", "The Bank"), ("island", "Treasure Island")],
-    "cards":    [("attic", "The Attic"), ("market", "Card Market"), ("museum", "The Museum")],
     "volcano":  [("crater", "The Crater"), ("ashfall", "Ashfall"), ("obsidian", "Obsidian Cliffs")],
-    "factory":  [("works", "The Works"), ("foundry", "Foundry"), ("orbital", "Orbital Yard")],
-    "fishing":  [("pier", "The Old Pier"), ("reef", "Coral Reef"), ("ice", "Ice Hole")],
 }
 
 
@@ -957,16 +927,9 @@ def mode_finished(game):
     boss dies, a rope crosses the line, somebody completes the set. Mirrors
     mode_finished in static/rules.js."""
     mode = game.get("mode")
-    if mode == "snow":
-        return any(game["teams"][side].get("max") and game["teams"][side]["blocks"] <= 0
-                   for side in ("red", "blue"))
     if mode == "boss":
         boss = game.get("boss")
         return bool(boss) and (boss["hp"] == 0 or boss["classHp"] == 0)
-    if mode == "tug":
-        return abs(game.get("rope", 0)) >= ROPE_LENGTH
-    if mode == "cards":
-        return any(len(p.get("cards") or []) >= len(CARD_SET) for p in game["players"].values())
     if mode == "volcano":
         everyone = list(game["players"].values())
         return bool(everyone) and all(not p.get("safe") for p in everyone)
@@ -974,7 +937,7 @@ def mode_finished(game):
 
 
 def maps_for(mode):
-    return [{"id": i, "label": label} for i, label in MAPS.get(mode, MAPS["normal"])]
+    return [{"id": i, "label": label} for i, label in MAPS.get(mode, MAPS[DEFAULT_MODE])]
 
 
 # What the teacher can change before the game starts. The quiz says how long a
@@ -1047,14 +1010,7 @@ def arrange(questions, setup):
 
 
 ARENA_SECONDS = 20         # a full energy bar, in the Laser Tag arena
-TRACK_LENGTH = 1000          # kart race distance to the flag
 BOSS_HP_PER_QUESTION = 55    # scales the boss to the length of the quiz
-FORT_BLOCKS = 12             # tallest a snowball fort can start
-BALLOONS = 3                 # how many wrong answers a child can afford
-ROPE_LENGTH = 100            # how far a team must drag the rope to win
-# eight cards to collect. Shapes rather than pictures of things, so they draw at
-# any size and mean the same in any language.
-CARD_SET = ["star", "moon", "leaf", "flame", "drop", "bolt", "gem", "crown"]
 
 # Volcano Climb: how far one very fast right answer gets you, the least the lava
 # rises in a round, and how much of the room's average it adds on top — so a
@@ -1063,22 +1019,6 @@ CLIMB_PER = 14
 LAVA_BASE = 5
 LAVA_CHASE = 7
 
-# Factory: what the first machine costs, how much dearer each one after it is,
-# and what each pays every round.
-MACHINE_COST = 120
-MACHINE_STEP = 60
-MACHINE_YIELD = 34
-
-# Fishing Frenzy: near water almost always gives you something small; the deep
-# often gives you nothing and sometimes gives you the fish that wins the game.
-SPOTS = {
-    "shallows": {"label": "The shallows", "odds": 0.92, "low": 12, "high": 30, "big": 0.04},
-    "channel":  {"label": "The channel", "odds": 0.68, "low": 30, "high": 70, "big": 0.12},
-    "deep":     {"label": "The deep", "odds": 0.42, "low": 70, "high": 150, "big": 0.26},
-}
-FISH = ["a minnow", "a perch", "a bream", "a pike", "a carp", "a catfish", "a sturgeon"]
-JUNK = ["an old boot", "a bag of weed", "a rusty can", "nothing at all", "a lost sock"]
-SPARES_PER_SWAP = 3          # duplicates a child can trade for a card they need
 
 # Characters are numbers drawn by sprites.js in the browser: 12 colours x 12
 # silhouettes. One is handed out per game so no two children in the same room
@@ -1181,12 +1121,11 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "distance", "blocks", "coins", "chest", "lastGain",
-                                           "balloons", "hits")}
+                                           "blocks", "sway", "height", "safe", "lastGain",
+                                           "move", "on")}
                     for p in players],
         "teams": game["teams"],
         "boss": game.get("boss"),
-        "trackLength": TRACK_LENGTH,
         "goal": game.get("goal") or {"kind": "questions", "value": 0},
         "setup": game.get("setup"),
         "rope": game.get("rope", 0),
@@ -1200,7 +1139,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "moveAsk": (MOVES.get(game.get("mode")) or {}).get("ask", ""),
         "startedAt": game.get("startedAt", 0),
         "music": game.get("music") is not False,
-        "modeInfo": MODES.get(game["mode"], MODES["normal"]),
+        "modeInfo": MODES.get(game["mode"], MODES[DEFAULT_MODE]),
         "counts": game.get("counts", {}),
         "lastEvents": game.get("lastEvents", []),
     }
@@ -1239,7 +1178,7 @@ def create_game():
             "pin": new_pin(),
             "hostToken": nid(16),
             "quizId": quiz["id"],
-            "mode": body.get("mode") if body.get("mode") in MODES else "normal",
+            "mode": body.get("mode") if body.get("mode") in MODES else DEFAULT_MODE,
             "state": "lobby",
             "index": -1,
             "questions": questions,
@@ -1308,22 +1247,12 @@ def join_game(pin):
             "correct": None,
             "down": False,
             "lastDamage": 0,
-            "distance": 0,      # kart race
             "blocks": 0,        # tower build
-            "coins": 0,         # treasure run
-            "chest": "",
-            "balloons": BALLOONS,   # balloon drop
-            "hits": 0,              # snowball fight: blocks knocked off
-            "cards": [],            # card collector: the set so far
-            "spares": 0,            # and duplicates waiting to be traded
-            "height": 0,            # volcano climb: how far up the wall
-            "safe": True,           # and whether the lava has passed them
-            "machines": 0,          # factory: what they have built
-            "output": 0,            # and what it paid last round
-            "target": "",           # fishing: where the line is cast
-            "catch": "",            # what came up
-            "weight": 0,            # and the total on the scales
-            "best_catch": 0,
+            "sway": 0,          # and how close it is to coming down
+            "height": 0,        # volcano climb: how far up the wall
+            "safe": True,       # and whether the lava has passed them
+            "rocks": False,     # whether they kicked any down this round
+            "target": "",       # laser tag: who they lined up
             "lastGain": 0,
             # the move, and whatever it is aimed at
             "move": "",
@@ -1442,22 +1371,8 @@ def start_game(pin):
                 # Enough HP that a match lasts several questions even with a small class.
                 game["teams"][team]["hp"] = max(TEAM_HP_FLOOR, TEAM_HP_PER_PLAYER * len(members))
         game["startedAt"] = now_ms()
-        if game["mode"] == "snow":
-            # a fort per team, sized so a small class still gets to knock one down
-            for team in ("red", "blue"):
-                members = [p for p in game["players"].values() if p["team"] == team]
-                blocks = max(6, min(FORT_BLOCKS, 3 + len(members) * 2))
-                game["teams"][team]["blocks"] = blocks
-                game["teams"][team]["max"] = blocks
-        if game["mode"] == "balloon":
-            for p in game["players"].values():
-                p["balloons"] = BALLOONS
-        if game["mode"] == "tug":
-            game["rope"] = 0
         if game["mode"] == "tower":
             game["wind"] = False
-        if game["mode"] == "fishing":
-            game["shoal"] = "channel"
         # everybody starts on the safe move rather than on nothing
         for p in game["players"].values():
             p["move"] = default_move(game["mode"])
@@ -1466,20 +1381,6 @@ def start_game(pin):
             for p in game["players"].values():
                 p["height"] = 0
                 p["safe"] = True
-        if game["mode"] == "factory":
-            for p in game["players"].values():
-                p["coins"] = 0
-                p["machines"] = 0
-                p["output"] = 0
-        if game["mode"] == "fishing":
-            for p in game["players"].values():
-                p["weight"] = 0
-                p["catch"] = ""
-                p["target"] = "shallows"
-        if game["mode"] == "cards":
-            for p in game["players"].values():
-                p["cards"] = []
-                p["spares"] = 0
         if game["mode"] == "boss":
             total = max(1, len(game["questions"]))
             game["boss"] = {"hp": BOSS_HP_PER_QUESTION * total, "max": BOSS_HP_PER_QUESTION * total,
@@ -1515,6 +1416,12 @@ def next_question(pin):
     return jsonify(public_game(game))
 
 
+# When a mode is not recognised — an old saved game naming one of the ten that
+# were removed, or a typo in a request — this is what it becomes. Tower Build,
+# because it asks least of a room: no teams, no coordination, any class size.
+DEFAULT_MODE = "tower"
+
+
 def pick_boss_name():
     return random.choice(["Professor Puzzle", "The Grumbling Grammarian", "Baron Blunder",
                           "Countess Confusion", "The Number Nibbler", "Sir Slipsalot"])
@@ -1533,79 +1440,27 @@ def pick_boss_name():
 # when it does. Mirrors MOVES in static/rules.js, which is the original — this
 # file is the Flask edition's copy and the two must not drift.
 MOVES = {
-    "normal": {"ask": "How much are you risking?", "list": [
-        {"id": "safe", "label": "Play it safe", "note": "The points, as normal"},
-        {"id": "double", "label": "Double down", "note": "Twice as much. Wrong costs you half of it"},
-        {"id": "allin", "label": "All in", "note": "Three times. Wrong and you lose the round entirely"}]},
     "laser": {"ask": "How are you playing this one?", "list": [
         {"id": "aim", "label": "Take aim", "note": "Normal shot at whoever you picked"},
         {"id": "push", "label": "Push up", "note": "Hit twice as hard, and take twice as much back"},
         {"id": "cover", "label": "Take cover", "note": "Half a shot, and you shield whoever is weakest"}]},
-    "kart": {"ask": "Which line are you taking?", "list": [
-        {"id": "steady", "label": "Hold the line", "note": "Steady metres. A spin costs you nothing"},
-        {"id": "slip", "label": "Slipstream", "note": "The further behind you are, the more you gain"},
-        {"id": "inside", "label": "Dive inside", "note": "Big metres. Get it wrong and you spin back"}]},
     "tower": {"ask": "How are you building?", "list": [
         {"id": "wide", "label": "Build wide", "note": "One block. It will never fall"},
         {"id": "tall", "label": "Build tall", "note": "Three blocks, but the tower starts to sway"},
         {"id": "brace", "label": "Brace it", "note": "No blocks. Steadies everything you have"}]},
-    "treasure": {"ask": "Which chest are you opening?", "list": [
-        {"id": "bronze", "label": "The bronze chest", "note": "Always something. Never much"},
-        {"id": "silver", "label": "The silver chest", "note": "Usually good"},
-        {"id": "gold", "label": "The gold chest", "note": "Often empty. Sometimes the game"}]},
     "boss": {"ask": "What is the class doing?", "list": [
         {"id": "attack", "label": "Attack", "note": "Hurt it. Nothing protects you"},
         {"id": "guard", "label": "Guard", "note": "Soak its next hit for everyone"},
         {"id": "heal", "label": "Heal", "note": "Put the class back on its feet"}]},
-    "snow": {"ask": "Throw, or dig in?", "list": [
-        {"id": "throw", "label": "Throw", "note": "Knock blocks off their fort"},
-        {"id": "fortify", "label": "Rebuild", "note": "Put a block back on your own"},
-        {"id": "snowman", "label": "Build a decoy", "note": "It takes the next hit instead of your fort"}]},
-    "balloon": {"ask": "How high are you going?", "list": [
-        {"id": "float", "label": "Float", "note": "The points. One balloon if you are wrong"},
-        {"id": "soar", "label": "Soar", "note": "Twice the points. Two balloons if you are wrong"},
-        {"id": "patch", "label": "Patch up", "note": "Fewer points, and a right answer wins a balloon back"}]},
-    "tug": {"ask": "How are you pulling?", "list": [
-        {"id": "dig", "label": "Dig in", "note": "A small pull. Being wrong costs nothing"},
-        {"id": "heave", "label": "Heave", "note": "A big pull. Being wrong slips the rope back"},
-        {"id": "anchor", "label": "Anchor", "note": "No pull. The rope cannot move against your team"}]},
-    "heist": {"ask": "What is the job?", "list": [
-        {"id": "sneak", "label": "Sneak", "note": "A quiet, certain bit of gold"},
-        {"id": "rob", "label": "Rob someone", "note": "Take a third of theirs — unless they are guarding",
-         "needs": "player"},
-        {"id": "guard", "label": "Guard yours", "note": "No gold. Anyone robbing you loses theirs to you"},
-        {"id": "vault", "label": "Crack the vault", "note": "Enormous. Needs two right in a row"}]},
-    "cards": {"ask": "How are you playing the hand?", "list": [
-        {"id": "grab", "label": "Grab one", "note": "A card. Probably one you already have"},
-        {"id": "hunt", "label": "Hunt one", "note": "Name it. Harder, but it is the one you need",
-         "needs": "card"},
-        {"id": "trade", "label": "Offer a trade", "note": "Put a spare up. Somebody hunting it swaps with you"}]},
     "volcano": {"ask": "Which way up?", "list": [
         {"id": "ledge", "label": "The ledge", "note": "A short, certain climb"},
         {"id": "chimney", "label": "The chimney", "note": "Much faster. A slip costs you double"},
         {"id": "overhang", "label": "The overhang",
          "note": "Fastest, and it sends rocks down on anyone below you"}]},
-    "factory": {"ask": "What are you running?", "list": [
-        {"id": "work", "label": "Work the floor", "note": "Coins now, straight into your pocket"},
-        {"id": "invest", "label": "Feed the machines", "note": "Fewer coins now. Every machine runs hotter"},
-        {"id": "sabotage", "label": "Sabotage", "note": "Nothing for you. Their machines stop for a round",
-         "needs": "player"}]},
-    "fishing": {"ask": "How are you fishing?", "list": [
-        {"id": "cast", "label": "Just cast", "note": "Fish where you chose"},
-        {"id": "bait", "label": "Bait the water", "note": "Costs weight. Far better odds this round"},
-        {"id": "net", "label": "Cast the net", "note": "Everything is smaller, but you catch three"}]},
 }
 
-# Three chests with their odds printed on them. Same idea as the fishing spots:
-# a choice whose terms you cannot see is not a choice.
-CHESTS = {
-    "bronze": {"label": "Bronze", "odds": 1.00, "low": 40, "high": 70, "jackpot": 0.00, "mult": 4},
-    "silver": {"label": "Silver", "odds": 0.72, "low": 90, "high": 150, "jackpot": 0.08, "mult": 4},
-    "gold": {"label": "Gold", "odds": 0.38, "low": 200, "high": 320, "jackpot": 0.22, "mult": 5},
-}
 
 SWAY_LIMIT = 4       # a tower swaying this much comes down when the wind gets up
-TUNE_BONUS = 5       # what one round of tuning adds to every machine's payout
 
 
 def moves_for(mode):
@@ -1645,28 +1500,6 @@ def choose_move(game, player, move_id, on=""):
         player["on"] = ""
     player["move"] = move_id
     return {"ok": True, "move": move_id, "on": player["on"]}
-
-
-def score_normal(game, player, question, ok, speed):
-    """A wager. Everybody used to score the same for the same answer, so the
-    child in fourth had no route to first that did not involve the child in
-    first making a mistake."""
-    base = int(points_for(game, question))
-    worth = round((base * 0.5 + base * 0.5 * speed) * streak_bonus(game, player))
-    move = move_of(game, player)
-    if ok:
-        gain = worth * 3 if move == "allin" else worth * 2 if move == "double" else worth
-        player["score"] += gain
-        player["lastGain"] = gain
-        if move != "safe":
-            game["lastEvents"].append(
-                f"{player['name']} {'went all in' if move == 'allin' else 'doubled down'} and got it")
-    else:
-        lost = worth if move == "allin" else round(worth * 0.5) if move == "double" else 0
-        player["score"] = max(0, player["score"] - lost)
-        player["lastGain"] = -lost
-        if lost:
-            game["lastEvents"].append(f"{player['name']} risked it and lost {lost}")
 
 
 def score_laser(game, player, question, ok, speed):
@@ -1728,40 +1561,6 @@ def score_laser(game, player, question, ok, speed):
             f"{player['name']} missed" + (" while pushing up, and it hurt" if move == "push" else ""))
 
 
-def score_kart(game, player, question, ok, speed):
-    """The slipstream is the point. A race where everyone gains the same for the
-    same answer is a queue: whoever leads first leads for the lesson."""
-    move = move_of(game, player)
-    if not ok:
-        if move == "inside":
-            player["distance"] = max(0, player.get("distance", 0) - 40)
-            game["lastEvents"].append(f"{player['name']} dived inside, missed, and spun back 40m")
-        else:
-            game["lastEvents"].append(f"{player['name']} span out")
-        player["lastGain"] = 0
-        player["score"] = player["distance"]
-        return
-    metres = round(45 + 55 * speed)
-    if player["streak"] >= 3:
-        metres = round(metres * 1.6)
-    if move == "inside":
-        metres = round(metres * 1.9)
-    if move == "slip":
-        front = max([x.get("distance", 0) for x in game["players"].values()] or [0])
-        behind = max(0, front - player.get("distance", 0))
-        metres = round(metres * (1 + min(1.4, behind / 260)))
-    player["distance"] = player.get("distance", 0) + metres
-    player["score"] = player["distance"]
-    player["lastGain"] = metres
-    how = " in the tow" if move == "slip" else (" round the inside" if move == "inside" else "")
-    game["lastEvents"].append(f"{player['name']} drove {metres}m{how}")
-    player["run"] = player.get("run", 0) + 1
-    if player["run"] >= 3:
-        player["run"] = 0
-        player["item"] = True
-        game["lastEvents"].append(f"{player['name']} picked up a shell")
-
-
 def score_tower(game, player, question, ok, speed):
     """Push your luck, with a wind that decides. How long do you keep building
     before you stop and brace?"""
@@ -1794,36 +1593,6 @@ def score_tower(game, player, question, ok, speed):
         player["lastGain"] = 1
         game["lastEvents"].append(f"{player['name']} built wide")
     player["score"] = player["blocks"]
-
-
-def score_treasure(game, player, question, ok, speed):
-    """Three chests with their odds written on them. Bronze is a wage, gold is a
-    lottery ticket, and which you want depends on whether you are winning."""
-    move = move_of(game, player)
-    chest = CHESTS.get(move, CHESTS["bronze"])
-    if not ok:
-        player["chest"] = "The lid would not budge"
-        player["lastGain"] = 0
-        return
-    if random.random() > chest["odds"]:
-        player["chest"] = f"The {chest['label'].lower()} chest was empty"
-        player["lastGain"] = 0
-        game["lastEvents"].append(
-            f"{player['name']} opened an empty {chest['label'].lower()} chest")
-        return
-    spread = chest["high"] - chest["low"]
-    coins = round(chest["low"] + spread * (0.35 + 0.65 * speed))
-    jackpot = random.random() < chest["jackpot"]
-    if jackpot:
-        coins *= chest["mult"]
-    player["coins"] = player.get("coins", 0) + coins
-    player["score"] = player["coins"]
-    player["lastGain"] = coins
-    player["chest"] = (f"The {chest['label'].lower()} chest — a jackpot, {coins}"
-                       if jackpot else f"+{coins} gold")
-    if jackpot:
-        game["lastEvents"].append(
-            f"{player['name']} hit the jackpot in a {chest['label'].lower()} chest — {coins}")
 
 
 def score_boss(game, player, question, ok, speed):
@@ -1859,214 +1628,6 @@ def score_boss(game, player, question, ok, speed):
         game["lastEvents"].append(f"{player['name']} patched the class up by {healed}")
 
 
-def score_snow(game, player, question, ok, speed):
-    """Throwing is no longer the only thing to do with a right answer: a team
-    being taken apart can spend a round putting its own fort back up."""
-    move = move_of(game, player)
-    foe = "blue" if player["team"] == "red" else "red"
-    fort = game["teams"][foe]
-    mine = game["teams"][player["team"]]
-    if not ok:
-        player["lastGain"] = 0
-        game["lastEvents"].append(f"{player['name']} missed")
-        return
-    base = round(int(points_for(game, question)) * (0.3 + 0.3 * speed))
-    if move == "fortify":
-        back = min(2, mine.get("max", FORT_BLOCKS) - mine["blocks"])
-        mine["blocks"] += back
-        gain = base + back * 25
-        player["score"] += gain
-        player["lastGain"] = gain
-        mine["score"] += gain
-        game["lastEvents"].append(
-            f"{player['name']} put {back} block{'' if back == 1 else 's'} back on the {mine['name']} fort"
-            if back else f"{player['name']} patched a fort that was already full")
-        return
-    if move == "snowman":
-        mine["decoys"] = mine.get("decoys", 0) + 1
-        gain = base + 20
-        player["score"] += gain
-        player["lastGain"] = gain
-        mine["score"] += gain
-        game["lastEvents"].append(
-            f"{player['name']} built a snowman in front of the {mine['name']} fort")
-        return
-    power = 1 + min(player["streak"], 4) * 0.25
-    hit = max(1, round((0.6 + speed) * power))
-    if fort.get("decoys", 0) > 0:
-        fort["decoys"] -= 1
-        player["score"] += base
-        player["lastGain"] = base
-        mine["score"] += base
-        player["hits"] = player.get("hits", 0) + 1
-        game["lastEvents"].append(f"{player['name']} took the head off a {fort['name']} snowman")
-        return
-    hit = min(fort["blocks"], hit)
-    fort["blocks"] -= hit
-    player["hits"] = player.get("hits", 0) + hit
-    # the last blocks are the dear ones, so a team that is behind can still take it
-    nearly = 1 + (1 - fort["blocks"] / (fort.get("max") or FORT_BLOCKS)) * 0.9
-    gain = round(base * nearly + hit * 30)
-    player["score"] += gain
-    player["lastGain"] = gain
-    mine["score"] += gain
-    game["lastEvents"].append(
-        f"{player['name']} knocked {hit} block{'' if hit == 1 else 's'} off the {fort['name']} fort"
-        + ("" if fort["blocks"] else " — it is down!"))
-
-
-def score_balloon(game, player, question, ok, speed):
-    """A balloon is now a thing you can spend rather than only lose."""
-    move = move_of(game, player)
-    out = player["balloons"] <= 0
-    if not ok:
-        player["lastGain"] = 0
-        if out:
-            game["lastEvents"].append(f"{player['name']} got it wrong")
-            return
-        cost = 2 if move == "soar" else 1
-        player["balloons"] = max(0, player["balloons"] - cost)
-        game["lastEvents"].append(
-            f"{player['name']} lost {cost} balloon{'' if cost == 1 else 's'} — {player['balloons']} left"
-            if player["balloons"] else f"{player['name']} is out of balloons")
-        return
-    base = int(points_for(game, question))
-    gain = round((base * 0.5 + base * 0.5 * speed) * (0.4 if out else 1))
-    if move == "soar":
-        gain *= 2
-    if move == "patch":
-        gain = round(gain * 0.5)
-        if player["balloons"] < BALLOONS:
-            player["balloons"] += 1
-            game["lastEvents"].append(
-                f"{player['name']} patched a balloon — {player['balloons']} again")
-    player["score"] += gain
-    player["lastGain"] = gain
-    if move == "soar":
-        game["lastEvents"].append(f"{player['name']} soared for {gain}")
-
-
-def score_tug(game, player, question, ok, speed):
-    """Anchoring is what makes this a game. A team one heave from losing can
-    spend a round becoming immovable, and pay for it in ground."""
-    move = move_of(game, player)
-    way = -1 if player["team"] == "red" else 1
-    if move == "anchor":
-        game["teams"][player["team"]]["anchored"] = True
-        player["lastGain"] = 0
-        if ok:
-            player["score"] += 20
-            game["lastEvents"].append(
-                f"{player['name']} is anchoring for {game['teams'][player['team']]['name']}")
-        return
-    if not ok:
-        if move == "heave":
-            game["rope"] = max(-ROPE_LENGTH, min(ROPE_LENGTH, game.get("rope", 0) - way * 5))
-            game["lastEvents"].append(f"{player['name']} heaved, missed, and slipped 5")
-        player["lastGain"] = 0
-        return
-    base = round(4 + 7 * speed) * (2 if player["streak"] >= 3 else 1)
-    pull = round(base * 2.1) if move == "heave" else base
-    game["rope"] = max(-ROPE_LENGTH, min(ROPE_LENGTH, game.get("rope", 0) + way * pull))
-    player["score"] += pull
-    player["lastGain"] = pull
-    player["hits"] = player.get("hits", 0) + pull
-    game["teams"][player["team"]]["score"] += pull
-    game["lastEvents"].append(
-        f"{player['name']} {'heaved' if move == 'heave' else 'pulled'} {pull}")
-
-
-def score_heist(game, player, question, ok, speed):
-    """This used to roll a dice and tell a child it had robbed somebody. Now they
-    choose who, and that person may have chosen to guard — in which case the
-    robber loses what they were carrying to them. Only the intention is written
-    here; robberies are settled together in resolve()."""
-    move = move_of(game, player)
-    player["job"] = None
-    if not ok:
-        player["lastGain"] = 0
-        player["chest"] = "The job went wrong"
-        return
-    found = round(60 + 70 * speed)
-    if move == "guard":
-        player["job"] = {"kind": "guard"}
-        player["chest"] = "Standing over your gold"
-        player["lastGain"] = 0
-        return
-    if move == "rob":
-        player["job"] = {"kind": "rob", "on": player.get("on", ""), "carrying": found}
-        player["chest"] = "On the job"
-        player["lastGain"] = 0
-        return
-    if move == "vault":
-        if player["streak"] < 2:
-            player["chest"] = "The vault needs two right in a row"
-            player["lastGain"] = 0
-            return
-        haul = found * 4
-        player["coins"] = player.get("coins", 0) + haul
-        player["score"] = player["coins"]
-        player["lastGain"] = haul
-        player["chest"] = f"Cracked the vault — {haul}"
-        game["lastEvents"].append(f"{player['name']} cracked the vault for {haul}")
-        return
-    player["coins"] = player.get("coins", 0) + found
-    player["score"] = player["coins"]
-    player["lastGain"] = found
-    player["chest"] = f"+{found} gold"
-
-
-def score_cards(game, player, question, ok, speed):
-    """Naming the card you want is the difference between collecting and being
-    dealt to. And a spare is now worth something to somebody else."""
-    player.setdefault("cards", [])
-    move = move_of(game, player)
-    if not ok:
-        player["lastGain"] = 0
-        player["chest"] = ""
-        return
-    missing = [c for c in CARD_SET if c not in player["cards"]]
-
-    if move == "trade":
-        if player.get("spares", 0) <= 0:
-            player["chest"] = "Nothing spare to offer"
-            player["lastGain"] = 0
-            return
-        player["offer"] = player.get("on") if player.get("on") in CARD_SET else ""
-        player["job"] = {"kind": "trade"}
-        player["chest"] = "Offering a trade"
-        player["lastGain"] = 0
-        return
-
-    if move == "hunt" and missing:
-        want = player["on"] if player.get("on") in missing else random.choice(missing)
-        # naming it is how you get the one you actually need
-        card = want if random.random() < (0.45 + 0.45 * speed) else random.choice(CARD_SET)
-    else:
-        # grabbing asks for nothing in particular and mostly gets you a spare
-        want_new = missing and random.random() < (0.28 + 0.32 * speed)
-        card = random.choice(missing) if want_new else random.choice(CARD_SET)
-
-    if card in player["cards"]:
-        player["spares"] = player.get("spares", 0) + 1
-        n = player["spares"]
-        player["chest"] = f"Another {card} — {n} spare{'' if n == 1 else 's'}"
-        if n >= SPARES_PER_SWAP and missing:
-            player["spares"] -= SPARES_PER_SWAP
-            swap = random.choice(missing)
-            player["cards"].append(swap)
-            player["chest"] = f"Traded three spares for the {swap}"
-            game["lastEvents"].append(f"{player['name']} traded three spares for the {swap}")
-    else:
-        player["cards"].append(card)
-        player["chest"] = f"Won the {card}"
-        game["lastEvents"].append(
-            f"{player['name']} won the {card} card"
-            + (" — a full set!" if len(player["cards"]) == len(CARD_SET) else ""))
-    player["lastGain"] = 1
-    player["score"] = len(player["cards"]) * 100 + player.get("spares", 0) * 10
-
-
 def score_volcano(game, player, question, ok, speed):
     """Three routes up, and the fast one drops rocks on the people below."""
     move = move_of(game, player)
@@ -2096,81 +1657,6 @@ def score_volcano(game, player, question, ok, speed):
     player["score"] = player["height"]
 
 
-def score_factory(game, player, question, ok, speed):
-    """Working pays now, investing pays later, sabotage pays nothing and costs
-    somebody else more than it costs you."""
-    move = move_of(game, player)
-    player["job"] = None
-    if not ok:
-        player["lastGain"] = 0
-        return
-    base = int(points_for(game, question))
-    if move == "sabotage":
-        player["job"] = {"kind": "sabotage", "on": player.get("on", "")}
-        player["lastGain"] = 0
-        return
-    rate = 0.18 if move == "invest" else 0.35
-    gain = round((base * rate + base * rate * speed) * streak_bonus(game, player))
-    player["coins"] = player.get("coins", 0) + gain
-    player["lastGain"] = gain
-    if move == "invest":
-        player["tuned"] = player.get("tuned", 0) + 1
-        game["lastEvents"].append(f"{player['name']} tuned the machines up")
-    player["score"] = player["coins"] + player.get("output", 0) * 3
-
-
-def score_fishing(game, player, question, ok, speed):
-    """The shoal moves every round, everybody can see where it is, and it doubles
-    what that water pays — so the question is no longer how brave you are but
-    where everybody else is going to be."""
-    move = move_of(game, player)
-    spot = player.get("target") if player.get("target") in SPOTS else "shallows"
-    where = SPOTS[spot]
-    if not ok:
-        player["catch"] = "The line came up empty"
-        player["lastGain"] = 0
-        return
-    odds = where["odds"]
-    if move == "bait":
-        cost = min(player.get("weight", 0), 25)
-        player["weight"] = player.get("weight", 0) - cost
-        odds = min(0.97, odds + 0.32)
-        if cost:
-            game["lastEvents"].append(f"{player['name']} baited the water, {cost} of weight gone")
-    casts = 3 if move == "net" else 1
-    shrink = 0.42 if move == "net" else 1
-    shoaling = game.get("shoal") == spot
-    total, best, kind_name = 0, 0, ""
-    for _ in range(casts):
-        if random.random() > odds:
-            continue
-        spread = where["high"] - where["low"]
-        big = random.random() < where["big"]
-        weight = round((where["low"] + spread * (0.4 + 0.6 * speed)) * (2.6 if big else 1) * shrink)
-        if shoaling:
-            weight = round(weight * 2)
-        total += weight
-        if weight > best:
-            best = weight
-            kind_name = FISH[min(len(FISH) - 1, weight // 40)]
-    if not total:
-        player["catch"] = "Caught " + random.choice(JUNK)
-        player["lastGain"] = 0
-        player["score"] = player.get("weight", 0)
-        return
-    player["weight"] = player.get("weight", 0) + total
-    player["best_catch"] = max(player.get("best_catch", 0), best)
-    player["catch"] = (f"Netted {total}" if casts > 1 else f"Landed {kind_name} — {total}") \
-        + (", right in the shoal" if shoaling else "")
-    player["lastGain"] = total
-    player["score"] = player["weight"]
-    if shoaling:
-        game["lastEvents"].append(f"{player['name']} was fishing the shoal — {total}")
-    elif best > 120:
-        game["lastEvents"].append(
-            f"{player['name']} landed {kind_name} out of {where['label'].lower()}")
-
-
 def resolve(game):
     """The moves that touch somebody else, settled together.
 
@@ -2182,52 +1668,6 @@ def resolve(game):
     everyone = list(game.get("players", {}).values())
     mode = game.get("mode")
 
-    if mode == "heist":
-        guards = {p["id"] for p in everyone if (p.get("job") or {}).get("kind") == "guard"}
-        robbers = [p for p in everyone if (p.get("job") or {}).get("kind") == "rob"]
-        for robber in robbers:
-            carrying = robber["job"]["carrying"]
-            mark = game["players"].get(robber["job"].get("on"))
-            if not mark or mark["id"] == robber["id"]:
-                robber["coins"] = robber.get("coins", 0) + carrying
-                robber["chest"] = f"Nobody there — kept {carrying}"
-                continue
-            if mark["id"] in guards:
-                lost = min(robber.get("coins", 0), carrying)
-                robber["coins"] = max(0, robber.get("coins", 0) - lost)
-                mark["coins"] = mark.get("coins", 0) + lost + carrying
-                robber["chest"] = f"{mark['name']} was waiting. Lost {lost}"
-                mark["chest"] = f"Caught {robber['name']} — took {lost + carrying}"
-                game["lastEvents"].append(f"{mark['name']} caught {robber['name']} red-handed")
-            else:
-                taken = round(mark.get("coins", 0) / 3)
-                mark["coins"] = max(0, mark.get("coins", 0) - taken)
-                robber["coins"] = robber.get("coins", 0) + taken + carrying
-                robber["chest"] = f"Robbed {mark['name']} of {taken}"
-                mark["chest"] = f"{robber['name']} robbed you of {taken}"
-                game["lastEvents"].append(
-                    f"{robber['name']} robbed {mark['name']} of {taken} gold")
-        for p in everyone:
-            p["coins"] = max(0, p.get("coins", 0))
-            p["score"] = p["coins"]
-            p["job"] = None
-
-    if mode == "kart":
-        throwers = [p for p in everyone if p.get("item")]
-        if throwers:
-            leader = max(everyone, key=lambda x: x.get("distance", 0))
-            for t in throwers:
-                t["item"] = False
-                if t["id"] == leader["id"]:
-                    t["distance"] = t.get("distance", 0) + 30
-                    t["score"] = t["distance"]
-                    game["lastEvents"].append(
-                        f"{t['name']} is out front and used the shell as a boost")
-                    continue
-                leader["distance"] = max(0, leader.get("distance", 0) - 55)
-                leader["score"] = leader["distance"]
-                game["lastEvents"].append(
-                    f"{t['name']} hit {leader['name']} with a shell — 55m gone")
 
     if mode == "volcano":
         for k in [p for p in everyone if p.get("rocks")]:
@@ -2242,42 +1682,6 @@ def resolve(game):
         for p in everyone:
             p["rocks"] = False
 
-    if mode == "factory":
-        for p in [x for x in everyone if (x.get("job") or {}).get("kind") == "sabotage"]:
-            mark = game["players"].get(p["job"].get("on"))
-            if not mark or mark["id"] == p["id"]:
-                continue
-            mark["stopped"] = True
-            game["lastEvents"].append(f"{p['name']} jammed {mark['name']}'s machines")
-        for p in everyone:
-            p["job"] = None
-
-    if mode == "cards":
-        offering = [p for p in everyone
-                    if (p.get("job") or {}).get("kind") == "trade" and p.get("spares", 0) > 0]
-        for seller in offering:
-            buyer = next((x for x in everyone
-                          if x["id"] != seller["id"] and x.get("spares", 0) > 0
-                          and any(c not in x["cards"] and c in seller["cards"] for c in CARD_SET)),
-                         None)
-            if not buyer:
-                seller["chest"] = "Nobody took the trade"
-                continue
-            wants = next(c for c in CARD_SET if c not in buyer["cards"] and c in seller["cards"])
-            back = next((c for c in CARD_SET if c not in seller["cards"] and c in buyer["cards"]), None)
-            seller["spares"] -= 1
-            buyer["spares"] -= 1
-            buyer["cards"].append(wants)
-            if back:
-                seller["cards"].append(back)
-            seller["chest"] = (f"Traded with {buyer['name']} for the {back}" if back
-                               else f"Traded the {wants} to {buyer['name']}")
-            buyer["chest"] = f"Traded with {seller['name']} for the {wants}"
-            game["lastEvents"].append(f"{seller['name']} and {buyer['name']} traded cards")
-            for x in (seller, buyer):
-                x["score"] = len(x["cards"]) * 100 + x.get("spares", 0) * 10
-        for p in everyone:
-            p["job"] = None
 
     if mode == "boss" and game.get("boss"):
         boss = game["boss"]
@@ -2329,10 +1733,10 @@ def resolve(game):
 def after_round(game):
     """What happens between the questions.
 
-    Lava rises whether anybody climbed or not; machines pay out whether their
-    owner answered or not. Once per round, in one place — inside a scorer it
-    would run once per player, which is a different game with ten in the room
-    than with two. Mirrors after_round in static/rules.js.
+    Lava rises and wind gets up whether anybody climbed or built or not. Once
+    per round, in one place — inside a scorer it would run once per player,
+    which is a different game with ten in the room than with two.
+    Mirrors after_round in static/rules.js.
     """
     everyone = list(game.get("players", {}).values())
 
@@ -2359,17 +1763,6 @@ def after_round(game):
             game["wind"] = True
             game["lastEvents"].append("The wind is getting up — brace anything that is swaying")
 
-    if game.get("mode") == "fishing":
-        was = game.get("shoal")
-        options = [s for s in SPOTS if s != was]
-        game["shoal"] = random.choice(options)
-        game["lastEvents"].append(
-            f"The shoal has moved to {SPOTS[game['shoal']]['label'].lower()}")
-
-    if game.get("mode") == "tug":
-        for side in ("red", "blue"):
-            if game.get("teams", {}).get(side):
-                game["teams"][side]["anchored"] = False
 
     if game.get("mode") == "volcano":
         average = (sum(p.get("height", 0) for p in everyone) / len(everyone)) if everyone else 0
@@ -2381,57 +1774,13 @@ def after_round(game):
             if was_safe and not p["safe"]:
                 game["lastEvents"].append(f"The lava caught {p['name']}")
 
-    if game.get("mode") == "factory":
-        for p in everyone:
-            if not p.get("machines"):
-                p["output"] = 0
-                continue
-            if p.get("stopped"):
-                p["stopped"] = False
-                p["output"] = 0
-                game["lastEvents"].append(
-                    f"{p['name']}'s machines were jammed and paid nothing")
-                continue
-            paid = p["machines"] * (MACHINE_YIELD + p.get("tuned", 0) * TUNE_BONUS)
-            p["coins"] = p.get("coins", 0) + paid
-            p["output"] = paid
-            p["score"] = p["coins"] + p["output"] * 3
-        busiest = max((p for p in everyone if p.get("machines")),
-                      key=lambda p: p.get("output", 0), default=None)
-        if busiest and busiest.get("output"):
-            n = busiest["machines"]
-            game["lastEvents"].append(
-                f"{busiest['name']}'s {n} machine{'' if n == 1 else 's'} paid out {busiest['output']}")
 
     game["lastEvents"] = game["lastEvents"][-6:]
 
 
-def machine_cost(player):
-    return MACHINE_COST + MACHINE_STEP * player.get("machines", 0)
-
-
-def buy_machine(game, player):
-    """Priced so the second is dearer than the first: a runaway leader who can
-    buy five in a round is not a game. Mirrors buyMachine in static/rules.js."""
-    if game.get("mode") != "factory":
-        return {"ok": False, "why": "Not that kind of game."}
-    cost = machine_cost(player)
-    if player.get("coins", 0) < cost:
-        return {"ok": False, "why": f"{cost - player.get('coins', 0)} more coins needed", "cost": cost}
-    player["coins"] -= cost
-    player["machines"] = player.get("machines", 0) + 1
-    player["score"] = player["coins"] + player.get("output", 0) * 3
-    game["lastEvents"].append(f"{player['name']} built machine number {player['machines']}")
-    return {"ok": True, "cost": cost, "machines": player["machines"],
-            "next": MACHINE_COST + MACHINE_STEP * player["machines"]}
-
-
 SCORERS = {
-    "normal": score_normal, "laser": score_laser, "kart": score_kart,
-    "tower": score_tower, "treasure": score_treasure, "boss": score_boss,
-    "snow": score_snow, "balloon": score_balloon,
-    "tug": score_tug, "heist": score_heist, "cards": score_cards,
-    "volcano": score_volcano, "factory": score_factory, "fishing": score_fishing,
+    "laser": score_laser, "tower": score_tower,
+    "boss": score_boss, "volcano": score_volcano,
 }
 
 
@@ -2487,51 +1836,8 @@ def answer_question(pin):
     publish(f"game:{pin}", "game:state", snapshot)
     return jsonify({"correct": ok, "score": player["score"], "hp": player["hp"],
                     "streak": player["streak"], "state": game["state"],
-                    "distance": player.get("distance", 0), "blocks": player.get("blocks", 0),
-                    "coins": player.get("coins", 0), "chest": player.get("chest", ""),
-                    "balloons": player.get("balloons", 0), "hits": player.get("hits", 0),
+                    "blocks": player.get("blocks", 0), "height": player.get("height", 0),
                     "gain": player.get("lastGain", 0)})
-
-
-@api.post("/games/<pin>/build")
-def build_machine(pin):
-    """Factory's one decision, made between questions by the player themselves.
-
-    No host token: it is the player's own coins. It is still checked against the
-    game's own state rather than against what arrived in the body.
-    """
-    body = request.get_json(silent=True) or {}
-    with _lock:
-        game, err = game_or_404(pin)
-        if err:
-            return err
-        player = game["players"].get(body.get("playerId"))
-        if not player:
-            return jsonify({"error": "Join the game first."}), 404
-        out = buy_machine(game, player)
-        snapshot = public_game(game)
-    if out.get("ok"):
-        publish(f"game:{pin}", "game:state", snapshot)
-    return jsonify(dict(out, view=snapshot))
-
-
-@api.post("/games/<pin>/cast")
-def cast_line(pin):
-    """Fishing's one decision. Kept until it is changed, so a child who picks the
-    deep water and then gets three wrong in a row can feel it."""
-    body = request.get_json(silent=True) or {}
-    with _lock:
-        game, err = game_or_404(pin)
-        if err:
-            return err
-        player = game["players"].get(body.get("playerId"))
-        if not player:
-            return jsonify({"error": "Join the game first."}), 404
-        where = body.get("spot") if body.get("spot") in SPOTS else "shallows"
-        player["target"] = where
-        snapshot = public_game(game)
-    publish(f"game:{pin}", "game:state", snapshot)
-    return jsonify({"ok": True, "spot": where, "view": snapshot})
 
 
 @api.post("/games/<pin>/move")
@@ -2593,12 +1899,5 @@ def tick_game(pin):
                 if player["answered"]:
                     continue
                 player["streak"] = 0
-                # letting the clock run out cannot be the safe move: in Balloon
-                # Drop it costs a balloon, the same as answering wrongly
-                if game["mode"] == "balloon" and player.get("balloons", 0) > 0:
-                    player["balloons"] -= 1
-                    left = player["balloons"]
-                    game["lastEvents"].append(
-                        f"{player['name']} ran out of time — {left} balloon{'' if left == 1 else 's'} left")
     broadcast_game(game)
     return jsonify(public_game(game))

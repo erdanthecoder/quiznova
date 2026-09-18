@@ -30,7 +30,7 @@
       version: '3.0',
       // 5 September 2026, midday, wherever the reader is
       at: new Date(2026, 8, 5, 12, 0, 0),
-      modes: ['tug', 'heist', 'cards'],
+      modes: [],
       show: 'rocket'
     },
     {
@@ -44,7 +44,9 @@
        * and the lesson they came to run. The update itself does not expire —
        * only the film about it. */
       until: new Date(2026, 8, 10, 0, 0, 0),
-      modes: ['volcano', 'factory', 'fishing'],
+      // Volcano Climb is the only one of this release's three still here; the
+      // other two were cut when the fourteen became four
+      modes: ['volcano'],
       // hats past the free few wait for the update as well; the plain ones do not,
       // so nobody opens the hat shelf on the day and finds it locked end to end
       hatsFrom: 4,

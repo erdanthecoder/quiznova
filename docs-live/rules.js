@@ -12,39 +12,37 @@
   const now = () => Date.now();
 
   const MODES = {
-    normal:   { label: 'Normal',       icon: 'target', blurb: 'Wager your points. Safe, double, or everything' },
+    
     laser:    { label: 'Laser Tag',    icon: 'laser', blurb: 'Push up, take aim or take cover. One arena, two teams' },
-    kart:     { label: 'Kart Race',    icon: 'kart', blurb: 'Slipstream from behind, dive inside, or hold your line' },
+    
     tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Build tall and sway, or stop and brace before the wind' },
-    treasure: { label: 'Treasure Run', icon: 'gem', blurb: 'Three chests, odds on the lid. Pick one' },
+    
     boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'It says what it will do next. The class has to agree' },
-    snow:     { label: 'Snowball Fight', icon: 'snow', blurb: 'Throw at their fort, rebuild your own, or plant a decoy' },
-    balloon:  { label: 'Balloon Drop', icon: 'balloon', blurb: 'Three balloons. Spend one to soar, or patch one back' },
-    tug:      { label: 'Tug of War',   icon: 'rope', blurb: 'Heave for double and risk slipping, or anchor and hold' },
-    heist:    { label: 'Gold Heist',   icon: 'coin', blurb: 'Rob somebody by name — unless they guessed and guarded' },
-    cards:    { label: 'Card Collector', icon: 'cards', blurb: 'Hunt the card you need, or trade a spare with somebody' },
+    
+    
+    
+    
+    
     volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Three routes up. The fastest drops rocks on those below' },
-    factory:  { label: 'Factory',       icon: 'bricks', blurb: 'Work, invest, or jam somebody else\'s machines' },
-    fishing:  { label: 'Fishing Frenzy', icon: 'drop', blurb: 'The shoal moves each round and doubles the water it is in' }
-  };
+    
+    };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
    * it changes what the board looks like, not how the scoring works. */
   const MAPS = {
-    normal:   [['hall', 'School Hall'], ['space', 'Space Station'], ['jungle', 'Jungle Clearing']],
+    
     laser:    [['arena', 'Neon Arena'], ['bunker', 'Bunker'], ['moon', 'Moon Base']],
-    kart:     [['city', 'City Circuit'], ['desert', 'Desert Dash'], ['ice', 'Ice Track']],
+    
     tower:    [['site', 'Building Site'], ['candy', 'Candy Land'], ['castle', 'Castle Walls']],
-    treasure: [['cave', 'Cave of Coins'], ['beach', 'Pirate Beach'], ['vault', 'The Vault']],
+    
     boss:     [['lair', 'Dragon Lair'], ['volcano', 'Volcano'], ['ruins', 'Old Ruins']],
-    snow:     [['playground', 'Playground'], ['forest', 'Winter Forest'], ['peak', 'Mountain Peak']],
-    balloon:  [['fair', 'Summer Fair'], ['clouds', 'Above the Clouds'], ['night', 'Night Sky']],
-    tug:      [['field', 'Sports Field'], ['deck', 'Ship Deck'], ['lowg', 'Low Gravity']],
-    heist:    [['mine', 'Old Mine'], ['bank', 'The Bank'], ['island', 'Treasure Island']],
-    cards:    [['attic', 'The Attic'], ['market', 'Card Market'], ['museum', 'The Museum']],
+    
+    
+    
+    
+    
     volcano:  [['crater', 'The Crater'], ['ashfall', 'Ashfall'], ['obsidian', 'Obsidian Cliffs']],
-    factory:  [['works', 'The Works'], ['foundry', 'Foundry'], ['orbital', 'Orbital Yard']],
-    fishing:  [['pier', 'The Old Pier'], ['reef', 'Coral Reef'], ['ice', 'Ice Hole']]
-  };
+    
+    };
   /* How a game finishes. Playing every question is the default, but a class with
    * ten minutes left before lunch wants the clock to decide, and a race to a
    * score plays quite differently — it is over the moment somebody gets there,
@@ -146,18 +144,17 @@
     return out;
   }
 
-  const mapsFor = (mode) => (MAPS[mode] || MAPS.normal).map(([id, label]) => ({ id, label }));
-  const defaultMap = (mode) => (MAPS[mode] || MAPS.normal)[0][0];
+  /* When a mode is not recognised — an old saved game naming one of the ten
+   * that were removed, or a typo in a request — this is what it becomes. Tower
+   * Build, because it is the one that asks least of a room: no teams to sort
+   * out, no coordination, and it works with three children or thirty. */
+  const DEFAULT_MODE = 'tower';
 
-  const TRACK_LENGTH = 1000, BOSS_HP_PER_QUESTION = 55;
-  const ROPE_LENGTH = 100;         // how far a team must drag the rope to win
-  // eight cards to collect. They are shapes rather than pictures of things, so
-  // they draw at any size and mean the same in any language.
-  const CARD_SET = ['star', 'moon', 'leaf', 'flame', 'drop', 'bolt', 'gem', 'crown'];
-  const SPARES_PER_SWAP = 3;       // duplicates a child can trade for a card they need
-  const FORT_BLOCKS = 12;          // how tall each team's fort starts
-  const BALLOONS = 3;              // how many wrong answers a child can afford
-  const MAX_PLAYER_HIT = 40;
+  const mapsFor = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE]).map(([id, label]) => ({ id, label }));
+  const defaultMap = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE])[0][0];
+
+  const BOSS_HP_PER_QUESTION = 55;
+  const MAX_PLAYER_HIT = 40;       // the most one shot can take off a player
 
   /* ── marking, shared with the rest of the app ─────────── */
   const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -205,14 +202,7 @@
    * who happened to tap first, which is a test of wifi, not of anything else.
    */
   const MOVES = {
-    normal: {
-      ask: 'How much are you risking?', when: 'question',
-      list: [
-        { id: 'safe',   label: 'Play it safe', note: 'The points, as normal' },
-        { id: 'double', label: 'Double down',  note: 'Twice as much. Wrong costs you half of it' },
-        { id: 'allin',  label: 'All in',       note: 'Three times. Wrong and you lose the round entirely' }
-      ]
-    },
+    
     laser: {
       ask: 'How are you playing this one?', when: 'question',
       list: [
@@ -221,14 +211,7 @@
         { id: 'cover', label: 'Take cover', note: 'Half a shot, and you shield whoever is weakest' }
       ]
     },
-    kart: {
-      ask: 'Which line are you taking?', when: 'question',
-      list: [
-        { id: 'steady', label: 'Hold the line', note: 'Steady metres. A spin costs you nothing' },
-        { id: 'slip',   label: 'Slipstream',    note: 'The further behind you are, the more you gain' },
-        { id: 'inside', label: 'Dive inside',   note: 'Big metres. Get it wrong and you spin back' }
-      ]
-    },
+    
     tower: {
       ask: 'How are you building?', when: 'question',
       list: [
@@ -237,14 +220,7 @@
         { id: 'brace', label: 'Brace it',    note: 'No blocks. Steadies everything you have' }
       ]
     },
-    treasure: {
-      ask: 'Which chest are you opening?', when: 'question',
-      list: [
-        { id: 'bronze', label: 'The bronze chest', note: 'Always something. Never much' },
-        { id: 'silver', label: 'The silver chest', note: 'Usually good' },
-        { id: 'gold',   label: 'The gold chest',   note: 'Often empty. Sometimes the game' }
-      ]
-    },
+    
     boss: {
       ask: 'What is the class doing?', when: 'question',
       list: [
@@ -253,49 +229,11 @@
         { id: 'heal',   label: 'Heal',   note: 'Put the class back on its feet' }
       ]
     },
-    snow: {
-      ask: 'Throw, or dig in?', when: 'question',
-      list: [
-        { id: 'throw',   label: 'Throw',        note: 'Knock blocks off their fort' },
-        { id: 'fortify', label: 'Rebuild',      note: 'Put a block back on your own' },
-        { id: 'snowman', label: 'Build a decoy', note: 'It takes the next hit instead of your fort' }
-      ]
-    },
-    balloon: {
-      ask: 'How high are you going?', when: 'question',
-      list: [
-        { id: 'float', label: 'Float',   note: 'The points. One balloon if you are wrong' },
-        { id: 'soar',  label: 'Soar',    note: 'Twice the points. Two balloons if you are wrong' },
-        { id: 'patch', label: 'Patch up', note: 'Fewer points, and a right answer wins a balloon back' }
-      ]
-    },
-    tug: {
-      ask: 'How are you pulling?', when: 'question',
-      list: [
-        { id: 'dig',    label: 'Dig in', note: 'A small pull. Being wrong costs nothing' },
-        { id: 'heave',  label: 'Heave',  note: 'A big pull. Being wrong slips the rope back' },
-        { id: 'anchor', label: 'Anchor', note: 'No pull. The rope cannot move against your team' }
-      ]
-    },
-    heist: {
-      ask: 'What is the job?', when: 'question',
-      list: [
-        { id: 'sneak', label: 'Sneak',      note: 'A quiet, certain bit of gold' },
-        { id: 'rob',   label: 'Rob someone', note: 'Take a third of theirs — unless they are guarding',
-          needs: 'player' },
-        { id: 'guard', label: 'Guard yours', note: 'No gold. Anyone robbing you loses theirs to you' },
-        { id: 'vault', label: 'Crack the vault', note: 'Enormous. Needs two right in a row' }
-      ]
-    },
-    cards: {
-      ask: 'How are you playing the hand?', when: 'question',
-      list: [
-        { id: 'grab',  label: 'Grab one',  note: 'A card. Probably one you already have' },
-        { id: 'hunt',  label: 'Hunt one',  note: 'Name it. Harder, but it is the one you need',
-          needs: 'card' },
-        { id: 'trade', label: 'Offer a trade', note: 'Put a spare up. Somebody hunting it swaps with you' }
-      ]
-    },
+    
+    
+    
+    
+    
     volcano: {
       ask: 'Which way up?', when: 'question',
       list: [
@@ -304,24 +242,8 @@
         { id: 'overhang', label: 'The overhang', note: 'Fastest, and it sends rocks down on anyone below you' }
       ]
     },
-    factory: {
-      ask: 'What are you running?', when: 'question',
-      list: [
-        { id: 'work',    label: 'Work the floor', note: 'Coins now, straight into your pocket' },
-        { id: 'invest',  label: 'Feed the machines', note: 'Fewer coins now. Every machine runs hotter' },
-        { id: 'sabotage', label: 'Sabotage', note: 'Nothing for you. Their machines stop for a round',
-          needs: 'player' }
-      ]
-    },
-    fishing: {
-      ask: 'How are you fishing?', when: 'question',
-      list: [
-        { id: 'cast', label: 'Just cast',   note: 'Fish where you chose' },
-        { id: 'bait', label: 'Bait the water', note: 'Costs weight. Far better odds this round' },
-        { id: 'net',  label: 'Cast the net', note: 'Everything is smaller, but you catch three' }
-      ]
-    }
-  };
+    
+    };
 
   const movesFor = (mode) => (MOVES[mode] && MOVES[mode].list) || [];
   const defaultMove = (mode) => {
@@ -344,9 +266,6 @@
       const who = game.players[on];
       if (!who || who.id === p.id) return { ok: false, why: 'Pick somebody else first.' };
       p.on = on;
-    } else if (spec.needs === 'card') {
-      if (!CARD_SET.includes(on)) return { ok: false, why: 'Pick a card first.' };
-      p.on = on;
     } else {
       p.on = '';
     }
@@ -354,38 +273,9 @@
     return { ok: true, move: id, on: p.on };
   }
 
-  /* ── Treasure Run ──
-   * Three chests, and the child picks one. It used to roll a dice for them and
-   * tell them what they had won, which is the difference between playing a game
-   * and being read the results of one. The odds are printed on the buttons: a
-   * choice you cannot see the terms of is not a choice. */
-  const CHESTS = {
-    bronze: { label: 'Bronze', odds: 1.00, low: 40,  high: 70,  jackpot: 0.00, mult: 4 },
-    silver: { label: 'Silver', odds: 0.72, low: 90,  high: 150, jackpot: 0.08, mult: 4 },
-    gold:   { label: 'Gold',   odds: 0.38, low: 200, high: 320, jackpot: 0.22, mult: 5 }
-  };
-
   /* ── the modes, same rules as the server edition ─── */
   const SCORERS = {
-    /* A wager. The oldest good idea in quiz games and it was not here: everybody
-     * scored the same for the same answer, so the child in fourth had no way of
-     * ever being in first that did not involve the child in first making a
-     * mistake. Now they can decide to take a risk that the leader has no reason
-     * to take. */
-    normal(game, p, q, ok, speed) {
-      const base = pointsFor(game, q);
-      const worth = Math.round((base * 0.5 + base * 0.5 * speed) * streakBonus(game, p));
-      const move = moveOf(game, p);
-      if (ok) {
-        const gain = move === 'allin' ? worth * 3 : move === 'double' ? worth * 2 : worth;
-        p.score += gain; p.lastGain = gain;
-        if (move !== 'safe') game.lastEvents.push(`${p.name} ${move === 'allin' ? 'went all in' : 'doubled down'} and got it`);
-      } else {
-        const lost = move === 'allin' ? worth : move === 'double' ? Math.round(worth * 0.5) : 0;
-        p.score = Math.max(0, p.score - lost); p.lastGain = -lost;
-        if (lost) game.lastEvents.push(`${p.name} risked it and lost ${lost}`);
-      }
-    },
+
 
     /* Push, aim or cover. Pushing up is the only way to break a fort of a team
      * that all took cover, and it is also how you get knocked out — so a team
@@ -441,39 +331,7 @@
       }
     },
 
-    /* The slipstream is the whole change here. A kart race where everyone gains
-     * the same for the same answer is not a race, it is a queue — whoever is in
-     * front stays in front for the rest of the lesson. Slipstreaming pays for
-     * being behind, so the pack stays together and the last question matters. */
-    kart(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      if (!ok) {
-        if (move === 'inside') {
-          const back = 40;
-          p.distance = Math.max(0, (p.distance || 0) - back);
-          game.lastEvents.push(`${p.name} dived inside, missed, and spun back ${back}m`);
-        } else {
-          game.lastEvents.push(`${p.name} span out`);
-        }
-        p.lastGain = 0; p.score = p.distance;
-        return;
-      }
-      let metres = Math.round(45 + 55 * speed);
-      if (p.streak >= 3) metres = Math.round(metres * 1.6);
-      if (move === 'inside') metres = Math.round(metres * 1.9);
-      if (move === 'slip') {
-        const front = Math.max(0, ...Object.values(game.players).map(x => x.distance || 0));
-        const behind = Math.max(0, front - (p.distance || 0));
-        // the tow is worth more the further back you are, and nothing at the front
-        metres = Math.round(metres * (1 + Math.min(1.4, behind / 260)));
-      }
-      p.distance = (p.distance || 0) + metres; p.score = p.distance; p.lastGain = metres;
-      game.lastEvents.push(`${p.name} drove ${metres}m`
-        + (move === 'slip' ? ' in the tow' : move === 'inside' ? ' round the inside' : ''));
-      // an item every third right answer, thrown at the leader in resolve()
-      p.run = (p.run || 0) + 1;
-      if (p.run >= 3) { p.run = 0; p.item = true; game.lastEvents.push(`${p.name} picked up a shell`); }
-    },
+
 
     /* Push your luck, with a wind that decides. Building tall is worth three
      * times as much and makes the tower sway; a swaying tower falls when the
@@ -506,31 +364,7 @@
       p.score = p.blocks;
     },
 
-    /* Three chests with their odds written on them. Same expected value, wildly
-     * different shapes: bronze is a wage, gold is a lottery ticket, and which of
-     * those you want depends entirely on whether you are winning. */
-    treasure(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      const chest = CHESTS[move] || CHESTS.bronze;
-      if (!ok) {
-        p.chest = 'The lid would not budge';
-        p.lastGain = 0;
-        return;
-      }
-      if (Math.random() > chest.odds) {
-        p.chest = `The ${chest.label.toLowerCase()} chest was empty`;
-        p.lastGain = 0;
-        game.lastEvents.push(`${p.name} opened an empty ${chest.label.toLowerCase()} chest`);
-        return;
-      }
-      const spread = chest.high - chest.low;
-      let coins = Math.round(chest.low + spread * (0.35 + 0.65 * speed));
-      const jackpot = Math.random() < chest.jackpot;
-      if (jackpot) coins *= chest.mult;
-      p.coins += coins; p.score = p.coins; p.lastGain = coins;
-      p.chest = jackpot ? `The ${chest.label.toLowerCase()} chest — a jackpot, ${coins}` : `+${coins} gold`;
-      if (jackpot) game.lastEvents.push(`${p.name} hit the jackpot in a ${chest.label.toLowerCase()} chest — ${coins}`);
-    },
+
 
     /* The boss now says what it is about to do, one round early, and the class
      * has to answer that as well as the question. Everyone attacking a boss that
@@ -565,209 +399,15 @@
       }
     },
 
-    /* Throwing is not the only thing to do with a right answer any more. A team
-     * being taken apart can spend a round putting its own fort back up, which
-     * means the losing team has a decision and not just a countdown. */
-    snow(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      const foe = p.team === 'red' ? 'blue' : 'red';
-      const fort = game.teams[foe];
-      const mine = game.teams[p.team];
-      if (!ok) { p.lastGain = 0; game.lastEvents.push(`${p.name} missed`); return; }
-      /* Scored off the fort, not off a formula. A block knocked off a fort that
-       * is nearly down is worth more than one off a full one, so the endgame is
-       * where the points are and a team that is behind can still take it. */
-      const base = Math.round(pointsFor(game, q) * (0.3 + 0.3 * speed));
-      let gain = base;
-      if (move === 'fortify') {
-        const back = Math.min(2, (mine.max || FORT_BLOCKS) - mine.blocks);
-        mine.blocks += back;
-        gain = base + back * 25;
-        p.score += gain; p.lastGain = gain; mine.score += gain;
-        game.lastEvents.push(back
-          ? `${p.name} put ${back} block${back > 1 ? 's' : ''} back on the ${mine.name} fort`
-          : `${p.name} patched a fort that was already full`);
-        return;
-      }
-      if (move === 'snowman') {
-        mine.decoys = (mine.decoys || 0) + 1;
-        gain = base + 20;
-        p.score += gain; p.lastGain = gain; mine.score += gain;
-        game.lastEvents.push(`${p.name} built a snowman in front of the ${mine.name} fort`);
-        return;
-      }
-      const power = 1 + Math.min(p.streak, 4) * 0.25;
-      let hit = Math.max(1, Math.round((0.6 + speed) * power));
-      if (fort.decoys > 0) {
-        fort.decoys -= 1;
-        gain = base;
-        p.score += gain; p.lastGain = gain; mine.score += gain;
-        game.lastEvents.push(`${p.name} took the head off a ${fort.name} snowman`);
-        p.hits += 1;
-        return;
-      }
-      hit = Math.min(fort.blocks, hit);
-      fort.blocks -= hit; p.hits += hit;
-      // the last blocks are the dear ones
-      const nearly = 1 + (1 - fort.blocks / (fort.max || FORT_BLOCKS)) * 0.9;
-      gain = Math.round(base * nearly + hit * 30);
-      p.score += gain; p.lastGain = gain; mine.score += gain;
-      game.lastEvents.push(`${p.name} knocked ${hit} block${hit > 1 ? 's' : ''} off the ${fort.name} fort`
-                           + (fort.blocks ? '' : ' — it is down!'));
-    },
 
-    /* A balloon is now a thing you can spend rather than only lose. Soaring is
-     * how somebody with three balloons and no points gets back in it, and
-     * patching is how somebody with one balloon and a lead survives. */
-    balloon(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      const out = p.balloons <= 0;
-      if (!ok) {
-        p.lastGain = 0;
-        if (out) { game.lastEvents.push(`${p.name} got it wrong`); return; }
-        const cost = move === 'soar' ? 2 : 1;
-        p.balloons = Math.max(0, p.balloons - cost);
-        game.lastEvents.push(p.balloons
-          ? `${p.name} lost ${cost} balloon${cost > 1 ? 's' : ''} — ${p.balloons} left`
-          : `${p.name} is out of balloons`);
-        return;
-      }
-      const base = pointsFor(game, q);
-      let gain = Math.round((base * 0.5 + base * 0.5 * speed) * (out ? 0.4 : 1));
-      if (move === 'soar') gain *= 2;
-      if (move === 'patch') {
-        gain = Math.round(gain * 0.5);
-        if (p.balloons < BALLOONS) {
-          p.balloons += 1;
-          game.lastEvents.push(`${p.name} patched a balloon — ${p.balloons} again`);
-        }
-      }
-      p.score += gain; p.lastGain = gain;
-      if (move === 'soar') game.lastEvents.push(`${p.name} soared for ${gain}`);
-    },
 
-    /* Anchoring is the change that makes this a game. A team that is one heave
-     * from losing can spend a round making itself immovable, which buys the time
-     * to get everybody answering again — and costs them the ground they would
-     * have taken. Every rope game needs a way to hold. */
-    tug(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      const way = p.team === 'red' ? -1 : 1;
-      if (move === 'anchor') {
-        game.teams[p.team].anchored = true;
-        p.lastGain = 0;
-        if (ok) { p.score += 20; game.lastEvents.push(`${p.name} is anchoring for ${game.teams[p.team].name}`); }
-        return;
-      }
-      if (!ok) {
-        if (move === 'heave') {
-          const slip = 5;
-          game.rope = Math.max(-ROPE_LENGTH, Math.min(ROPE_LENGTH, (game.rope || 0) - way * slip));
-          game.lastEvents.push(`${p.name} heaved, missed, and slipped ${slip}`);
-        }
-        p.lastGain = 0;
-        return;
-      }
-      const base = Math.round(4 + 7 * speed) * (p.streak >= 3 ? 2 : 1);
-      const pull = move === 'heave' ? Math.round(base * 2.1) : base;
-      game.rope = Math.max(-ROPE_LENGTH, Math.min(ROPE_LENGTH, (game.rope || 0) + way * pull));
-      p.score += pull; p.lastGain = pull; p.hits += pull;
-      game.teams[p.team].score += pull;
-      game.lastEvents.push(`${p.name} ${move === 'heave' ? 'heaved' : 'pulled'} ${pull}`);
-    },
 
-    /* This mode used to roll a dice and tell a child it had robbed somebody.
-     * Now they choose who, and the person being robbed can have chosen to guard,
-     * in which case the robber loses everything they were carrying to them. Two
-     * children who have worked out they are each other's problem is the best
-     * thing in this whole game, and it was a Math.random() call.
-     *
-     * The scorer only writes down the intention. Robberies are settled together
-     * in resolve(), or it would come down to whose phone sent first. */
-    heist(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      p.job = null;
-      if (!ok) { p.lastGain = 0; p.chest = 'The job went wrong'; return; }
-      const found = Math.round(60 + 70 * speed);
-      if (move === 'guard') {
-        p.job = { kind: 'guard' };
-        p.chest = 'Standing over your gold';
-        p.lastGain = 0;
-        return;
-      }
-      if (move === 'rob') {
-        p.job = { kind: 'rob', on: p.on, carrying: found };
-        p.chest = 'On the job';
-        p.lastGain = 0;
-        return;
-      }
-      if (move === 'vault') {
-        if (p.streak < 2) {
-          p.chest = 'The vault needs two right in a row';
-          p.lastGain = 0;
-          return;
-        }
-        const haul = found * 4;
-        p.coins += haul; p.score = p.coins; p.lastGain = haul;
-        p.chest = `Cracked the vault — ${haul}`;
-        game.lastEvents.push(`${p.name} cracked the vault for ${haul}`);
-        return;
-      }
-      p.coins += found; p.score = p.coins; p.lastGain = found;
-      p.chest = `+${found} gold`;
-    },
 
-    /* Naming the card you want is the difference between collecting and being
-     * dealt to. Hunting is worse odds and exactly what you need; grabbing is
-     * good odds and probably another one of something you already have. And a
-     * spare is now worth something to somebody else, which is a reason for two
-     * children to talk to each other. */
-    cards(game, p, q, ok, speed) {
-      if (!p.cards) p.cards = [];
-      const move = moveOf(game, p);
-      if (!ok) { p.lastGain = 0; p.chest = ''; return; }
-      const missing = CARD_SET.filter(c => !p.cards.includes(c));
 
-      if (move === 'trade') {
-        if ((p.spares || 0) <= 0) { p.chest = 'Nothing spare to offer'; p.lastGain = 0; return; }
-        p.offer = p.on && CARD_SET.includes(p.on) ? p.on : '';
-        p.job = { kind: 'trade' };
-        p.chest = 'Offering a trade';
-        p.lastGain = 0;
-        return;
-      }
-      let card;
-      if (move === 'hunt' && missing.length) {
-        const want = CARD_SET.includes(p.on) && missing.includes(p.on)
-          ? p.on : missing[Math.floor(Math.random() * missing.length)];
-        // naming it is how you get the one you actually need
-        card = Math.random() < (0.45 + 0.45 * speed) ? want
-             : CARD_SET[Math.floor(Math.random() * CARD_SET.length)];
-      } else {
-        // grabbing asks for nothing in particular and mostly gets you a spare
-        const wantNew = missing.length && Math.random() < (0.28 + 0.32 * speed);
-        card = wantNew ? missing[Math.floor(Math.random() * missing.length)]
-                       : CARD_SET[Math.floor(Math.random() * CARD_SET.length)];
-      }
-      if (p.cards.includes(card)) {
-        p.spares = (p.spares || 0) + 1;
-        p.chest = `Another ${card} — ${p.spares} spare${p.spares === 1 ? '' : 's'}`;
-        if (p.spares >= SPARES_PER_SWAP && missing.length) {
-          p.spares -= SPARES_PER_SWAP;
-          const swap = missing[Math.floor(Math.random() * missing.length)];
-          p.cards.push(swap);
-          p.chest = `Traded three spares for the ${swap}`;
-          game.lastEvents.push(`${p.name} traded three spares for the ${swap}`);
-        }
-      } else {
-        p.cards.push(card);
-        p.chest = `Won the ${card}`;
-        game.lastEvents.push(`${p.name} won the ${card} card`
-                             + (p.cards.length === CARD_SET.length ? ' — a full set!' : ''));
-      }
-      p.lastGain = 1;
-      p.score = p.cards.length * 100 + (p.spares || 0) * 10;
-    },
+
+
+
+
 
     /* Three routes up, and the fast one drops rocks on the people below. That is
      * the first thing in this game that made the class shout at each other. */
@@ -796,78 +436,9 @@
       p.score = p.height;
     },
 
-    /* Working pays now, investing pays later, sabotage pays nothing and costs
-     * somebody else more than it costs you. A factory where everybody only ever
-     * builds is an arms race nobody can lose; the third option is what stops it. */
-    factory(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      p.job = null;
-      if (!ok) { p.lastGain = 0; return; }
-      const base = pointsFor(game, q);
-      if (move === 'sabotage') {
-        p.job = { kind: 'sabotage', on: p.on };
-        p.lastGain = 0;
-        return;
-      }
-      const rate = move === 'invest' ? 0.18 : 0.35;
-      const gain = Math.round((base * rate + base * rate * speed) * streakBonus(game, p));
-      p.coins += gain;
-      p.lastGain = gain;
-      if (move === 'invest') {
-        p.tuned = (p.tuned || 0) + 1;
-        game.lastEvents.push(`${p.name} tuned the machines up`);
-      }
-      p.score = p.coins + p.output * 3;
-    },
 
-    /* The shoal is the new thing. It moves every round, everybody can see where
-     * it is, and it doubles what that water pays — so the question is no longer
-     * "how brave am I" but "where is everybody else going to be". */
-    fishing(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      const spot = SPOTS[p.target] ? p.target : 'shallows';
-      const where = SPOTS[spot];
-      if (!ok) {
-        p.catch = 'The line came up empty';
-        p.lastGain = 0;
-        return;
-      }
-      let odds = where.odds;
-      if (move === 'bait') {
-        const cost = Math.min(p.weight, 25);
-        p.weight -= cost;
-        odds = Math.min(0.97, odds + 0.32);
-        if (cost) game.lastEvents.push(`${p.name} baited the water, ${cost} of weight gone`);
-      }
-      const casts = move === 'net' ? 3 : 1;
-      const shrink = move === 'net' ? 0.42 : 1;
-      const shoaling = game.shoal === spot;
-      let total = 0, best = 0, kindName = '';
-      for (let c = 0; c < casts; c++) {
-        if (Math.random() > odds) continue;
-        const spread = where.high - where.low;
-        const big = Math.random() < where.big;
-        let weight = Math.round((where.low + spread * (0.4 + 0.6 * speed)) * (big ? 2.6 : 1) * shrink);
-        if (shoaling) weight = Math.round(weight * 2);
-        total += weight;
-        if (weight > best) { best = weight; kindName = FISH[Math.min(FISH.length - 1, Math.floor(weight / 40))]; }
-      }
-      if (!total) {
-        p.catch = 'Caught ' + JUNK[Math.floor(Math.random() * JUNK.length)];
-        p.lastGain = 0;
-        p.score = p.weight;
-        return;
-      }
-      p.weight += total;
-      p.best_catch = Math.max(p.best_catch, best);
-      p.catch = (casts > 1 ? `Netted ${total}` : 'Landed ' + kindName + ` — ${total}`)
-              + (shoaling ? ', right in the shoal' : '');
-      p.lastGain = total;
-      p.score = p.weight;
-      if (shoaling) game.lastEvents.push(`${p.name} was fishing the shoal — ${total}`);
-      else if (best > 120) game.lastEvents.push(`${p.name} landed ${kindName} out of ${where.label.toLowerCase()}`);
-    }
-  };
+
+};
 
   /* ── everything that happens between the questions ────────
    *
@@ -887,60 +458,6 @@
   function resolve(game) {
     const everyone = Object.values(game.players);
 
-    /* Gold Heist: robberies and guards, together. A guard who is robbed takes
-     * what the robber was carrying; two robbers on the same guarded pile both
-     * lose. Being predictable is the only way to actually lose gold here. */
-    if (game.mode === 'heist') {
-      const guards = new Set(everyone.filter(p => p.job && p.job.kind === 'guard').map(p => p.id));
-      const robbers = everyone.filter(p => p.job && p.job.kind === 'rob');
-      for (const robber of robbers) {
-        const mark = game.players[robber.job.on];
-        if (!mark || mark.id === robber.id) {
-          robber.coins += robber.job.carrying;
-          robber.chest = `Nobody there — kept ${robber.job.carrying}`;
-          continue;
-        }
-        if (guards.has(mark.id)) {
-          const lost = Math.min(robber.coins, robber.job.carrying);
-          robber.coins = Math.max(0, robber.coins - lost);
-          mark.coins += lost + robber.job.carrying;
-          robber.chest = `${mark.name} was waiting. Lost ${lost}`;
-          mark.chest = `Caught ${robber.name} — took ${lost + robber.job.carrying}`;
-          game.lastEvents.push(`${mark.name} caught ${robber.name} red-handed`);
-        } else {
-          const taken = Math.round(mark.coins / 3);
-          mark.coins = Math.max(0, mark.coins - taken);
-          robber.coins += taken + robber.job.carrying;
-          robber.chest = `Robbed ${mark.name} of ${taken}`;
-          mark.chest = `${robber.name} robbed you of ${taken}`;
-          game.lastEvents.push(`${robber.name} robbed ${mark.name} of ${taken} gold`);
-        }
-      }
-      everyone.forEach(p => { p.coins = Math.max(0, p.coins); p.score = p.coins; p.job = null; });
-    }
-
-    /* Kart Race: a shell is thrown at whoever is in front, by whoever earned it.
-     * Aimed at the leader rather than at a name on purpose — it keeps the front
-     * of the race under pressure without letting the room gang up on one child. */
-    if (game.mode === 'kart') {
-      const throwers = everyone.filter(p => p.item);
-      if (throwers.length) {
-        const leader = everyone.reduce((a, b) => ((a.distance || 0) >= (b.distance || 0) ? a : b));
-        for (const t of throwers) {
-          t.item = false;
-          if (t.id === leader.id) {
-            t.distance += 30; t.score = t.distance;
-            game.lastEvents.push(`${t.name} is out front and used the shell as a boost`);
-            continue;
-          }
-          const hit = 55;
-          leader.distance = Math.max(0, (leader.distance || 0) - hit);
-          leader.score = leader.distance;
-          game.lastEvents.push(`${t.name} hit ${leader.name} with a shell — ${hit}m gone`);
-        }
-      }
-    }
-
     /* Volcano Climb: anyone who took the overhang sends rocks down on the
      * climbers below them. It cannot reach above you, so the leader is safe and
      * the scramble is in the middle, which is where most of the class is. */
@@ -956,40 +473,6 @@
         game.lastEvents.push(`${k.name} sent rocks down onto ${hit.name}`);
       }
       everyone.forEach(p => { p.rocks = false; });
-    }
-
-    /* Factory: a sabotaged floor produces nothing next payout. It does not break
-     * anything permanently — a mode where a child can be knocked out of the game
-     * by other children in round two is a mode teachers stop using. */
-    if (game.mode === 'factory') {
-      for (const p of everyone.filter(x => x.job && x.job.kind === 'sabotage')) {
-        const mark = game.players[p.job.on];
-        if (!mark || mark.id === p.id) continue;
-        mark.stopped = true;
-        game.lastEvents.push(`${p.name} jammed ${mark.name}'s machines`);
-      }
-      everyone.forEach(p => { p.job = null; });
-    }
-
-    /* Card Collector: offers matched with hunters. One spare, one swap, and both
-     * children got something they wanted out of somebody else's bad luck. */
-    if (game.mode === 'cards') {
-      const offering = everyone.filter(p => p.job && p.job.kind === 'trade' && (p.spares || 0) > 0);
-      for (const seller of offering) {
-        const buyer = everyone.find(x => x.id !== seller.id && (x.spares || 0) > 0
-          && CARD_SET.some(c => !x.cards.includes(c) && seller.cards.includes(c)));
-        if (!buyer) { seller.chest = 'Nobody took the trade'; continue; }
-        const wants = CARD_SET.find(c => !buyer.cards.includes(c) && seller.cards.includes(c));
-        const back = CARD_SET.find(c => !seller.cards.includes(c) && buyer.cards.includes(c));
-        seller.spares -= 1; buyer.spares -= 1;
-        buyer.cards.push(wants);
-        if (back) seller.cards.push(back);
-        seller.chest = back ? `Traded with ${buyer.name} for the ${back}` : `Traded the ${wants} to ${buyer.name}`;
-        buyer.chest = `Traded with ${seller.name} for the ${wants}`;
-        game.lastEvents.push(`${seller.name} and ${buyer.name} traded cards`);
-        [seller, buyer].forEach(x => { x.score = x.cards.length * 100 + (x.spares || 0) * 10; });
-      }
-      everyone.forEach(p => { p.job = null; });
     }
 
     /* Boss Battle: the boss takes its turn, and whether it lands depends on what
@@ -1067,32 +550,6 @@
    * decision made with the information rather than a punishment out of nowhere. */
   const SWAY_LIMIT = 4;          // sway at or above this and the wind takes it
 
-  /* ── Factory ──
-   * Coins buy machines; machines pay out at the end of every round whether you
-   * answered or not. Buying early costs you the lead and wins you the game.
-   * Feeding them ("invest") makes every machine you own run hotter for the rest
-   * of the game, so there are two ways to build and they suit different rooms. */
-  const MACHINE_COST = 120;      // what the first machine costs
-  const MACHINE_STEP = 60;       // and how much more each one after it costs
-  const MACHINE_YIELD = 34;      // what each machine pays every round
-  const TUNE_BONUS = 5;          // and what each round of tuning adds to that
-
-  /* ── Fishing Frenzy ──
-   * Cast near or far, chosen on the phone before the question. Near water almost
-   * always gives you something small; deep water often gives you nothing at all
-   * and sometimes gives you the fish that wins the game. The shoal moves between
-   * the three every round and doubles what its water pays, which everybody can
-   * see — so the good players are the ones watching the board, not the ones
-   * gambling. */
-  const SPOTS = {
-    shallows: { label: 'The shallows', odds: 0.92, low: 12, high: 30, big: 0.04 },
-    channel:  { label: 'The channel',  odds: 0.68, low: 30, high: 70, big: 0.12 },
-    deep:     { label: 'The deep',     odds: 0.42, low: 70, high: 150, big: 0.26 }
-  };
-  const SPOT_IDS = Object.keys(SPOTS);
-  const FISH = ['a minnow', 'a perch', 'a bream', 'a pike', 'a carp', 'a catfish', 'a sturgeon'];
-  const JUNK = ['an old boot', 'a bag of weed', 'a rusty can', 'nothing at all', 'a lost sock'];
-
   const BOSS_NAMES = ['Professor Puzzle', 'The Grumbling Grammarian', 'Baron Blunder',
                       'Countess Confusion', 'The Number Nibbler', 'Sir Slipsalot'];
 
@@ -1101,14 +558,13 @@
   const blankPlayer = (row) => ({
     id: row.id, name: row.name, avatar: Number(row.avatar) || 0, team: row.team || 'red',
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
-    lastDamage: 0, distance: 0, blocks: 0, coins: 0, chest: '', lastGain: 0, target: '',
-    balloons: BALLOONS, hits: 0, cards: [], spares: 0,
-    height: 0, safe: true, machines: 0, output: 0, catch: '', weight: 0, best_catch: 0,
+    lastDamage: 0, lastGain: 0, target: '',
+    blocks: 0, sway: 0,                       // tower build
+    height: 0, safe: true, rocks: false,      // volcano climb
+    guarding: false, acted: '',               // boss battle
+    shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
-    move: '', on: '', job: null,
-    // per-mode workings the moves need
-    sway: 0, item: false, run: 0, rocks: false, tuned: 0, stopped: false,
-    guarding: false, acted: '', shielded: false, exposed: false, offer: ''
+    move: '', on: ''
   });
 
   /* What happens between the questions: the other players first, then the world.
@@ -1156,74 +612,14 @@
       }
     }
 
-    if (game.mode === 'factory') {
-      everyone.forEach(p => {
-        if (!p.machines) { p.output = 0; return; }
-        if (p.stopped) {
-          p.stopped = false; p.output = 0;
-          game.lastEvents.push(`${p.name}'s machines were jammed and paid nothing`);
-          return;
-        }
-        const paid = p.machines * (MACHINE_YIELD + (p.tuned || 0) * TUNE_BONUS);
-        p.coins += paid;
-        p.output = paid;
-        p.score = p.coins + p.output * 3;
-      });
-      const busiest = everyone.filter(p => p.machines > 0)
-        .sort((a, b) => b.output - a.output)[0];
-      if (busiest && busiest.output) {
-        game.lastEvents.push(`${busiest.name}'s ${busiest.machines} machine`
-          + (busiest.machines === 1 ? '' : 's') + ` paid out ${busiest.output}`);
-      }
-    }
-
-    /* Fishing Frenzy: the shoal moves, and where it goes is the only thing
-     * everybody in the room is looking at when the next question comes up. */
-    if (game.mode === 'fishing') {
-      const was = game.shoal;
-      const options = SPOT_IDS.filter(id => id !== was);
-      game.shoal = options[Math.floor(Math.random() * options.length)];
-      game.lastEvents.push(`The shoal has moved to ${SPOTS[game.shoal].label.toLowerCase()}`);
-    }
-
-    /* Tug of War: an anchor holds for the round it was called and no longer. */
-    if (game.mode === 'tug' && game.teams) {
-      ['red', 'blue'].forEach(side => { if (game.teams[side]) game.teams[side].anchored = false; });
-    }
-
     game.lastEvents = game.lastEvents.slice(-6);
   }
 
-  /* Buying a machine, which is the one thing a player does between questions
-   * rather than during one. Priced so the second is dearer than the first: a
-   * runaway leader who can buy five in a round is not a game.
-   *
-   * Returns what happened, so the phone can say it without knowing the prices.
-   */
-  function buyMachine(game, p) {
-    if (!game || game.mode !== 'factory' || !p) return { ok: false, why: 'Not that kind of game.' };
-    const cost = MACHINE_COST + MACHINE_STEP * (p.machines || 0);
-    if ((p.coins || 0) < cost) return { ok: false, why: `${cost - (p.coins || 0)} more coins needed`, cost };
-    p.coins -= cost;
-    p.machines = (p.machines || 0) + 1;
-    p.score = p.coins + (p.output || 0) * 3;
-    game.lastEvents.push(`${p.name} built machine number ${p.machines}`);
-    return { ok: true, cost, machines: p.machines, next: MACHINE_COST + MACHINE_STEP * p.machines };
-  }
-  const machineCost = (p) => MACHINE_COST + MACHINE_STEP * ((p && p.machines) || 0);
-
-  /* Some games end themselves before the questions run out: a fort falls, a boss
-   * dies, a rope crosses the line, somebody completes the set. Asked in one place
-   * so the website, the app and the Flask edition cannot drift apart on it. */
+  /* Two of the four end themselves before the questions run out — a boss dies,
+   * or the lava has everybody. Asked in one place so the website, the app and
+   * the Flask edition cannot drift apart on it. */
   function modeFinished(game) {
-    if (game.mode === 'snow') {
-      return ['red', 'blue'].some(side => game.teams[side].max && game.teams[side].blocks <= 0);
-    }
     if (game.mode === 'boss') return !!game.boss && (game.boss.hp === 0 || game.boss.classHp === 0);
-    if (game.mode === 'tug') return Math.abs(game.rope || 0) >= ROPE_LENGTH;
-    if (game.mode === 'cards') {
-      return Object.values(game.players).some(p => (p.cards || []).length >= CARD_SET.length);
-    }
     /* Volcano Climb ends when the lava has everybody, which is a real ending
      * rather than a countdown: the room can see it coming and can stop it. */
     if (game.mode === 'volcano') {
@@ -1236,14 +632,12 @@
   const pickBossName = () => BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)];
 
   global.NovaRules = {
-    MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, CHESTS,
+    MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
-    afterRound, resolve, buyMachine, machineCost, SPOTS, SPOT_IDS, FISH, JUNK,
-    movesFor, defaultMove, moveOf, chooseMove,
-    CLIMB_PER, LAVA_BASE, LAVA_CHASE, MACHINE_COST, MACHINE_STEP, MACHINE_YIELD, TUNE_BONUS,
-    TRACK_LENGTH, BOSS_HP_PER_QUESTION, FORT_BLOCKS, BALLOONS, MAX_PLAYER_HIT,
-    ROPE_LENGTH, CARD_SET, SPARES_PER_SWAP, SWAY_LIMIT
+    afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
+    CLIMB_PER, LAVA_BASE, LAVA_CHASE,
+    BOSS_HP_PER_QUESTION, MAX_PLAYER_HIT, SWAY_LIMIT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

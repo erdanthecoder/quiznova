@@ -593,8 +593,8 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=d0b6da9d"></script>
-<script src="live.js?v=1a982c87"></script>
+<script src="rules.js?v=2728ce31"></script>
+<script src="live.js?v=555454cf"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -1149,10 +1149,7 @@ function runTimer() {
 /* ── leaderboard / arena under the question ────── */
 function extraInto(host) {
   if (!host) return;
-  const views = { laser: arena, kart: raceTrack, tower: skyline, treasure: treasureBoard,
-                  boss: bossArena, snow: snowField, balloon: balloonField,
-                  tug: tugField, heist: heistBoard, cards: cardTable,
-                  volcano: volcanoWall, factory: factoryFloor, fishing: fishingLake };
+  const views = { laser: arena, tower: skyline, boss: bossArena, volcano: volcanoWall };
   const view = views[game.mode];
   /* The wind, announced a round before it arrives. It belongs above the towers
    * rather than on the phones: everybody has to see it at the same moment or
@@ -1192,21 +1189,6 @@ function standing(p, x, y, label, extra) {
 
 const KART_COLOURS = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#6C4CF1', '#2BA8FF'];
 
-function raceTrack() {
-  const longest = Math.max(game.trackLength || 1000, ...game.players.map(p => p.distance || 0));
-  return stage((world, floor) => {
-    floor.append(el('div', { class: 'finish', style: 'right:2%' }));
-    [22, 44, 66, 88].forEach(t => floor.append(el('div', { class: 'line', style: `top:${t}%` })));
-    game.players.slice(0, 10).forEach((p, i) => {
-      const pct = Math.min(94, (p.distance || 0) / longest * 92) + 2;
-      const lane = 6 + i * (78 / Math.max(1, Math.min(10, game.players.length)));
-      world.append(standing(p, pct, lane, `${p.name} · ${p.distance || 0}m`,
-                            i === 0 ? ' lead' : ''));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No racers yet.'));
-  });
-}
-
 function skyline() {
   const tallest = Math.max(6, ...game.players.map(p => p.blocks || 0));
   return stage((world) => {
@@ -1224,86 +1206,6 @@ function skyline() {
   });
 }
 
-/* One rope for the whole room. The marker is the only thing that moves, and it
-   can go back the way it came, which is the point of the game. */
-function tugField() {
-  const rope = Math.max(-100, Math.min(100, game.rope || 0));
-  const leading = rope < 0 ? 'red' : 'blue';
-  return stage((world) => {
-    // how much further each team has to drag it, which is the only number that matters
-    const teams = game.teams || {};
-    world.append(el('div', { class: 'tugplate red' },
-                      `${(teams.red || {}).name || 'Crimson'} · ${Math.max(0, 100 + rope)} to go`),
-                 el('div', { class: 'tugplate blue' },
-                      `${(teams.blue || {}).name || 'Cobalt'} · ${Math.max(0, 100 - rope)} to go`));
-    world.append(el('div', { class: 'tugend', style: 'left:6%' }),
-                 el('div', { class: 'tugend', style: 'right:6%' }),
-                 el('div', { class: 'tugmid' }),
-                 el('div', { class: 'tugline' }));
-    // -100 is all the way to the red end, +100 all the way to the blue
-    world.append(el('div', { class: 'tugmark ' + (rope === 0 ? 'red' : leading),
-                             style: `left:${50 + rope * 0.42}%` }));
-    ['red', 'blue'].forEach((side) => {
-      const mine = game.players.filter(p => p.team === side);
-      mine.slice(0, 6).forEach((p, i) => {
-        const from = side === 'red' ? 8 : 92;
-        const way = side === 'red' ? 1 : -1;
-        const node = el('div', { class: 'figure', 'data-id': p.id,
-          style: `left:${from + way * i * 6}%;bottom:20%;margin-left:-17px` });
-        node.append(el('div', { class: 'shadow' }),
-                    el('div', { class: 'body', html: Sprite.face(p.avatar, 54) }),
-                    el('div', { class: 'tag' }, p.name));
-        world.append(node);
-      });
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody on the rope yet.'));
-  });
-}
-
-/* Piles of gold, and whatever the last chest did to somebody. The callout is the
-   whole game: a robbery nobody sees is not worth playing for. */
-function heistBoard() {
-  const richest = Math.max(1, ...game.players.map(p => p.coins || 0));
-  const box = el('div', { class: 'piles' });
-  game.players.slice(0, 10).forEach((p, i) => {
-    const pile = el('div', { class: 'pile', 'data-id': p.id });
-    const heap = el('div', { class: 'heap' });
-    const stacked = Math.max(0, Math.round((p.coins || 0) / richest * 9));
-    for (let n = 0; n < stacked; n++) {
-      heap.append(el('i', { class: 'coin', style: `--w:${52 - n * 3}px` }));
-    }
-    pile.append(el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 34) }),
-                heap,
-                el('b', { class: 'amt' }, String(p.coins || 0)),
-                el('span', { class: 'who' }, p.name),
-                el('span', { class: 'say' }, p.chest || ''));
-    box.append(pile);
-  });
-  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'No robbers yet.'));
-  return box;
-}
-
-/* Everybody's set, with the gaps showing. A child can see at a glance how close
-   they are and, more to the point, how close everybody else is. */
-function cardTable() {
-  const all = ['star', 'moon', 'leaf', 'flame', 'drop', 'bolt', 'gem', 'crown'];
-  const box = el('div', { class: 'sets' });
-  game.players.slice(0, 12).forEach((p) => {
-    const row = el('div', { class: 'setrow', 'data-id': p.id });
-    const hand = el('div', { class: 'hand' });
-    const held = p.cards || [];
-    all.forEach((c) => {
-      const has = held.includes(c);
-      hand.append(el('i', { class: 'swap' + (has ? '' : ' gap'),
-                            html: has ? Sprite.icon(CARD_ICON[c], 18, CARD_COLOUR[c]) : '' }));
-    });
-    row.append(el('span', { class: 'nm' }, p.name), hand);
-    if (p.spares) row.append(el('span', { class: 'spare' }, `${p.spares} spare`));
-    box.append(row);
-  });
-  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'No collectors yet.'));
-  return box;
-}
 const CARD_ICON = { star: 'star', moon: 'moon', leaf: 'leaf', flame: 'flame',
                     drop: 'drop', bolt: 'bolt', gem: 'gem', crown: 'crown' };
 const CARD_COLOUR = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
@@ -1336,66 +1238,6 @@ function volcanoWall() {
   return wall;
 }
 
-/* Factory. What matters here is not where anybody is standing but what they have
- * built, so this is a shop floor: a row of machines per player, and the payout
- * they made last round said out loud. */
-function factoryFloor() {
-  const box = el('div', { class: 'floorplan' });
-  game.players.slice(0, 12).forEach((p, i) => {
-    const line = el('div', { class: 'bay' + (i === 0 ? ' lead' : ''), 'data-id': p.id });
-    const shed = el('div', { class: 'sheds' });
-    for (let n = 0; n < Math.min(10, p.machines || 0); n++) {
-      shed.append(el('i', { class: 'machine', style: `animation-delay:${n * 90}ms`,
-                            html: Sprite.icon('bricks', 16, '#1B1233') }));
-    }
-    if (!p.machines) shed.append(el('span', { class: 'faint tiny' }, 'no machines yet'));
-    line.append(
-      el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 40) }),
-      el('span', { class: 'nm' }, p.name),
-      shed,
-      el('span', { class: 'takings' }, `${p.coins || 0}`,
-         p.output ? el('em', {}, `+${p.output}/round`) : ''));
-    box.append(line);
-  });
-  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'Nobody has opened a factory yet.'));
-  return box;
-}
-
-/* Fishing Frenzy. Three bands of water running away from the camera — the
- * shallows nearest, the deep furthest — and everybody standing in the band they
- * cast into, so the room can see who is gambling. */
-function fishingLake() {
-  const BANDS = [['shallows', 'The shallows', 14], ['channel', 'The channel', 45], ['deep', 'The deep', 76]];
-  return stage((world, floor) => {
-    floor.classList.add('water');
-    BANDS.forEach(([id, label, y]) => {
-      const here = game.shoal === id;
-      floor.append(el('div', { class: 'band' + (here ? ' shoaling' : ''),
-                               style: `top:${100 - y - 12}%` },
-        el('span', {}, here ? label + ' — the shoal is here' : label)));
-    });
-    game.players.slice(0, 14).forEach((p, i) => {
-      const band = BANDS.find(b => b[0] === (p.target || 'shallows')) || BANDS[0];
-      const x = 8 + (i % 7) * 12.5;
-      world.append(standing(p, x, band[2] + (i > 6 ? 7 : 0),
-        `${p.name} · ${p.weight || 0}`, i === 0 ? ' lead' : ''));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody has cast a line yet.'));
-  });
-}
-
-function treasureBoard() {
-  const richest = Math.max(1, ...game.players.map(p => p.coins || 0));
-  return stage((world) => {
-    game.players.slice(0, 12).forEach((p, i) => {
-      const x = 8 + (i % 6) * 16;
-      const y = 12 + Math.floor(i / 6) * 34 + (p.coins || 0) / richest * 18;
-      world.append(standing(p, x, y, `${p.name} · ${p.coins || 0}`, i === 0 ? ' lead' : ''));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No treasure hunters yet.'));
-  });
-}
-
 /* Snowball Fight. The two forts are the whole story, so they are what the room
  * looks at: the throwers stand behind their own wall and the blocks come off the
  * other one. A block that has been knocked off is left as an empty socket rather
@@ -1403,95 +1245,6 @@ function treasureBoard() {
 /* How many blocks each fort had when the board was last drawn, so a fort that has
  * just been hit can be shown being hit rather than simply being smaller. */
 let lastFort = {};
-
-function snowField() {
-  const teams = game.teams || {};
-  const hitNow = {};
-  ['red', 'blue'].forEach((side) => {
-    const now = (teams[side] || {}).blocks;
-    hitNow[side] = lastFort[side] !== undefined && now !== undefined && now < lastFort[side];
-    if (now !== undefined) lastFort[side] = now;
-  });
-  const wrap = stage((world) => {
-    ['red', 'blue'].forEach((side) => {
-      const team = teams[side] || { blocks: 0, max: 0, name: side };
-      const mine = game.players.filter(p => p.team === side);
-      // the forts face each other across the middle, each team behind its own
-      const wall = side === 'red' ? 30 : 70;
-      const home = side === 'red' ? 12 : 88;
-      const fort = el('div', { class: 'fort' + (team.blocks <= 0 ? ' fallen' : ''),
-        'data-side': side, style: `left:${wall}%;bottom:52%;margin-left:-63px` });
-      const rows = Math.max(1, Math.ceil((team.max || 1) / 3));
-      for (let r = 0; r < rows; r++) {
-        const row = el('div', { class: 'row' });
-        for (let c = 0; c < 3; c++) {
-          const nth = r * 3 + c;
-          if (nth >= (team.max || 0)) continue;
-          row.append(el('i', { class: 'brick' + (nth < team.blocks ? '' : ' gone'),
-                               style: `--c:${side === 'red' ? '#F4364C' : '#4F6BFF'}` }));
-        }
-        fort.append(row);
-      }
-      fort.append(el('div', { class: 'plate' },
-        team.blocks > 0 ? `${team.name} · ${team.blocks} left` : `${team.name} fort is down`));
-      world.append(fort);
-
-      mine.slice(0, 6).forEach((p, i) => {
-        // the throwers stand behind their own wall, out towards their own side
-        const spread = (i - (Math.min(mine.length, 6) - 1) / 2) * 11;
-        world.append(standing(p, Math.max(4, Math.min(96, home + spread)), 10,
-                              `${p.name} · ${p.hits || 0}`, i === 0 ? ' lead' : ''));
-      });
-    });
-    // a snowball crosses the floor towards whichever fort just lost a block
-    ['red', 'blue'].forEach((side) => {
-      if (hitNow[side]) world.append(el('div', { class: 'snowball at-' + side }));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No throwers yet.'));
-  });
-
-  const bars = el('div', { class: 'card pad', style: 'margin-top:12px' });
-  ['red', 'blue'].forEach((side) => {
-    const team = teams[side] || { blocks: 0, max: 1, name: side, score: 0 };
-    bars.append(el('div', { class: 'spread', style: 'margin-bottom:8px' },
-      el('strong', {}, team.name),
-      el('span', { class: 'tiny faint' }, `${team.blocks} of ${team.max || 0} blocks standing`)),
-      el('div', { class: 'hpbar' },
-        el('i', { style: `width:${team.max ? team.blocks / team.max * 100 : 0}%;` +
-                         `background:${side === 'red' ? 'linear-gradient(90deg,#ff4d5e,#ff9b6a)'
-                                                      : 'linear-gradient(90deg,#4f6bff,#22d3ee)'}` })));
-  });
-  const box = el('div', {});
-  box.append(wrap, bars);
-  return box;
-}
-
-/* Balloon Drop. Everyone is on the same floor and the balloons above their heads
- * are the score that matters: a child who has lost all three is greyed out where
- * they stand rather than taken off the board, because being knocked out in front
- * of the class is only bearable if you can still see yourself in the game. */
-function balloonField() {
-  return stage((world) => {
-    const shown = game.players.slice(0, 12);
-    shown.forEach((p, i) => {
-      const x = 8 + (i % 6) * 16.5;
-      const y = 14 + Math.floor(i / 6) * 34;
-      const out = (p.balloons || 0) <= 0;
-      const node = el('div', { class: 'figure' + (out ? ' knocked' : '') + (i === 0 && !out ? ' lead' : ''),
-        'data-id': p.id, style: `left:${x}%;bottom:${y}%;margin-left:-26px` });
-      const strip = el('div', { class: 'balloons' });
-      for (let b = 0; b < 3; b++) {
-        strip.append(el('i', { class: b < (p.balloons || 0) ? '' : 'popped',
-                               style: `--c:${KART_COLOURS[(i + b) % 6]}` }));
-      }
-      node.append(el('div', { class: 'shadow' }), strip,
-                  el('div', { class: 'mini-face', html: Sprite.face(p.avatar, 58) }),
-                  el('div', { class: 'tag' }, out ? `${p.name} · out` : `${p.name} · ${p.score}`));
-      world.append(node);
-    });
-    if (!shown.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody has joined yet.'));
-  });
-}
 
 /* The boss telegraph and the wind: both are warnings the whole room reads at
  * once, so both are big, both sit under the stage, and the dangerous one is
@@ -1566,17 +1319,8 @@ function bossArena() {
 }
 let lastBossHp = null;
 
-const unitFor = (p) => game.mode === 'kart' ? `${p.distance || 0}m`
-  : game.mode === 'heist' ? `${p.coins || 0} gold`
-  : game.mode === 'cards' ? `${(p.cards || []).length}/8 cards`
-  : game.mode === 'tug' ? `pulled ${p.hits || 0}`
-  : game.mode === 'tower' ? `${p.blocks || 0} blocks`
-  : game.mode === 'treasure' ? `${p.coins || 0} coins`
-  : game.mode === 'snow' ? `${p.hits || 0} blocks`
-  : game.mode === 'balloon' ? `${p.score} · ${p.balloons || 0} left`
+const unitFor = (p) => game.mode === 'tower' ? `${p.blocks || 0} blocks`
   : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
-  : game.mode === 'factory' ? `${p.coins || 0} · ${p.machines || 0} machine${p.machines === 1 ? '' : 's'}`
-  : game.mode === 'fishing' ? `${p.weight || 0} caught`
   : String(p.score);
 
 /* Who climbed and who slipped. The comparison is against where everyone stood at
@@ -1706,30 +1450,13 @@ function overView() {
     const winner = red.hp === blue.hp ? null : (red.hp > blue.hp ? red : blue);
     headline = winner ? `${winner.name} wins` : 'A draw';
     sub = `${red.name} ${Math.max(0, red.hp)} HP · ${blue.name} ${Math.max(0, blue.hp)} HP`;
-  } else if (game.mode === 'snow') {
-    // a team game is decided by whose fort is still standing, not by who scored most
-    const red = game.teams.red, blue = game.teams.blue;
-    const winner = red.blocks === blue.blocks ? null : (red.blocks > blue.blocks ? red : blue);
-    headline = winner ? `${winner.name} wins` : 'A draw';
-    sub = `${red.name} ${Math.max(0, red.blocks)} blocks · ${blue.name} ${Math.max(0, blue.blocks)} blocks`;
-  } else if (game.mode === 'balloon') {
-    const floating = game.players.filter(p => (p.balloons || 0) > 0);
-    headline = top[0] ? `${top[0].name} wins` : 'Final scores';
-    sub = floating.length
-      ? `${floating.length} still floating · ${top[0] ? top[0].score + ' points' : ''}`.trim()
-      : 'Every balloon popped';
   } else if (game.mode === 'boss') {
     const boss = game.boss || { hp: 0, name: 'The boss' };
     headline = boss.hp === 0 ? `The class beat ${boss.name}` : `${boss.name} survived`;
     sub = boss.hp === 0 ? 'Every right answer landed a blow.' : `${boss.hp} HP left. Closer next lesson.`;
   } else if (top[0]) {
-    const win = { kart: `${top[0].distance}m driven`, tower: `${top[0].blocks} blocks high`,
-                  heist: `${top[0].coins} gold`, cards: `${(top[0].cards || []).length} of 8 cards`,
-                  tug: `pulled ${top[0].hits}`,
-                  treasure: `${top[0].coins} coins`,
-                  volcano: `${Math.round(top[0].height || 0)} up the wall`,
-                  factory: `${top[0].coins} banked from ${top[0].machines || 0} machines`,
-                  fishing: `${top[0].weight || 0} caught` }[game.mode];
+    const win = { tower: `${top[0].blocks} blocks high`,
+                  volcano: `${Math.round(top[0].height || 0)} up the wall` }[game.mode];
     headline = `${top[0].name} wins`;
     sub = win || `${top[0].score} points`;
   }

@@ -17,10 +17,10 @@ function newGame(mode, names) {
   const g = {
     mode, players, questions: [QUESTION], index: 0, state: 'question',
     lastEvents: [], setup: R.readSetup({}), goal: { kind: 'questions' },
-    rope: 0, lava: 0, shoal: 'channel', wind: false,
+    lava: 0, wind: false,
     teams: {
-      red:  { name: 'Red',  score: 0, hp: 600, blocks: R.FORT_BLOCKS, max: R.FORT_BLOCKS, decoys: 0 },
-      blue: { name: 'Blue', score: 0, hp: 600, blocks: R.FORT_BLOCKS, max: R.FORT_BLOCKS, decoys: 0 }
+      red:  { name: 'Red',  score: 0, hp: 600 },
+      blue: { name: 'Blue', score: 0, hp: 600 }
     },
     boss: { name: 'Boss', hp: 800, max: 800, classHp: 100, classMax: 100, next: 'poke', says: '' }
   };
@@ -75,37 +75,8 @@ for (const mode of Object.keys(R.MODES)) {
  * Same answers, same speed, different choice. If these come out equal the
  * choice is decoration and the whole exercise failed. */
 console.log('\n— the choice changes the game —');
-function runWith(mode, move, rounds, seedPlan) {
-  const g = newGame(mode, ['Ana', 'Ben']);
-  for (let r = 0; r < rounds; r++) {
-    round(g, seedPlan(move, r));
-  }
-  return g;
-}
 
-// normal: all-in on right answers must beat safe
-{
-  const safe = runWith('normal', 'safe', 6, (m) => ({ Ana: { ok: true, speed: 0.8, move: m }, Ben: { ok: true, speed: 0.8, move: 'safe' } }));
-  const allin = runWith('normal', 'allin', 6, (m) => ({ Ana: { ok: true, speed: 0.8, move: m }, Ben: { ok: true, speed: 0.8, move: 'safe' } }));
-  ok('normal: all in beats safe when you are right',
-     allin.players.Ana.score > safe.players.Ana.score * 2,
-     `${safe.players.Ana.score} vs ${allin.players.Ana.score}`);
-  const wrong = runWith('normal', 'allin', 6, (m) => ({ Ana: { ok: false, speed: 0.8, move: m }, Ben: { ok: false, speed: 0.8, move: 'safe' } }));
-  ok('normal: all in punishes being wrong', wrong.players.Ana.score <= wrong.players.Ben.score,
-     `Ana ${wrong.players.Ana.score}, Ben(safe) ${wrong.players.Ben.score}`);
-}
-
-// kart: slipstream must pay the player who is behind
-{
-  const g = newGame('kart', ['Front', 'Back']);
-  g.players.Front.distance = 600; g.players.Front.score = 600;
-  round(g, { Front: { ok: true, speed: 0.5, move: 'slip' }, Back: { ok: true, speed: 0.5, move: 'slip' } });
-  ok('kart: the slipstream pays the one behind more',
-     g.players.Back.lastGain > g.players.Front.lastGain,
-     `back +${g.players.Back.lastGain}, front +${g.players.Front.lastGain}`);
-}
-
-// tower: tall builds faster but the wind can take it
+// tower: tall builds faster, sways, and the wind takes it; bracing saves it
 {
   const g = newGame('tower', ['Tall', 'Wide']);
   // scored by hand, so the random wind cannot topple the tower mid-measurement
@@ -132,37 +103,7 @@ function runWith(mode, move, rounds, seedPlan) {
   })(), 'sway goes back to nothing');
 }
 
-// heist: a guard beats a robber, and beats them for real money
-{
-  const g = newGame('heist', ['Robber', 'Mark']);
-  g.players.Mark.coins = 500; g.players.Mark.score = 500;
-  g.players.Robber.coins = 300; g.players.Robber.score = 300;
-  round(g, { Robber: { ok: true, speed: .7, move: 'rob', on: 'Mark' },
-             Mark:   { ok: true, speed: .7, move: 'guard' } });
-  ok('heist: guarding catches the robber', g.players.Mark.coins > 500 && g.players.Robber.coins < 300,
-     `mark ${g.players.Mark.coins}, robber ${g.players.Robber.coins}`);
-
-  const h = newGame('heist', ['Robber', 'Mark']);
-  h.players.Mark.coins = 600; h.players.Mark.score = 600;
-  round(h, { Robber: { ok: true, speed: .7, move: 'rob', on: 'Mark' },
-             Mark:   { ok: true, speed: .7, move: 'sneak' } });
-  ok('heist: robbing an unguarded pile takes a third',
-     h.players.Mark.coins < 600 && h.players.Robber.coins > 200,
-     `mark ${h.players.Mark.coins}, robber ${h.players.Robber.coins}`);
-}
-
-// tug: anchoring holds, heaving moves more
-{
-  const g = newGame('tug', ['R1', 'B1']);
-  round(g, { R1: { ok: true, speed: .8, move: 'heave' }, B1: { ok: true, speed: .8, move: 'dig' } });
-  ok('tug: a heave outpulls a dig-in', Math.abs(g.rope) > 0 && g.players.R1.lastGain > g.players.B1.lastGain,
-     `rope ${g.rope}, heave ${g.players.R1.lastGain} vs dig ${g.players.B1.lastGain}`);
-  const h = newGame('tug', ['R1', 'B1']);
-  round(h, { R1: { ok: false, speed: .8, move: 'heave' }, B1: { ok: false, speed: .8, move: 'dig' } });
-  ok('tug: a missed heave slips the rope back', h.rope !== 0, `rope ${h.rope}`);
-}
-
-// volcano: routes climb at different rates, and rocks fall
+// volcano: routes climb at different rates, and the overhang drops rocks
 {
   const g = newGame('volcano', ['Over', 'Ledge']);
   round(g, { Over: { ok: true, speed: .8, move: 'overhang' }, Ledge: { ok: true, speed: .8, move: 'ledge' } });
@@ -170,10 +111,16 @@ function runWith(mode, move, rounds, seedPlan) {
      `${g.players.Over.height} vs ${g.players.Ledge.height}`);
   const h = newGame('volcano', ['Over', 'Below']);
   h.players.Over.height = 200; h.players.Below.height = 100;
-  const was = 100;
   round(h, { Over: { ok: true, speed: .8, move: 'overhang' }, Below: { ok: false, speed: .5, move: 'ledge' } });
   ok('volcano: the overhang drops rocks on whoever is below',
      h.lastEvents.some(e => /rocks down/.test(e)), h.lastEvents.slice(-2).join(' | '));
+  // partway up, or there is no ground to lose and the comparison is vacuous
+  const c = newGame('volcano', ['A']); c.players.A.height = 200;
+  round(c, { A: { ok: false, speed: .5, move: 'chimney' } });
+  const d = newGame('volcano', ['A']); d.players.A.height = 200;
+  round(d, { A: { ok: false, speed: .5, move: 'ledge' } });
+  ok('volcano: a slip on the chimney costs more than one on the ledge',
+     c.players.A.height < d.players.A.height, `chimney ${c.players.A.height}, ledge ${d.players.A.height}`);
 }
 
 // boss: guarding stops a sweep, and the boss telegraphs
@@ -191,85 +138,16 @@ function runWith(mode, move, rounds, seedPlan) {
              C: { ok: true, speed: .8, move: 'attack' } });
   ok('boss: an unguarded sweep hurts the class', h.boss.classHp < 100, `classHp ${h.boss.classHp}`);
   ok('boss: it says what it will do next', !!h.boss.says, h.boss.says);
+
+  // and a class that does not hit it hard enough lets it heal
+  const m = newGame('boss', ['A', 'B', 'C', 'D']);
+  m.boss.next = 'mend'; m.boss.hp = 400;
+  round(m, { A: { ok: true, speed: .5, move: 'heal' }, B: { ok: true, speed: .5, move: 'heal' },
+             C: { ok: true, speed: .5, move: 'guard' }, D: { ok: false, speed: .5, move: 'attack' } });
+  ok('boss: it heals when the class did not press it', m.boss.hp > 400, `hp ${m.boss.hp}`);
 }
 
-// snow: fortifying puts blocks back
-{
-  const g = newGame('snow', ['R1', 'B1']);
-  g.teams.red.blocks = 5;
-  round(g, { R1: { ok: true, speed: .8, move: 'fortify' }, B1: { ok: false, speed: .5, move: 'throw' } });
-  ok('snow: rebuilding puts blocks back on your fort', g.teams.red.blocks > 5, `${g.teams.red.blocks}`);
-  const h = newGame('snow', ['R1', 'B1']);
-  round(h, { R1: { ok: true, speed: .8, move: 'snowman' }, B1: { ok: true, speed: .8, move: 'throw' } });
-  ok('snow: a decoy soaks the hit instead of the fort',
-     h.teams.red.blocks === R.FORT_BLOCKS, `blocks ${h.teams.red.blocks}, decoys ${h.teams.red.decoys}`);
-}
-
-// treasure: the chest you choose is the chest you open
-{
-  let bronzeEmpty = 0, goldEmpty = 0;
-  for (let i = 0; i < 400; i++) {
-    const g = newGame('treasure', ['A']);
-    round(g, { A: { ok: true, speed: .5, move: 'bronze' } });
-    if (!g.players.A.lastGain) bronzeEmpty++;
-    const h = newGame('treasure', ['A']);
-    round(h, { A: { ok: true, speed: .5, move: 'gold' } });
-    if (!h.players.A.lastGain) goldEmpty++;
-  }
-  ok('treasure: bronze always pays, gold often does not', bronzeEmpty === 0 && goldEmpty > 150,
-     `bronze empty ${bronzeEmpty}/400, gold empty ${goldEmpty}/400`);
-}
-
-// fishing: the shoal doubles, the net catches more but smaller
-{
-  const g = newGame('fishing', ['A']);
-  g.shoal = 'deep';
-  let inShoal = 0, out = 0;
-  for (let i = 0; i < 300; i++) {
-    const a = newGame('fishing', ['A']); a.shoal = 'deep';
-    round(a, { A: { ok: true, speed: .6, move: 'cast', target: 'deep' } });
-    inShoal += a.players.A.weight;
-    const b = newGame('fishing', ['A']); b.shoal = 'shallows';
-    round(b, { A: { ok: true, speed: .6, move: 'cast', target: 'deep' } });
-    out += b.players.A.weight;
-  }
-  ok('fishing: the shoal is worth being in', inShoal > out * 1.6, `in ${inShoal}, out ${out}`);
-}
-
-// cards: hunting gets you the card you asked for more often than grabbing does
-{
-  let huntHit = 0, grabHit = 0;
-  for (let i = 0; i < 500; i++) {
-    const g = newGame('cards', ['A']);
-    g.players.A.cards = R.CARD_SET.slice(0, 7);       // one card missing
-    const want = R.CARD_SET[7];
-    round(g, { A: { ok: true, speed: .9, move: 'hunt', on: want } });
-    if (g.players.A.cards.includes(want)) huntHit++;
-    const h = newGame('cards', ['A']);
-    h.players.A.cards = R.CARD_SET.slice(0, 7);
-    round(h, { A: { ok: true, speed: .9, move: 'grab' } });
-    if (h.players.A.cards.includes(want)) grabHit++;
-  }
-  ok('cards: hunting a named card beats grabbing at random', huntHit > grabHit,
-     `hunt ${huntHit}/500, grab ${grabHit}/500`);
-}
-
-// factory: sabotage stops a payout
-{
-  const g = newGame('factory', ['Boss', 'Rival']);
-  g.players.Rival.machines = 3;
-  round(g, { Boss: { ok: true, speed: .7, move: 'sabotage', on: 'Rival' },
-             Rival: { ok: true, speed: .7, move: 'work' } });
-  ok('factory: sabotage stops their machines for a round', g.players.Rival.output === 0,
-     `rival output ${g.players.Rival.output}`);
-  const h = newGame('factory', ['Boss', 'Rival']);
-  h.players.Rival.machines = 3;
-  round(h, { Boss: { ok: true, speed: .7, move: 'work' }, Rival: { ok: true, speed: .7, move: 'work' } });
-  ok('factory: machines pay when nobody jams them', h.players.Rival.output > 0,
-     `rival output ${h.players.Rival.output}`);
-}
-
-// laser: pushing up hits harder and costs you
+// laser: pushing up hits harder and costs you; cover shields a mate
 {
   const g = newGame('laser', ['R', 'B']);
   round(g, { R: { ok: true, speed: .8, move: 'push' }, B: { ok: true, speed: .8, move: 'aim' } });
@@ -277,19 +155,13 @@ function runWith(mode, move, rounds, seedPlan) {
      `push ${g.players.R.lastGain} vs aim ${g.players.B.lastGain}`);
   ok('laser: and leaves you exposed afterwards', g.players.R.hp < 100 || g.players.R.down,
      `hp ${g.players.R.hp}`);
-}
-
-// balloon: soaring doubles and costs two
-{
-  const g = newGame('balloon', ['A', 'B']);
-  round(g, { A: { ok: true, speed: .8, move: 'soar' }, B: { ok: true, speed: .8, move: 'float' } });
-  ok('balloon: soaring is worth double', g.players.A.lastGain === g.players.B.lastGain * 2,
-     `${g.players.A.lastGain} vs ${g.players.B.lastGain}`);
-  const h = newGame('balloon', ['A', 'B']);
-  round(h, { A: { ok: false, speed: .8, move: 'soar' }, B: { ok: false, speed: .8, move: 'float' } });
-  ok('balloon: and costs two when you are wrong',
-     h.players.A.balloons === R.BALLOONS - 2 && h.players.B.balloons === R.BALLOONS - 1,
-     `soar ${h.players.A.balloons}, float ${h.players.B.balloons}`);
+  // teams go by position in newGame, so index 0 and 2 are the pair on red
+  const h = newGame('laser', ['R1', 'B1', 'R2']);
+  h.players.R2.hp = 30;
+  R.chooseMove(h, h.players.R1, 'cover');
+  R.SCORERS.laser(h, h.players.R1, QUESTION, true, 0.8);
+  ok('laser: taking cover shields the weakest mate', h.players.R2.shielded === true,
+     `R2 shielded=${h.players.R2.shielded}`);
 }
 
 /* ── 3. nothing is the same function twice ──
@@ -317,6 +189,8 @@ console.log('\n— the modes are not each other —');
   }
   ok('no two modes produce the same scores from the same play', dupes === 0,
      `${Object.keys(shapes).length} modes, ${dupes} duplicates`);
+  ok('there are exactly four of them', Object.keys(R.MODES).length === 4,
+     Object.keys(R.MODES).join(' '));
 }
 
 console.log(`\n${checks - fails}/${checks} passed`);

@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 const { Server } = require('../server.js');
 
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const MODES = ['normal', 'heist', 'tower', 'treasure', 'boss', 'volcano', 'fishing', 'cards'];
+const MODES = ['tower', 'boss', 'volcano'];   // laser runs its own real-time arena, not a question screen
 
 let fails = 0, checks = 0;
 const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${d ? '  — ' + d : ''}`); }

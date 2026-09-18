@@ -287,9 +287,7 @@ class Server {
         const player = this.games.answer(game, body);
         return this.send(res, 200, { correct: player.correct, score: player.score, hp: player.hp,
                                      streak: player.streak, state: game.state,
-                                     distance: player.distance, blocks: player.blocks,
-                                     coins: player.coins, chest: player.chest,
-                                     balloons: player.balloons, hits: player.hits,
+                                     blocks: player.blocks, height: player.height,
                                      gain: player.lastGain });
       }
       if (tail === 'team' && method === 'POST') {
@@ -322,21 +320,6 @@ class Server {
         if (out.ok) this.games.changed(game);
         return this.send(res, 200, Object.assign({ view: this.games.publicView(game) }, out));
       }
-      if (tail === 'cast' && method === 'POST') {
-        const player = game.players[body.playerId];
-        if (!player) return this.fail(res, 404, 'Not in this game.');
-        player.target = R.SPOTS[body.spot] ? body.spot : 'shallows';
-        this.games.changed(game);
-        return this.send(res, 200, { ok: true, spot: player.target, view: this.games.publicView(game) });
-      }
-      if (tail === 'build' && method === 'POST') {
-        const player = game.players[body.playerId];
-        if (!player) return this.fail(res, 404, 'Not in this game.');
-        const out = R.buyMachine(game, player);
-        if (out.ok) this.games.changed(game);
-        return this.send(res, 200, Object.assign({ view: this.games.publicView(game) }, out));
-      }
-
       // everything past here is the teacher's alone
       if (!isHost) return this.fail(res, 403, 'Only the host can control the game.');
       if (tail === 'start' && method === 'POST') return this.send(res, 200, this.games.start(game));

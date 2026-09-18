@@ -69,8 +69,7 @@
   const { MODES, MAPS, GOALS, SCORERS, MOVES, chooseMove, movesFor, defaultMove,
           mapsFor, defaultMap, readGoal, goalReached,
           grade, blankPlayer, pickBossName, readSetup, secondsFor, arrange, modeFinished,
-          afterRound, buyMachine, machineCost, SPOTS,
-          TRACK_LENGTH, BOSS_HP_PER_QUESTION, FORT_BLOCKS, BALLOONS } = R;
+          afterRound, DEFAULT_MODE, BOSS_HP_PER_QUESTION } = R;
 
 
   /* ── state helpers ────────────────────────────────────── */
@@ -137,7 +136,7 @@
       // that happen to the scores with nothing on screen to explain them
       shoal: game.shoal || '', wind: !!game.wind,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
-      boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES.normal,
+      boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES[DEFAULT_MODE],
       goal: game.goal || { kind: 'questions', value: 0 },
       startedAt: game.startedAt || 0, music: game.music !== false
     };
@@ -208,7 +207,7 @@
         player.best = Math.max(player.best, player.streak);
         const key = typeof row.answer === 'string' ? row.answer : JSON.stringify(row.answer);
         game.counts[key] = (game.counts[key] || 0) + 1;
-        (SCORERS[game.mode] || SCORERS.normal)(game, player, question, ok, Math.max(0, Math.min(1, row.speed || 0)));
+        (SCORERS[game.mode] || SCORERS[DEFAULT_MODE])(game, player, question, ok, Math.max(0, Math.min(1, row.speed || 0)));
         changed = true;
       }
       game.lastEvents = game.lastEvents.slice(-6);
@@ -220,16 +219,7 @@
         game.state = 'reveal'; game.endsAt = null; afterRound(game); changed = true;
       } else if (game.endsAt && now() >= game.endsAt) {
         game.state = 'reveal'; game.endsAt = null;
-        everyone.forEach(p => {
-          if (p.answered) return;
-          p.streak = 0;
-          // letting the clock run out cannot be the safe move: in Balloon Drop it
-          // costs a balloon, the same as answering wrongly
-          if (game.mode === 'balloon' && p.balloons > 0) {
-            p.balloons -= 1;
-            game.lastEvents.push(`${p.name} ran out of time — ${p.balloons} balloon${p.balloons === 1 ? '' : 's'} left`);
-          }
-        });
+        everyone.forEach(p => { if (!p.answered) p.streak = 0; });
         afterRound(game);
         changed = true;
       }
@@ -283,7 +273,7 @@
 
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
-  const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/build', '/cast', '/move',
+  const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -308,7 +298,7 @@
       const newPin = String(Math.floor(100000 + Math.random() * 900000));
       const game = {
         pin: newPin, hostToken: rid(16), quizId: quiz.id, quizTitle: quiz.title,
-        mode: MODES[body.mode] ? body.mode : 'normal',
+        mode: MODES[body.mode] ? body.mode : DEFAULT_MODE,
         map: '',
         goal: readGoal(body.goal),
         setup,
@@ -415,21 +405,6 @@
      * dead on the website since the day they were written. None needs the host
      * token, being the player's own, but all three are checked against the
      * game's own state rather than trusting what arrived. */
-    if (tail === '/build') {
-      const p = game.players[body && body.playerId];
-      if (!p) return { error: 'Not in this game.' };
-      const out = buyMachine(game, p);
-      if (out.ok) await writeGame(pin, game);
-      return Object.assign({ view: publicView(game) }, out);
-    }
-    if (tail === '/cast') {
-      const p = game.players[body && body.playerId];
-      if (!p) return { error: 'Not in this game.' };
-      const where = SPOTS[body && body.spot] ? body.spot : 'shallows';
-      p.target = where;
-      await writeGame(pin, game);
-      return { ok: true, spot: where, view: publicView(game) };
-    }
     /* The move: which way this player is playing the round. Every mode has them
      * now, so this is the busiest thing in here — it is written while the
      * question is still up, and read when the answer is scored. The rules decide
@@ -464,20 +439,7 @@
         await writeGame(pin, game);
         return publicView(game);
       }
-      if (game.mode === 'snow') {
-        // a fort per team, sized so a small class still gets to knock one down
-        for (const side of ['red', 'blue']) {
-          const n = Object.values(game.players).filter(p => p.team === side).length;
-          game.teams[side].blocks = Math.max(6, Math.min(FORT_BLOCKS, 3 + n * 2));
-          game.teams[side].max = game.teams[side].blocks;
-        }
-      }
-      if (game.mode === 'balloon') {
-        for (const p of Object.values(game.players)) p.balloons = BALLOONS;
-      }
-      if (game.mode === 'tug') game.rope = 0;
       if (game.mode === 'tower') game.wind = false;
-      if (game.mode === 'fishing') game.shoal = 'channel';
       if (game.mode === 'boss' && game.boss) {
         game.boss.next = 'poke';
         game.boss.says = 'is sizing the class up';
@@ -488,15 +450,6 @@
       if (game.mode === 'volcano') {
         game.lava = 0;
         for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
-      }
-      if (game.mode === 'factory') {
-        for (const p of Object.values(game.players)) { p.coins = 0; p.machines = 0; p.output = 0; }
-      }
-      if (game.mode === 'fishing') {
-        for (const p of Object.values(game.players)) { p.weight = 0; p.target = 'shallows'; p.catch = ''; }
-      }
-      if (game.mode === 'cards') {
-        for (const p of Object.values(game.players)) { p.cards = []; p.spares = 0; }
       }
       if (game.mode === 'boss') {
         const hp = BOSS_HP_PER_QUESTION * Math.max(1, game.questions.length);

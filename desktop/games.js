@@ -55,7 +55,7 @@ class Games {
     const setup = R.readSetup(Object.assign(
       { shuffle: !!(quiz.settings && quiz.settings.shuffleQuestions) }, body.setup || {}));
     const questions = R.arrange(JSON.parse(JSON.stringify(quiz.questions)), setup);
-    const mode = R.MODES[body.mode] ? body.mode : 'normal';
+    const mode = R.MODES[body.mode] ? body.mode : R.DEFAULT_MODE;
     const maps = R.mapsFor(mode).map(m => m.id);
     const game = {
       pin: this.newPin(), hostToken: rid(16), quizId: quiz.id, quizTitle: quiz.title,
@@ -96,7 +96,7 @@ class Games {
       counts: game.counts, lastEvents: game.lastEvents,
       quiz: game.mode === 'laser' && game.state === 'arena' ? questions : null,
       boss: game.boss || null, trackLength: R.TRACK_LENGTH,
-      modeInfo: R.MODES[game.mode] || R.MODES.normal,
+      modeInfo: R.MODES[game.mode] || R.MODES[R.DEFAULT_MODE],
       goal: game.goal, setup: game.setup || null, rope: game.rope || 0,
       // the world's own state, and the moves this mode offers. Without these the
       // app is playing a different game from the website off the same rules.
@@ -148,32 +148,13 @@ class Games {
       game.state = 'arena'; game.index = 0; game.endsAt = null;
       return this.changed(game);
     }
-    if (game.mode === 'snow') {
-      for (const side of ['red', 'blue']) {
-        const n = Object.values(game.players).filter(p => p.team === side).length;
-        const blocks = Math.max(6, Math.min(R.FORT_BLOCKS, 3 + n * 2));
-        game.teams[side].blocks = blocks;
-        game.teams[side].max = blocks;
-      }
-    }
-    if (game.mode === 'tug') game.rope = 0;
     if (game.mode === 'tower') game.wind = false;
-    if (game.mode === 'fishing') game.shoal = 'channel';
     if (game.mode === 'volcano') {
       game.lava = 0;
       for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
     }
-    if (game.mode === 'factory') {
-      for (const p of Object.values(game.players)) { p.coins = 0; p.machines = 0; p.output = 0; }
-    }
     // everybody starts on the safe move rather than on nothing
     for (const p of Object.values(game.players)) p.move = R.defaultMove(game.mode);
-    if (game.mode === 'cards') {
-      for (const p of Object.values(game.players)) { p.cards = []; p.spares = 0; }
-    }
-    if (game.mode === 'balloon') {
-      for (const p of Object.values(game.players)) p.balloons = R.BALLOONS;
-    }
     if (game.mode === 'boss') {
       const hp = R.BOSS_HP_PER_QUESTION * Math.max(1, game.questions.length);
       game.boss = { hp, max: hp, name: R.pickBossName(), classHp: 100, classMax: 100,
@@ -245,13 +226,7 @@ class Games {
       game.state = 'reveal';
       game.endsAt = null;
       for (const p of Object.values(game.players)) {
-        if (p.answered) continue;
-        p.streak = 0;
-        // letting the clock run out cannot be the safe move
-        if (game.mode === 'balloon' && p.balloons > 0) {
-          p.balloons -= 1;
-          game.lastEvents.push(`${p.name} ran out of time — ${p.balloons} balloon${p.balloons === 1 ? '' : 's'} left`);
-        }
+        if (!p.answered) p.streak = 0;
       }
     }
     this.settle(game);
