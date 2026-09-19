@@ -363,7 +363,7 @@ const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
 let strike = null, strikeTotal = 0;
-let runner = null, runQ = 0, runTeller = null, runStarting = false;
+let runner = null, runQ = 0, runTeller = null, runStarting = false, runCardNode = null;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -694,11 +694,23 @@ function render(fresh) {
   if (game.state === 'lobby') return app.append(lobbyCard());
   if (game.state === 'arena') return app.append(arenaCard());
   if (game.state === 'strike') return app.append(strikeCard());
-  if (game.state === 'running') return app.append(runCard());
+  /* The run is kept, not rebuilt.
+   *
+   * Every other screen is thrown away and redrawn when anything changes, which
+   * is fine for a screen made of text. This one holds a canvas with a chase
+   * running on it: rebuilding it handed the engine a canvas that was no longer
+   * in the page, so it carried on drawing where nobody could see, the new
+   * canvas stayed black, and the question panel came back empty. The game went
+   * blank the first time somebody else joined. */
+  if (game.state === 'running') {
+    if (!runCardNode) runCardNode = runCard();
+    return app.append(runCardNode);
+  }
+  runCardNode = null;
   if (arena) { arena.stop(); arena = null; }
   if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state !== 'running' && runner) {
-    runner.stop(); runner = null; runStarting = false;
+    runner.stop(); runner = null; runStarting = false; runCardNode = null;
     clearInterval(runTeller); runTeller = null;
   }
   if (game.state === 'over') return app.append(overCard());

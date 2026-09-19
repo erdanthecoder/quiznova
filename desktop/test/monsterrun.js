@@ -171,6 +171,25 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      Array.isArray(view.quiz) && view.quiz.length === 5, `${view.quiz && view.quiz.length} questions sent`);
   ok('no errors on the phone', perrs.length === 0, perrs.slice(0, 2).join(' | '));
 
+  /* Somebody else joining used to blank the run: the page rebuilt the screen,
+   * handed the engine a canvas that was no longer in the document, and left the
+   * question panel empty. */
+  await post(`/api/games/${pin}/join`, { name: 'Late', avatar: 9 });
+  await phone.waitForTimeout(2200);
+  const stillThere = await phone.evaluate(() => {
+    const c = document.getElementById('runner');
+    if (!c || !c.isConnected) return { ok: false, why: 'no canvas in the page' };
+    const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let on = 0, n = 0;
+    for (let i = 0; i < g.length; i += 4 * 61) { n++; if (g[i] + g[i+1] + g[i+2] > 24) on++; }
+    return { ok: true, pct: Math.round(on / n * 100),
+             answers: document.querySelectorAll('#runq .opt-btn').length };
+  });
+  ok('somebody joining does not blank the run', stillThere.ok && stillThere.pct > 55,
+     stillThere.ok ? `${stillThere.pct}% of the canvas is still painted` : stillThere.why);
+  ok('and the question is still there to answer', stillThere.answers > 0,
+     `${stillThere.answers} answers on screen`);
+
   await phone.screenshot({ path: path.join(__dirname, 'shots', 'monster-run.png') }).catch(() => {});
   await browser.close();
   console.log(`\n${checks - fails}/${checks} passed`);
