@@ -103,6 +103,107 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   });
   ok('nothing spawns inside a wall', spawns.bad === 0, `${spawns.bad} of ${spawns.n} landed in one`);
 
+  /* ── the maze has to be one maze ──
+   *
+   * Thirty walls laid out by hand is thirty chances to seal a room off by
+   * accident, and a sealed room is not a hiding place, it is a child who
+   * spawned somewhere they can never leave and cannot be reached. So: flood
+   * fill every map and insist the whole floor is one piece. */
+  const joined = await page.evaluate(() => {
+    const out = {};
+    const W = 1600, H = 1000, R = 26, S = 20;
+    const near = (b, x, y, r) => {
+      const nx = Math.max(b.x, Math.min(x, b.x + b.w));
+      const ny = Math.max(b.y, Math.min(y, b.y + b.h));
+      return (nx - x) ** 2 + (ny - y) ** 2 < r * r;
+    };
+    for (const m of ['arena', 'bunker', 'moon']) {
+      const cover = NovaArena.coverFor(m);
+      const cols = W / S, rows = H / S, open = [];
+      for (let j = 0; j < rows; j++) {
+        open.push([]);
+        for (let i = 0; i < cols; i++) {
+          const x = i * S + S / 2, y = j * S + S / 2;
+          open[j].push(x > R && x < W - R && y > R && y < H - R
+                       && !cover.some(b => near(b, x, y, R)));
+        }
+      }
+      const seen = open.map(r => r.map(() => false));
+      let startAt = null;
+      for (let j = 0; j < rows && !startAt; j++)
+        for (let i = 0; i < cols && !startAt; i++) if (open[j][i]) startAt = [i, j];
+      const q = [startAt]; seen[startAt[1]][startAt[0]] = true;
+      let n = 1;
+      while (q.length) {
+        const [i, j] = q.pop();
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([di, dj]) => {
+          const a = i + di, b = j + dj;
+          if (a >= 0 && b >= 0 && a < cols && b < rows && open[b][a] && !seen[b][a]) {
+            seen[b][a] = true; n++; q.push([a, b]);
+          }
+        });
+      }
+      out[m] = { open: open.flat().filter(Boolean).length, reached: n };
+    }
+    return out;
+  });
+  Object.entries(joined).forEach(([m, r]) => {
+    ok(`every corner of the ${m} can be walked to`, r.open === r.reached,
+       `${r.reached} of ${r.open} floor squares`);
+  });
+
+  /* ── and the two ends have to be the same maze ──
+   *
+   * In team mode the sides start at opposite ends. Every wall is authored once
+   * and turned a half turn about the centre, so if that ever stops being true
+   * one team is being given the better ground. */
+  const fair = await page.evaluate(() => {
+    const W = 1600, H = 1000, out = {};
+    for (const m of ['arena', 'bunker', 'moon']) {
+      const cover = NovaArena.coverFor(m);
+      const key = (b) => [b.x, b.y, b.w, b.h].join(',');
+      const have = new Set(cover.map(key));
+      out[m] = cover.every(b =>
+        have.has(key({ x: W - b.x - b.w, y: H - b.y - b.h, w: b.w, h: b.h })));
+    }
+    return out;
+  });
+  Object.entries(fair).forEach(([m, same]) => {
+    ok(`the ${m} is the same at both ends`, same);
+  });
+
+  // ── a labyrinth you cannot see out of needs a map in your hand ──
+  const hasMini = await page.evaluate(() => {
+    const c = document.getElementById('c');
+    const k = NovaArena.start({ canvas: c, map: 'arena',
+      me: { id: 'me', name: 'Me', avatar: 2, team: 'red' }, send: () => {} });
+    return new Promise(done => setTimeout(() => {
+      const ctx = c.getContext('2d');
+      // the minimap sits in the bottom-left corner; look for anything painted
+      // there that is not the bare floor
+      const w = c.width, h = c.height;
+      const d = ctx.getImageData(6, h - Math.round(h * 0.3), Math.round(w * 0.3), Math.round(h * 0.28)).data;
+      let light = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 330) light++;
+      k.stop();
+      done(light);
+    }, 700));
+  });
+  ok('the phone carries a plan of the maze', hasMini > 60, `${hasMini} lit pixels in the corner`);
+
+  // ── and the picker shows that plan rather than a mood ──
+  const planArt = await page.evaluate(() => {
+    const out = {};
+    for (const m of ['arena', 'bunker', 'moon']) {
+      const svg = NovaArena.plan(m, 320);
+      out[m] = (svg.match(/<rect /g) || []).length;
+    }
+    return out;
+  });
+  ok('the picker draws each map from its own walls',
+     planArt.arena === 32 && planArt.bunker === 26 && planArt.moon === 22,
+     JSON.stringify(planArt));
+
   // ── the blook is drawn, not a plain blob ──
   const drawn = await page.evaluate(async () => {
     const k = NovaArena.start({ canvas: document.getElementById('c'),

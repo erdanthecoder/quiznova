@@ -38,43 +38,128 @@
   };
   const REAL_POWERS = ['rapid', 'triple', 'spread', 'speed', 'shield'];
 
-  /* ── cover ────────────────────────────────────────────────
+  /* ── the maps ─────────────────────────────────────────────
    *
-   * The arena was a flat floor with nothing on it, which makes a shooting game
-   * into a staring contest: everybody can see everybody from anywhere and the
-   * only tactic is to be quicker on the trigger. Blooket's own arena has
-   * barriers to hide behind, and that is what turns it into a game of angles —
-   * breaking line of sight, cutting a corner, catching somebody in the open.
+   * Blooket's arena has "barriers for cover", and the first version of this took
+   * that literally: seven boxes on an empty floor. That is not an arena. A real
+   * laser tag arena is a maze — corridors you run down, corners you cut, dead
+   * ends somebody is waiting in, a bunker in the middle everybody wants. You
+   * should never be able to see the whole room from where you are standing.
    *
-   * Each map is a different plan. They are symmetric on purpose: in team mode
-   * the two sides start at opposite ends and neither may be handed the better
-   * ground. Boxes are given as top-left corner plus size, in arena units.
+   * So each map is a labyrinth of about thirty walls. They are authored as half
+   * a plan and then turned a half turn about the centre: rotational symmetry,
+   * the way competitive arenas are really laid out, so that in team mode the two
+   * ends are the same shape and neither side is handed the better ground.
+   *
+   * Boxes are top-left corner plus size, in arena units. `t` is what it is
+   * made of, which decides how tall it stands and how it is painted:
+   *   wall  head height, you cannot see over it
+   *   low   chest height, you can shoot over it but not walk through it
    */
-  const COVER = {
-    // a cross in the middle to break the long sightlines, and corner cuts
+  const HALVES = {
+    /* Neon labyrinth: the tightest of the three. A long west spine, a room in
+       the north, a dogleg in every corner, and a four-gap bunker in the middle. */
     arena: [
-      { x: 740, y: 300, w: 120, h: 400 },
-      { x: 520, y: 460, w: 560, h: 80 },
-      { x: 200, y: 170, w: 210, h: 70 }, { x: 1190, y: 170, w: 210, h: 70 },
-      { x: 200, y: 760, w: 210, h: 70 }, { x: 1190, y: 760, w: 210, h: 70 },
-      { x: 500, y: 110, w: 70, h: 200 }, { x: 1030, y: 690, w: 70, h: 200 }
+      { x: 170, y: 170, w: 55, h: 400 },
+      { x: 170, y: 515, w: 300, h: 55 },
+      { x: 390, y: 170, w: 390, h: 55 },
+      { x: 390, y: 225, w: 55, h: 165 },
+      { x: 620, y: 280, w: 55, h: 220, t: 'low' },
+      { x: 0,   y: 330, w: 55,  h: 55 },
+      { x: 0,   y: 720, w: 300, h: 55 },
+      { x: 245, y: 775, w: 55, h: 160 },
+      { x: 420, y: 660, w: 55, h: 250 },
+      { x: 420, y: 660, w: 230, h: 55, t: 'low' },
+      { x: 770, y: 120, w: 55, h: 210 },
+      { x: 540, y: 420, w: 80, h: 80, t: 'low' },
+      { x: 150, y: 620, w: 80, h: 80, t: 'low' },
+      { x: 690, y: 420, w: 220, h: 45 },
+      { x: 690, y: 465, w: 45,  h: 60 }
     ],
-    // corridors: long walls with gaps, so you fight along lanes
+    /* Bunker: long straight corridors with doorways, fought down lanes rather
+       than across corners, with sandbag lines you can shoot over. */
     bunker: [
-      { x: 300, y: 0, w: 70, h: 370 }, { x: 300, y: 630, w: 70, h: 370 },
-      { x: 1230, y: 0, w: 70, h: 370 }, { x: 1230, y: 630, w: 70, h: 370 },
-      { x: 600, y: 230, w: 400, h: 70 }, { x: 600, y: 700, w: 400, h: 70 },
-      { x: 760, y: 420, w: 80, h: 160 }
+      { x: 260, y: 0,   w: 55, h: 330 },
+      { x: 260, y: 430, w: 55, h: 300 },
+      { x: 315, y: 430, w: 240, h: 55 },
+      { x: 560, y: 120, w: 55, h: 340 },
+      { x: 615, y: 120, w: 260, h: 55 },
+      { x: 0,   y: 480, w: 200, h: 55, t: 'low' },
+      { x: 380, y: 800, w: 420, h: 55 },
+      { x: 700, y: 560, w: 55, h: 300 },
+      { x: 100, y: 660, w: 55, h: 250 },
+      { x: 880, y: 250, w: 200, h: 55, t: 'low' },
+      { x: 420, y: 250, w: 90,  h: 90, t: 'low' },
+      { x: 950, y: 60,  w: 55, h: 200 }
     ],
-    // scattered rocks and a landing pad: the most open of the three
+    /* Moon base: station modules round the edge and a clear landing pad in the
+       middle. The most open of the three, and the one with the longest shots. */
     moon: [
-      { x: 170, y: 420, w: 240, h: 70 }, { x: 1190, y: 420, w: 240, h: 70 },
-      { x: 700, y: 150, w: 200, h: 70 }, { x: 700, y: 780, w: 200, h: 70 },
-      { x: 450, y: 320, w: 70, h: 240 }, { x: 1080, y: 320, w: 70, h: 240 },
-      { x: 755, y: 430, w: 90, h: 140 }
+      { x: 150,  y: 260, w: 300, h: 55 },
+      { x: 150,  y: 315, w: 55,  h: 200 },
+      { x: 520,  y: 140, w: 55,  h: 260 },
+      { x: 575,  y: 140, w: 200, h: 55, t: 'low' },
+      { x: 0,    y: 620, w: 260, h: 55 },
+      { x: 330,  y: 620, w: 55,  h: 280 },
+      { x: 385,  y: 845, w: 300, h: 55, t: 'low' },
+      { x: 860,  y: 190, w: 90,  h: 90, t: 'low' },
+      { x: 1180, y: 300, w: 55,  h: 180 },
+      { x: 640,  y: 430, w: 90,  h: 90, t: 'low' }
     ]
   };
+
+  /** A half plan, plus the same plan turned a half turn about the centre. */
+  function mirrored(half) {
+    const out = [], seen = new Set();
+    const add = (b) => {
+      const key = [b.x, b.y, b.w, b.h].join(',');
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ x: b.x, y: b.y, w: b.w, h: b.h, t: b.t || 'wall' });
+    };
+    half.forEach(b => {
+      add(b);
+      add({ x: W - b.x - b.w, y: H - b.y - b.h, w: b.w, h: b.h, t: b.t });
+    });
+    return out;
+  }
+
+  const COVER = {
+    arena: mirrored(HALVES.arena),
+    bunker: mirrored(HALVES.bunker),
+    moon: mirrored(HALVES.moon)
+  };
+
+  /* How each map is painted. The three were the same purple room with the
+     furniture moved; they are three different places now. */
+  const LOOK = {
+    arena: {
+      sky: ['#0A0716', '#1A1038', '#07040F'],
+      floor: ['#2B1E5C', '#110B28'], grid: 'rgba(150,120,255,.16)', grid2: 130,
+      top: '#7C5FE6', face: '#3A2570', side: '#4E3499',
+      edge: 'rgba(200,170,255,.85)', trim: '#00E5FF',
+      wall: 'rgba(124,77,255,.20)', rim: 'rgba(180,150,255,.6)',
+      haze: 'rgba(124,77,255,.22)', scene: 'neon'
+    },
+    bunker: {
+      sky: ['#0D0C0A', '#241E16', '#0A0908'],
+      floor: ['#4A4235', '#1C1813'], grid: 'rgba(255,225,170,.10)', grid2: 200,
+      top: '#A3926F', face: '#50452F', side: '#6B5C3F',
+      edge: 'rgba(255,230,170,.7)', trim: '#FFB020',
+      wall: 'rgba(180,150,90,.18)', rim: 'rgba(255,220,150,.5)',
+      haze: 'rgba(255,170,60,.16)', scene: 'hangar'
+    },
+    moon: {
+      sky: ['#01030C', '#060D22', '#01020A'],
+      floor: ['#3E4763', '#14192B'], grid: 'rgba(190,220,255,.12)', grid2: 160,
+      top: '#C6D1E8', face: '#3C4560', side: '#525D7C',
+      edge: 'rgba(235,245,255,.85)', trim: '#38E0C0',
+      wall: 'rgba(120,160,220,.16)', rim: 'rgba(200,225,255,.55)',
+      haze: 'rgba(90,150,255,.18)', scene: 'space'
+    }
+  };
   const coverFor = (map) => COVER[map] || COVER.arena;
+  const lookFor = (map) => LOOK[map] || LOOK.arena;
 
   /** Does a circle at (x, y) overlap this box? */
   function inBox(b, x, y, r) {
@@ -84,14 +169,30 @@
   }
   const blocked = (cover, x, y, r) => cover.some(b => inBox(b, x, y, r));
 
-  /** Somewhere in the arena that is not inside a block. */
+  /** Somewhere in the arena that is not inside a block.
+   *
+   * Sixty random darts find a gap almost every time. When they do not — and in a
+   * maze with thirty walls in it, sometimes they do not — the old answer was to
+   * give up and use the middle of the arena, which was only ever safe while the
+   * middle was empty. It has a bunker in it now. So the fall-back walks a grid
+   * and takes the first square that is genuinely clear, and a spawn inside a
+   * wall stops being something that happens once in nine hundred.
+   *
+   * The clearance is r + 18 rather than r + 8. Collision is round and a corner
+   * is square, so a spot can clear the circle by a hair and still be tucked
+   * inside the corner of the box; 18 is wider than that difference can be. */
   function freeSpot(cover, margin, r) {
     for (let tries = 0; tries < 60; tries++) {
-      const x = margin + Math.random() * (1600 - margin * 2);
-      const y = margin + Math.random() * (1000 - margin * 2);
-      if (!blocked(cover, x, y, r + 8)) return { x, y };
+      const x = margin + Math.random() * (W - margin * 2);
+      const y = margin + Math.random() * (H - margin * 2);
+      if (!blocked(cover, x, y, r + 18)) return { x, y };
     }
-    return { x: 800, y: 500 };          // the middle is always clear enough
+    for (let y = margin; y <= H - margin; y += 40) {
+      for (let x = margin; x <= W - margin; x += 40) {
+        if (!blocked(cover, x, y, r + 18)) return { x, y };
+      }
+    }
+    return { x: W / 2, y: H / 2 };      // a map with no floor at all; not one of ours
   }
 
   /* ── the blooks ───────────────────────────────────────────
@@ -147,6 +248,7 @@
     const send = opts.send || (() => {});
     const meId = opts.me ? opts.me.id : 'board';
     const cover = coverFor(opts.map);
+    const look = lookFor(opts.map);
 
     const self = {
       id: meId, name: opts.me ? opts.me.name : '', avatar: opts.me ? opts.me.avatar : 0,
@@ -587,18 +689,125 @@
       return cam.cy - FOCAL * (sinT / cosT) * cam.scale;
     }
 
+    /* How tall a piece of cover stands. A wall is over your head, so it breaks
+       line of sight completely; a low one is chest height, which you can shoot
+       over but not walk through. Having both is what stops a maze reading as one
+       endless slab: you can see across half of it and still not walk across. */
+    const HEIGHT = { wall: 156, low: 92 };
+    const tallOf = (b) => HEIGHT[b.t] || HEIGHT.wall;
+
+    /* The back of the room. A phone held upright was half black above the far
+       barrier, and that did not read as a dark hall, it read as a missing one:
+       these are indoor arenas and an indoor arena has a wall behind it. So there
+       is one, far enough back and tall enough to close the space, with each
+       map's own thing hung on it — a lighting rig over the neon maze, girders
+       and lamps over the bunker, a window on to the Earth at the moon base. */
+    const BACK_Y = -70, BACK_H = 620, BACK_OUT = 700;
+
+    function drawBack() {
+      const bl = project(-BACK_OUT, BACK_Y, 0), br = project(W + BACK_OUT, BACK_Y, 0);
+      const tr = project(W + BACK_OUT, BACK_Y, BACK_H), tl = project(-BACK_OUT, BACK_Y, BACK_H);
+      if (!bl || !br || !tr || !tl) return;
+      const top = Math.min(tl.y, tr.y), bot = Math.max(bl.y, br.y);
+      const w = canvas.width;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath();
+      const g = ctx.createLinearGradient(0, top, 0, bot);
+      g.addColorStop(0, look.sky[0]);
+      g.addColorStop(0.55, look.sky[1]);
+      g.addColorStop(1, look.sky[2]);
+      ctx.fillStyle = g; ctx.fill();
+      ctx.clip();
+      // scene art is laid out between the top of the wall and its foot
+      const hz = bot, y0 = top, span = Math.max(1, bot - top);
+      const at = (f) => y0 + span * f;
+
+      if (look.scene === 'space') {
+        // a fixed sky: the same stars every time, so it reads as one place
+        let seed = 9301;
+        const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+        for (let i = 0; i < 160; i++) {
+          const x = rnd() * w, y = at(rnd() * 0.82), r = 0.6 + rnd() * 1.6;
+          ctx.globalAlpha = 0.25 + rnd() * 0.75;
+          ctx.fillStyle = '#EAF2FF';
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // the Earth, low and to one side, lit from the left
+        const R = Math.max(40, span * 0.26), cx = w * 0.74, cy = at(0.34);
+        const g = ctx.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.1, cx, cy, R);
+        g.addColorStop(0, '#6FB5FF'); g.addColorStop(0.55, '#2C64B8');
+        g.addColorStop(1, '#07142B');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.5; ctx.fillStyle = '#2E8B57';
+        ctx.beginPath(); ctx.ellipse(cx - R * 0.25, cy - R * 0.1, R * 0.4, R * 0.22, 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + R * 0.2, cy + R * 0.35, R * 0.3, R * 0.16, -0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (look.scene === 'hangar') {
+        // a corrugated roof of girders, and lamps hanging off it
+        ctx.strokeStyle = 'rgba(120,104,78,.55)';
+        ctx.lineWidth = Math.max(3, w * 0.006);
+        for (let i = 0; i <= 7; i++) {
+          const x = (i / 7) * w;
+          ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(w / 2 + (x - w / 2) * 0.62, at(0.9)); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.moveTo(0, at(0.28)); ctx.lineTo(w, at(0.28)); ctx.stroke();
+        for (let i = 0; i < 5; i++) {
+          const x = ((i + 0.5) / 5) * w, y = at(0.46);
+          ctx.strokeStyle = 'rgba(90,78,58,.8)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x, at(0.28)); ctx.lineTo(x, y); ctx.stroke();
+          const lamp = ctx.createRadialGradient(x, y, 2, x, y, span * 0.3);
+          lamp.addColorStop(0, 'rgba(255,196,96,.85)');
+          lamp.addColorStop(1, 'rgba(255,170,60,0)');
+          ctx.fillStyle = lamp;
+          ctx.beginPath(); ctx.arc(x, y, span * 0.3, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#FFD990';
+          ctx.beginPath(); ctx.ellipse(x, y, span * 0.04, span * 0.02, 0, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        // a lighting rig: bars of colour running away over the maze
+        // steel ribs first, so the bars read as hung off something
+        ctx.strokeStyle = 'rgba(120,96,200,.30)';
+        ctx.lineWidth = Math.max(2, w * 0.004);
+        for (let i = 0; i <= 9; i++) {
+          const x = (i / 9) * w;
+          ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, at(0.95)); ctx.stroke();
+        }
+        const bars = ['#00E5FF', '#FF2FB0', '#7C4DFF', '#00E5FF', '#FFC53D'];
+        bars.forEach((c, i) => {
+          const y = at(0.10 + i * 0.15);
+          const inset = w * (0.02 + i * 0.03);
+          const glow = ctx.createLinearGradient(0, y - span * 0.07, 0, y + span * 0.07);
+          glow.addColorStop(0, 'rgba(0,0,0,0)');
+          glow.addColorStop(0.5, c); glow.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.16;
+          ctx.fillStyle = glow;
+          ctx.fillRect(inset, y - span * 0.07, w - inset * 2, span * 0.14);
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = c;
+          ctx.fillRect(inset, y - span * 0.01, w - inset * 2, span * 0.02);
+        });
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+
     function drawFloor() {
       const hz = horizon();
       const h = canvas.height;
       // the ground, out to wherever the screen ends
-      ctx.fillStyle = '#0B0818';
+      ctx.fillStyle = look.sky[2];
       ctx.fillRect(0, Math.max(0, hz), canvas.width, h);
+      drawBack();
       // and a little light along the horizon, so the two meet rather than butt
       if (hz > -60 && hz < h + 60) {
         const glow = ctx.createLinearGradient(0, hz - 70, 0, hz + 40);
-        glow.addColorStop(0, 'rgba(124,77,255,0)');
-        glow.addColorStop(0.6, 'rgba(124,77,255,.22)');
-        glow.addColorStop(1, 'rgba(124,77,255,0)');
+        glow.addColorStop(0, 'rgba(0,0,0,0)');
+        glow.addColorStop(0.6, look.haze);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow;
         ctx.fillRect(0, hz - 70, canvas.width, 110);
       }
@@ -611,53 +820,88 @@
         ctx.lineTo(nr.x, nr.y); ctx.lineTo(nl.x, nl.y);
         ctx.closePath();
         const g = ctx.createLinearGradient(0, fl.y, 0, nr.y);
-        g.addColorStop(0, '#2A2350');
-        g.addColorStop(1, '#100C24');
+        g.addColorStop(0, look.floor[0]);
+        g.addColorStop(1, look.floor[1]);
         ctx.fillStyle = g;
         ctx.fill();
       }
 
-      ctx.strokeStyle = 'rgba(255,255,255,.07)';
+      ctx.strokeStyle = look.grid;
       ctx.lineWidth = 1.5;
-      for (let x = 0; x <= W; x += 200) {
+      const step = look.grid2;
+      for (let x = 0; x <= W; x += step) {
         const a = project(x, 0, 0), b = project(x, H, 0);
         if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
-      for (let y = 0; y <= H; y += 200) {
+      for (let y = 0; y <= H; y += step) {
         const a = project(0, y, 0), b = project(W, y, 0);
         if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
 
+      /* The centre of the floor gets a painted ring, because a big empty plane
+         with nothing on it reads as a texture rather than as a place. */
+      const ring = [];
+      for (let i = 0; i <= 40; i++) {
+        const a = (i / 40) * Math.PI * 2;
+        ring.push(project(W / 2 + Math.cos(a) * 250, H / 2 + Math.sin(a) * 250, 0));
+      }
+      if (ring.every(Boolean)) {
+        ctx.strokeStyle = look.trim;
+        ctx.globalAlpha = 0.28;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ring.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.closePath();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
       /* The cover. Each block is a box: a top face, and the two sides that face
          the camera, which is enough to read as solid from this angle. Sorted by
-         how far away they are so a near block draws over a far one. */
-      const BLOCK_H = 132;   // tall enough to actually hide behind
+         how far away they are so a near block draws over a far one, and given a
+         lit strip along its top edge — the one line that says "this is a wall in
+         a room somebody built" rather than "this is a grey rectangle". */
       [...cover].sort((p, q) => (q.y + q.h) - (p.y + p.h)).forEach(bk => {
+        const BLOCK_H = tallOf(bk);
         const x0 = bk.x, x1 = bk.x + bk.w, y0 = bk.y, y1 = bk.y + bk.h;
         const tl = project(x0, y0, BLOCK_H), tr = project(x1, y0, BLOCK_H);
         const br = project(x1, y1, BLOCK_H), bl = project(x0, y1, BLOCK_H);
-        const fl = project(x0, y1, 0), fr = project(x1, y1, 0);
-        const rl = project(x1, y0, 0);
+        const nfl = project(x0, y1, 0), nfr = project(x1, y1, 0);
+        const rt = project(x1, y0, 0);
+
+        // a shadow on the floor first, which is what sits it in the room
+        const sa = project(x0, y0, 0), sb = project(x1, y0, 0);
+        if (sa && sb && nfl && nfr) {
+          ctx.fillStyle = 'rgba(0,0,0,.38)';
+          ctx.beginPath();
+          ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y);
+          ctx.lineTo(nfr.x, nfr.y); ctx.lineTo(nfl.x, nfl.y); ctx.closePath();
+          ctx.fill();
+        }
         // the near face and the right-hand face, then the lit top over them
-        quad(bl, br, fr, fl, 'rgba(24,16,48,.96)');
-        quad(br, rl ? project(x1, y0, 0) : null, rl, fr, 'rgba(34,24,66,.96)');
-        quad(tl, tr, br, bl, 'rgba(86,68,150,.98)');
+        quad(bl, br, nfr, nfl, look.face);
+        quad(tr, br, nfr, rt, look.side);
+        quad(tl, tr, br, bl, look.top);
+
+        // the painted stripe: chest high on a wall, along the lip of a low one
+        if (nfl && nfr && bl && br) {
+          const zs = bk.t === 'low' ? 0.78 : 0.56;
+          const a = project(x0, y1, BLOCK_H * zs), b = project(x1, y1, BLOCK_H * zs);
+          if (a && b) {
+            ctx.strokeStyle = look.trim;
+            ctx.globalAlpha = 0.55;
+            ctx.lineWidth = Math.max(2, 7 * (a.k || 1));
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
         if (tl && tr) {
-          ctx.strokeStyle = 'rgba(190,170,255,.7)';
+          ctx.strokeStyle = look.edge;
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
           ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath();
           ctx.stroke();
-        }
-        // a shadow on the floor, which is what sits it in the room
-        const sa = project(x0, y0, 0), sb = project(x1, y0, 0);
-        if (sa && sb && fl && fr) {
-          ctx.fillStyle = 'rgba(0,0,0,.35)';
-          ctx.beginPath();
-          ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y);
-          ctx.lineTo(fr.x, fr.y); ctx.lineTo(fl.x, fl.y); ctx.closePath();
-          ctx.fill();
         }
       });
 
@@ -673,9 +917,9 @@
       sides.forEach(([[ax, ay], [bx, by]], i) => {
         const a = project(ax, ay, 0), b = project(bx, by, 0);
         const c = project(bx, by, WALL), d = project(ax, ay, WALL);
-        quad(a, b, c, d, i === 0 ? 'rgba(124,77,255,.22)' : 'rgba(124,77,255,.13)');
+        quad(a, b, c, d, look.wall);
         if (c && d) {
-          ctx.strokeStyle = 'rgba(170,150,255,.55)';
+          ctx.strokeStyle = look.rim;
           ctx.lineWidth = 2;
           ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(c.x, c.y); ctx.stroke();
         }
@@ -687,9 +931,9 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       // the sky above the far wall, so the arena has a horizon to sit under
       const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      sky.addColorStop(0, '#0A0716');
-      sky.addColorStop(0.45, '#160F2E');
-      sky.addColorStop(1, '#07040F');
+      sky.addColorStop(0, look.sky[0]);
+      sky.addColorStop(0.45, look.sky[1]);
+      sky.addColorStop(1, look.sky[2]);
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -817,6 +1061,58 @@
 
       solids.sort((a, b) => b.depth - a.depth);
       solids.forEach(item => item.paint());
+
+      if (!watching) miniMap();
+    }
+
+    /* A plan of the arena in the corner. A labyrinth you can only see one
+       corridor of is frustrating rather than tense: you need to know there is a
+       way round, even if you cannot see it. So the walls are drawn from above,
+       with you and everyone near you on them. */
+    function miniMap() {
+      const pad = Math.round(canvas.width * 0.022);
+      const mw = Math.min(canvas.width * 0.30, 260);
+      const mh = mw * (H / W);
+      const ox = pad, oy = canvas.height - mh - pad;
+      const s = mw / W;
+      const at = (x, y) => ({ x: ox + x * s, y: oy + y * s });
+
+      ctx.save();
+      ctx.globalAlpha = 0.86;
+      ctx.fillStyle = 'rgba(6,4,16,.78)';
+      ctx.beginPath(); ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10); ctx.fill();
+      ctx.strokeStyle = look.rim; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10); ctx.stroke();
+
+      ctx.fillStyle = look.top;
+      cover.forEach(b => {
+        ctx.globalAlpha = b.t === 'low' ? 0.45 : 0.85;
+        ctx.fillRect(ox + b.x * s, oy + b.y * s, b.w * s, b.h * s);
+      });
+
+      ctx.globalAlpha = 0.9;
+      capsules.forEach(c => {
+        const p = at(c.x, c.y);
+        ctx.fillStyle = POWERS[c.kind].colour;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2); ctx.fill();
+      });
+
+      others.forEach(o => {
+        if (o.alive === false) return;
+        const p = at(o.x, o.y);
+        ctx.fillStyle = teamColour(o.team);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3.6, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // you, with a wedge for which way you are facing
+      const me = at(self.x, self.y);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.moveTo(me.x + Math.cos(self.angle) * 9, me.y + Math.sin(self.angle) * 9);
+      ctx.lineTo(me.x + Math.cos(self.angle + 2.5) * 6, me.y + Math.sin(self.angle + 2.5) * 6);
+      ctx.lineTo(me.x + Math.cos(self.angle - 2.5) * 6, me.y + Math.sin(self.angle - 2.5) * 6);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
     }
 
     function frame() {
@@ -871,8 +1167,37 @@
     };
   }
 
+  /* The map as a plan, for the picker. The picture on the button used to be an
+     illustration of the place; this is the place. A child choosing between
+     three maps should be choosing between three shapes, not three moods. */
+  function plan(id, width = 320) {
+    const look = lookFor(id);
+    const h = Math.round(width / 1.6);
+    const s = [];
+    s.push('<svg class="scene" viewBox="0 0 ' + W + ' ' + H + '" width="' + width +
+           '" height="' + h + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true">');
+    s.push('<rect width="' + W + '" height="' + H + '" fill="' + look.floor[1] + '"/>');
+    s.push('<g stroke="' + look.grid + '" stroke-width="3">');
+    for (let x = look.grid2; x < W; x += look.grid2) s.push('<path d="M' + x + ' 0V' + H + '"/>');
+    for (let y = look.grid2; y < H; y += look.grid2) s.push('<path d="M0 ' + y + 'H' + W + '"/>');
+    s.push('</g>');
+    s.push('<circle cx="' + (W / 2) + '" cy="' + (H / 2) + '" r="250" fill="none" stroke="' +
+           look.trim + '" stroke-width="6" opacity=".35"/>');
+    coverFor(id).forEach(b => {
+      s.push('<rect x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h +
+             '" rx="8" fill="' + look.top + '" opacity="' + (b.t === 'low' ? 0.55 : 1) + '"/>');
+    });
+    // the two ends the teams start from, so the shape has a direction
+    s.push('<circle cx="90" cy="' + (H / 2) + '" r="34" fill="#F4364C"/>');
+    s.push('<circle cx="' + (W - 90) + '" cy="' + (H / 2) + '" r="34" fill="#4F6BFF"/>');
+    s.push('<rect x="6" y="6" width="' + (W - 12) + '" height="' + (H - 12) +
+           '" rx="16" fill="none" stroke="' + look.rim + '" stroke-width="10"/>');
+    s.push('</svg>');
+    return s.join('');
+  }
+
   global.NovaArena = { start, POWERS, ALIEN_POINTS, PLAYER_POINTS, ENERGY_SECONDS,
-                       COVER, coverFor, freeSpot,
+                       COVER, coverFor, freeSpot, lookFor, HALVES, plan,
                        faceReady: (a) => { const f = faces.get(String(a || 0)); return !!(f && f.ready); } };
 })(typeof window !== 'undefined' ? window : globalThis);
 

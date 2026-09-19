@@ -201,6 +201,10 @@ tr:hover td{background:var(--paper)}
 .modecard .body{display:block;padding:13px 15px 16px}
 .modecard strong{display:block;font-size:1.06rem;margin-bottom:2px}
 .modecard .sub{font-size:.83rem;color:var(--ink-soft);line-height:1.34}
+.modecard .plan{display:block;line-height:0;border-bottom:var(--line-w) solid var(--line);position:relative}
+.modecard .plan svg{width:100%;height:auto;display:block}
+.modecard .plan::after{content:'The map';position:absolute;left:8px;bottom:6px;
+  font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;opacity:.72;line-height:1}
 </style>
 </head>
 <body>
@@ -301,6 +305,7 @@ tr:hover td{background:var(--paper)}
 </main>
 
 <script src="/sprites.js"></script>
+<script src="/arena.js"></script>
 <script src="/launch.js"></script>
 <script src="/quizbank.js"></script>
 <script src="/nova.js"></script>
@@ -975,8 +980,13 @@ const joinAddress = () => (window.QUOLDEK_JOIN
              three times with a CSS tint over it, so a teacher choosing between
              the Neon Arena, a Bunker and a Moon Base was shown the same picture
              three times and asked to pick one. */
-          btn.append(el('span', { class: 'art map-' + mp.id, html: Sprite.map(mp.id, 320, mode.id) }),
-                     el('span', { class: 'body' }, el('strong', {}, mp.label)));
+          btn.append(el('span', { class: 'art map-' + mp.id, html: Sprite.map(mp.id, 320, mode.id) }));
+          /* and under it the plan of the place, drawn from the same walls the
+             game is played in, so the choice is between three shapes. */
+          if (mode.id === 'laser' && window.NovaArena && NovaArena.plan) {
+            btn.append(el('span', { class: 'plan', html: NovaArena.plan(mp.id, 320) }));
+          }
+          btn.append(el('span', { class: 'body' }, el('strong', {}, mp.label)));
           list.append(btn);
         });
         list.append(el('button', { class: 'btn ghost', style: 'grid-column:1/-1;margin-top:4px',

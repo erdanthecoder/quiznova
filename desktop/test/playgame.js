@@ -18,7 +18,11 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
                           else console.log(`ok    ${n}${d ? '  — ' + d : ''}`); };
 
 (async () => {
-  const srv = new Server({ root: '../../static',
+  /* An absolute root. This was '../../static', resolved against the working
+     directory, so the test only served the site when it was started from its
+     own folder and hung waiting for a page that was never there from anywhere
+     else. Where you type the command is not a thing a test should care about. */
+  const srv = new Server({ root: path.join(__dirname, '..', '..', 'static'),
                            dataDir: '/tmp/claude-0/gamedata', port: 0 });
   const started = await srv.listen();
   const port = started && started.port ? started.port : started;
