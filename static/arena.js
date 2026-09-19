@@ -38,6 +38,95 @@
   };
   const REAL_POWERS = ['rapid', 'triple', 'spread', 'speed', 'shield'];
 
+  /* ── cover ────────────────────────────────────────────────
+   *
+   * The arena was a flat floor with nothing on it, which makes a shooting game
+   * into a staring contest: everybody can see everybody from anywhere and the
+   * only tactic is to be quicker on the trigger. Blooket's own arena has
+   * barriers to hide behind, and that is what turns it into a game of angles —
+   * breaking line of sight, cutting a corner, catching somebody in the open.
+   *
+   * Each map is a different plan. They are symmetric on purpose: in team mode
+   * the two sides start at opposite ends and neither may be handed the better
+   * ground. Boxes are given as top-left corner plus size, in arena units.
+   */
+  const COVER = {
+    // a cross in the middle to break the long sightlines, and corner cuts
+    arena: [
+      { x: 740, y: 300, w: 120, h: 400 },
+      { x: 520, y: 460, w: 560, h: 80 },
+      { x: 200, y: 170, w: 210, h: 70 }, { x: 1190, y: 170, w: 210, h: 70 },
+      { x: 200, y: 760, w: 210, h: 70 }, { x: 1190, y: 760, w: 210, h: 70 },
+      { x: 500, y: 110, w: 70, h: 200 }, { x: 1030, y: 690, w: 70, h: 200 }
+    ],
+    // corridors: long walls with gaps, so you fight along lanes
+    bunker: [
+      { x: 300, y: 0, w: 70, h: 370 }, { x: 300, y: 630, w: 70, h: 370 },
+      { x: 1230, y: 0, w: 70, h: 370 }, { x: 1230, y: 630, w: 70, h: 370 },
+      { x: 600, y: 230, w: 400, h: 70 }, { x: 600, y: 700, w: 400, h: 70 },
+      { x: 760, y: 420, w: 80, h: 160 }
+    ],
+    // scattered rocks and a landing pad: the most open of the three
+    moon: [
+      { x: 170, y: 420, w: 240, h: 70 }, { x: 1190, y: 420, w: 240, h: 70 },
+      { x: 700, y: 150, w: 200, h: 70 }, { x: 700, y: 780, w: 200, h: 70 },
+      { x: 450, y: 320, w: 70, h: 240 }, { x: 1080, y: 320, w: 70, h: 240 },
+      { x: 755, y: 430, w: 90, h: 140 }
+    ]
+  };
+  const coverFor = (map) => COVER[map] || COVER.arena;
+
+  /** Does a circle at (x, y) overlap this box? */
+  function inBox(b, x, y, r) {
+    const nx = Math.max(b.x, Math.min(x, b.x + b.w));
+    const ny = Math.max(b.y, Math.min(y, b.y + b.h));
+    return (nx - x) * (nx - x) + (ny - y) * (ny - y) < r * r;
+  }
+  const blocked = (cover, x, y, r) => cover.some(b => inBox(b, x, y, r));
+
+  /** Somewhere in the arena that is not inside a block. */
+  function freeSpot(cover, margin, r) {
+    for (let tries = 0; tries < 60; tries++) {
+      const x = margin + Math.random() * (1600 - margin * 2);
+      const y = margin + Math.random() * (1000 - margin * 2);
+      if (!blocked(cover, x, y, r + 8)) return { x, y };
+    }
+    return { x: 800, y: 500 };          // the middle is always clear enough
+  }
+
+  /* ── the blooks ───────────────────────────────────────────
+   *
+   * The players were coloured capsules with two dots for eyes. They are the
+   * child's own blook now — the same character they picked in the lobby and see
+   * on the leaderboard — because being your blook is most of why anybody cares
+   * which one they chose.
+   *
+   * Canvas cannot draw an SVG string, so each face is rasterised once into an
+   * offscreen canvas and then stamped. The data URI needs an explicit xmlns:
+   * inline HTML infers the SVG namespace, a data URI does not, and without it
+   * the image silently never loads.
+   */
+  const faces = new Map();
+  function blookFace(avatar) {
+    const key = String(avatar || 0);
+    if (faces.has(key)) return faces.get(key);
+    const spot = { ready: false, canvas: null };
+    faces.set(key, spot);
+    try {
+      const svg = global.Sprite.face(Number(avatar) || 0, 128)
+        .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = 128; c.height = 128;
+        c.getContext('2d').drawImage(img, 0, 0, 128, 128);
+        spot.canvas = c; spot.ready = true;
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    } catch { /* no Sprite here: the plain body is drawn instead */ }
+    return spot;
+  }
+
   const now = () => performance.now();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -57,11 +146,13 @@
     const watching = !!opts.watching;
     const send = opts.send || (() => {});
     const meId = opts.me ? opts.me.id : 'board';
+    const cover = coverFor(opts.map);
 
     const self = {
       id: meId, name: opts.me ? opts.me.name : '', avatar: opts.me ? opts.me.avatar : 0,
       team: opts.me ? opts.me.team : 'red',
-      x: rand(200, W - 200), y: rand(200, H - 200), angle: 0,
+      ...freeSpot(cover, 200, PLAYER_R),
+      angle: 0,
       alive: !watching, energy: 100, score: 0, power: '', powerUntil: 0, shield: false
     };
     const others = new Map();            // id -> last state heard, with a timestamp
@@ -76,12 +167,12 @@
     /* ── the arena's own furniture ─────────────────────── */
     const spawnAlien = () => aliens.push({
       id: 'a' + Math.random().toString(36).slice(2, 7),
-      x: rand(120, W - 120), y: rand(120, H - 120),
+      ...freeSpot(cover, 120, ALIEN_R),
       vx: rand(-70, 70), vy: rand(-70, 70), hp: 1
     });
     const spawnCapsule = () => capsules.push({
       kind: REAL_POWERS.concat('mystery')[Math.floor(Math.random() * 6)],
-      x: rand(140, W - 140), y: rand(140, H - 140), born: now()
+      ...freeSpot(cover, 140, 22), born: now()
     });
     for (let i = 0; i < 7; i++) spawnAlien();
     for (let i = 0; i < 3; i++) spawnCapsule();
@@ -178,8 +269,13 @@
         const len = Math.hypot(dx, dy);
         if (len > 0.06) {
           const speed = SPEED * (self.power === 'speed' ? 1.55 : 1);
-          self.x = clamp(self.x + (dx / len) * speed * dt, PLAYER_R, W - PLAYER_R);
-          self.y = clamp(self.y + (dy / len) * speed * dt, PLAYER_R, H - PLAYER_R);
+          /* One axis at a time, so running into a wall at an angle slides along
+             it instead of stopping dead. Stopping dead is what makes cover feel
+             like scenery you are fighting rather than scenery you are using. */
+          const nx = clamp(self.x + (dx / len) * speed * dt, PLAYER_R, W - PLAYER_R);
+          if (!blocked(cover, nx, self.y, PLAYER_R)) self.x = nx;
+          const ny = clamp(self.y + (dy / len) * speed * dt, PLAYER_R, H - PLAYER_R);
+          if (!blocked(cover, self.x, ny, PLAYER_R)) self.y = ny;
           if (!pointer) self.angle = Math.atan2(dy, dx);
         }
         if (pointer) self.angle = Math.atan2(pointer.y - self.y, pointer.x - self.x);
@@ -206,7 +302,9 @@
       }
 
       aliens.forEach(a => {
-        a.x += a.vx * dt; a.y += a.vy * dt;
+        const ax = a.x + a.vx * dt, ay = a.y + a.vy * dt;
+        if (blocked(cover, ax, a.y, ALIEN_R)) a.vx *= -1; else a.x = ax;
+        if (blocked(cover, a.x, ay, ALIEN_R)) a.vy *= -1; else a.y = ay;
         if (a.x < ALIEN_R || a.x > W - ALIEN_R) a.vx *= -1;
         if (a.y < ALIEN_R || a.y > H - ALIEN_R) a.vy *= -1;
         a.x = clamp(a.x, ALIEN_R, W - ALIEN_R); a.y = clamp(a.y, ALIEN_R, H - ALIEN_R);
@@ -216,6 +314,8 @@
         const s = shots[i];
         s.x += s.dx * SHOT_SPEED * dt; s.y += s.dy * SHOT_SPEED * dt;
         if (s.x < 0 || s.x > W || s.y < 0 || s.y > H || t - s.born > 2200) { shots.splice(i, 1); continue; }
+        // a shot that meets cover stops there: no shooting through walls
+        if (blocked(cover, s.x, s.y, SHOT_R)) { boom(s.x, s.y, '#8C86A6'); shots.splice(i, 1); continue; }
         if (!s.mine) continue;                         // only our own shots can score for us
 
         let done = false;
@@ -421,13 +521,22 @@
       ctx.ellipse(head.x, head.y + r * 0.16, r * 0.82, r * 0.3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // eyes, high on the body and facing out of the screen
-      const eye = Math.max(1.6, r * 0.2);
-      ctx.fillStyle = 'rgba(10,6,22,.85)';
-      ctx.beginPath();
-      ctx.arc(head.x - r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
-      ctx.arc(head.x + r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
-      ctx.fill();
+      /* The blook itself, over the body. Until its picture has finished
+         loading the plain shape underneath stands in, so nobody ever sees a
+         gap — and a device that cannot rasterise it keeps playing. */
+      const face = blookFace(avatar);
+      if (face && face.ready) {
+        const size = r * 2.1;
+        ctx.drawImage(face.canvas, head.x - size / 2, head.y + tall * 0.06 - size * 0.12,
+                      size, size);
+      } else {
+        const eye = Math.max(1.6, r * 0.2);
+        ctx.fillStyle = 'rgba(10,6,22,.85)';
+        ctx.beginPath();
+        ctx.arc(head.x - r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
+        ctx.arc(head.x + r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       if (isSelf) {
         ctx.strokeStyle = '#fff';
@@ -518,6 +627,39 @@
         const a = project(0, y, 0), b = project(W, y, 0);
         if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
+
+      /* The cover. Each block is a box: a top face, and the two sides that face
+         the camera, which is enough to read as solid from this angle. Sorted by
+         how far away they are so a near block draws over a far one. */
+      const BLOCK_H = 132;   // tall enough to actually hide behind
+      [...cover].sort((p, q) => (q.y + q.h) - (p.y + p.h)).forEach(bk => {
+        const x0 = bk.x, x1 = bk.x + bk.w, y0 = bk.y, y1 = bk.y + bk.h;
+        const tl = project(x0, y0, BLOCK_H), tr = project(x1, y0, BLOCK_H);
+        const br = project(x1, y1, BLOCK_H), bl = project(x0, y1, BLOCK_H);
+        const fl = project(x0, y1, 0), fr = project(x1, y1, 0);
+        const rl = project(x1, y0, 0);
+        // the near face and the right-hand face, then the lit top over them
+        quad(bl, br, fr, fl, 'rgba(24,16,48,.96)');
+        quad(br, rl ? project(x1, y0, 0) : null, rl, fr, 'rgba(34,24,66,.96)');
+        quad(tl, tr, br, bl, 'rgba(86,68,150,.98)');
+        if (tl && tr) {
+          ctx.strokeStyle = 'rgba(190,170,255,.7)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+          ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath();
+          ctx.stroke();
+        }
+        // a shadow on the floor, which is what sits it in the room
+        const sa = project(x0, y0, 0), sb = project(x1, y0, 0);
+        if (sa && sb && fl && fr) {
+          ctx.fillStyle = 'rgba(0,0,0,.35)';
+          ctx.beginPath();
+          ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y);
+          ctx.lineTo(fr.x, fr.y); ctx.lineTo(fl.x, fl.y); ctx.closePath();
+          ctx.fill();
+        }
+      });
 
       /* The four walls. Each is a quad from the floor up to WALL, drawn with the
          face towards the middle of the arena lit a little and a bright strip along
@@ -692,15 +834,33 @@
       heard,
       fire,
       stick,
+      /* The right thumb: point it and it both aims and fires, which is how a
+         twin-stick shooter has worked since arcades and how Blooket's own arena
+         plays on a phone. Letting go stops the shooting but keeps the aim. */
+      aim(x, y) {
+        const len = Math.hypot(x, y);
+        if (len > 0.24) {
+          self.angle = Math.atan2(y, x);
+          pointer = null;                 // the stick outranks the mouse
+          fire();
+        }
+      },
       get energy() { return self.energy; },
       get score() { return self.score; },
       get alive() { return self.alive; },
       get power() { return self.power ? POWERS[self.power].label : (self.shield ? 'Force field' : ''); },
       get playerCount() { return others.size + (watching ? 0 : 1); },
+      /* Put the player somewhere, point them, and read it back. Only the tests
+         use these; the game never moves anybody from outside. */
+      place(x, y) { self.x = x; self.y = y; },
+      face(a) { self.angle = a; pointer = null; },
+      where() { return { x: self.x, y: self.y }; },
+      shotCount() { return shots.length; },
       /** Back in after a question: full bar, fresh position. */
       revive() {
         self.alive = true; self.energy = 100; self.shield = false; self.power = '';
-        self.x = rand(200, W - 200); self.y = rand(200, H - 200);
+        const spot = freeSpot(cover, 200, PLAYER_R);
+        self.x = spot.x; self.y = spot.y;
       },
       stop() {
         running = false;
@@ -711,7 +871,9 @@
     };
   }
 
-  global.NovaArena = { start, POWERS, ALIEN_POINTS, PLAYER_POINTS, ENERGY_SECONDS };
+  global.NovaArena = { start, POWERS, ALIEN_POINTS, PLAYER_POINTS, ENERGY_SECONDS,
+                       COVER, coverFor, freeSpot,
+                       faceReady: (a) => { const f = faces.get(String(a || 0)); return !!(f && f.ready); } };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.NovaArena;

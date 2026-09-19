@@ -196,16 +196,12 @@
 .cross::after{top:50%;left:-8px;right:-8px;height:2px;margin-top:-1px}
 .cross.bang{animation:bang .28s var(--ease)}
 @keyframes bang{0%{transform:scale(.7);box-shadow:0 0 0 12px rgba(255,197,61,.35)}100%{transform:none}}
-.gamepad{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
-.gamepad .stick{width:112px;height:112px;border-radius:50%;position:relative;touch-action:none;flex:none;
+.gamepad{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center;justify-items:center;margin-top:12px}
+.gamepad .stick{width:126px;height:126px;border-radius:50%;position:relative;touch-action:none;flex:none;
   background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.13),rgba(255,255,255,.04));
   border:2px solid rgba(255,255,255,.16)}
 .gamepad .knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;
   background:linear-gradient(180deg,#8E7BFF,#5B3FE8);box-shadow:0 6px 0 -1px rgba(0,0,0,.4);transition:transform .08s}
-.gamepad .fire{flex:1;height:112px;border:none;border-radius:24px;cursor:pointer;font:inherit;font-weight:900;
-  font-size:1.5rem;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#FF6B5A,#E01F35);
-  box-shadow:0 8px 0 -2px rgba(0,0,0,.45)}
-.gamepad .fire:active{transform:translateY(4px);box-shadow:0 4px 0 -2px rgba(0,0,0,.45)}
 .chip.warn{border-color:var(--amber);color:var(--amber)}
 
 /* the result takes over the screen, the way it does on a games console */
@@ -290,6 +286,11 @@
 
 /* The sword pad. Both buttons are as big as a thumb can miss, because a child
  * in a ten-second fight is watching the boss, not their own hands. */
+.aimstick{background:radial-gradient(circle at 50% 42%,rgba(255,176,32,.22),rgba(255,176,32,.06) 68%)}
+.aimstick .knob{background:linear-gradient(180deg,#FFB020,#E07000)}
+.padlabel{position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:.6rem;
+  font-weight:800;letter-spacing:.14em;opacity:.5;pointer-events:none}
+
 .swordpad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;flex:none}
 .swordpad button{border:0;border-radius:20px;padding:26px 10px;font-size:1.05rem;font-weight:900;
   letter-spacing:.08em;color:#fff;cursor:pointer;touch-action:manipulation;
@@ -369,7 +370,7 @@
 <script src="/nova.js?v=9fa1dfb0"></script>
 <script src="/quizbank.js?v=f18e8cbc"></script>
 <script src="/realtime.js?v=75e1623c"></script>
-<script src="/arena.js?v=fb3b6182"></script>
+<script src="/arena.js?v=81940669"></script>
 <script src="/strike.js?v=d438527a"></script>
 <script src="/run.js?v=0cd33cf7"></script>
 <script src="/paste.js?v=3032c005"></script>
@@ -997,8 +998,10 @@ function arenaCard() {
   card.append(shell);
 
   const pad = el('div', { class: 'gamepad' });
-  pad.innerHTML = `<div class="stick" id="stick"><span class="knob" id="knob"></span></div>
-    <button class="fire" id="fire">FIRE</button>`;
+  pad.innerHTML = `<div class="stick" id="stick"><span class="knob" id="knob"></span>
+      <span class="padlabel">MOVE</span></div>
+    <div class="stick aimstick" id="aim"><span class="knob" id="aimknob"></span>
+      <span class="padlabel">SHOOT</span></div>`;
   card.append(pad);
   setTimeout(startArena, 0);
   return card;
@@ -1008,7 +1011,7 @@ function startArena() {
   const canvas = document.getElementById('arena');
   if (!canvas || arena) return;
   arena = NovaArena.start({
-    canvas, me,
+    canvas, me, map: game.map || 'arena',
     send: (event, payload) => Nova.arenaSend && Nova.arenaSend(pin, event, payload),
     onScore: (score) => { const n = document.getElementById('a-score'); if (n) n.textContent = score; },
     onSave: (score) => api(`/games/${pin}/score`, { method: 'POST', body: { playerId: me.id, score } })
@@ -1033,39 +1036,55 @@ function paintArenaHud() {
   requestAnimationFrame(paintArenaHud);
 }
 
-/* The stick both walks and aims, so a thumb never has to do two jobs. */
+/* Two sticks: left walks, right aims and shoots.
+ *
+ * One stick that both walked and aimed meant you could never back away from
+ * somebody while still shooting at them, which is most of what a shooting game
+ * is. Blooket's arena uses two on a phone and so does every twin-stick game
+ * since the arcades; the fire button is gone because the right stick is the
+ * fire button.
+ */
 function wireStick() {
-  const stick = document.getElementById('stick');
-  const knob = document.getElementById('knob');
-  const fire = document.getElementById('fire');
-  if (!stick) return;
-  const grip = (e) => {
-    const t = e.touches ? e.touches[0] : e;
-    const box = stick.getBoundingClientRect();
-    const dx = (t.clientX - (box.left + box.width / 2)) / (box.width / 2);
-    const dy = (t.clientY - (box.top + box.height / 2)) / (box.height / 2);
-    const len = Math.min(1, Math.hypot(dx, dy));
-    const ang = Math.atan2(dy, dx);
-    if (arena) arena.stick(Math.cos(ang) * len, Math.sin(ang) * len);
-    knob.style.transform = `translate(${Math.cos(ang) * len * 26}px,${Math.sin(ang) * len * 26}px)`;
-    e.preventDefault();
-  };
-  const release = () => { if (arena) arena.stick(0, 0); knob.style.transform = 'none'; };
-  ['touchstart', 'touchmove'].forEach(ev => stick.addEventListener(ev, grip, { passive: false }));
-  ['touchend', 'touchcancel'].forEach(ev => stick.addEventListener(ev, release));
-  stick.addEventListener('mousedown', (e) => {
-    grip(e);
-    const move = (m) => grip(m);
-    const up = () => { release(); window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  const pads = [
+    { stick: document.getElementById('stick'), knob: document.getElementById('knob'),
+      send: (x, y) => arena && arena.stick(x, y), release: () => arena && arena.stick(0, 0) },
+    { stick: document.getElementById('aim'), knob: document.getElementById('aimknob'),
+      send: (x, y) => arena && arena.aim(x, y), release: () => {} }
+  ];
+  pads.forEach(pad => {
+    const { stick, knob } = pad;
+    if (!stick || !knob) return;
+    let firing = null;
+    const grip = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      const box = stick.getBoundingClientRect();
+      const dx = (t.clientX - (box.left + box.width / 2)) / (box.width / 2);
+      const dy = (t.clientY - (box.top + box.height / 2)) / (box.height / 2);
+      const len = Math.min(1, Math.hypot(dx, dy));
+      const ang = Math.atan2(dy, dx);
+      const nx = Math.cos(ang) * len, ny = Math.sin(ang) * len;
+      pad.send(nx, ny);
+      // holding the aim stick keeps shooting rather than firing once
+      if (pad.knob.id === 'aimknob' && len > 0.24 && !firing) {
+        firing = setInterval(() => pad.send(nx, ny), 90);
+      }
+      knob.style.transform = `translate(${nx * 26}px,${ny * 26}px)`;
+      e.preventDefault();
+    };
+    const release = () => {
+      clearInterval(firing); firing = null;
+      pad.release();
+      knob.style.transform = 'none';
+    };
+    ['touchstart', 'touchmove'].forEach(ev => stick.addEventListener(ev, grip, { passive: false }));
+    ['touchend', 'touchcancel'].forEach(ev => stick.addEventListener(ev, release));
+    stick.addEventListener('mousedown', (e) => {
+      grip(e);
+      const move = (m) => grip(m);
+      const up = () => { release(); window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+      window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
   });
-  let held = null;
-  const hold = (e) => { e.preventDefault(); if (arena) arena.fire(); held = setInterval(() => arena && arena.fire(), 90); };
-  const drop = () => { clearInterval(held); held = null; };
-  fire.addEventListener('touchstart', hold, { passive: false });
-  ['touchend', 'touchcancel'].forEach(ev => fire.addEventListener(ev, drop));
-  fire.addEventListener('mousedown', hold);
-  window.addEventListener('mouseup', drop);
 }
 
 /* Out of energy, or tagged: one question buys the way back in. */

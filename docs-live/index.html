@@ -564,7 +564,7 @@
 <script src="nova.js?v=9fa1dfb0"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
+<script src="arena.js?v=81940669"></script>
 <script src="strike.js?v=d438527a"></script>
 <script src="run.js?v=0cd33cf7"></script>
 <script src="paste.js?v=3032c005"></script>
@@ -1088,7 +1088,7 @@ function watchArena() {
   const canvas = document.getElementById('board-arena');
   if (!canvas || boardArena) return;
   // the board is a spectator: it draws everyone and controls nobody
-  boardArena = NovaArena.start({ canvas, watching: true, send: () => {} });
+  boardArena = NovaArena.start({ canvas, watching: true, map: game.map || 'arena', send: () => {} });
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => boardArena && boardArena.heard(event, payload));
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
