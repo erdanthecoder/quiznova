@@ -35,9 +35,13 @@
 (function (global) {
   'use strict';
 
-  const R_RING = 560;                  // how far the class stands from the boss
-  const BOSS_R = 150, PLAYER_R = 26;
-  const BODY_H = 120, BOSS_H = 330;
+  /* Close quarters. The ring was 560 wide with a 330-tall boss in the middle
+     of it, which on a phone is a monster the size of a thumbnail at the far end
+     of a hall. It is a ten-second knife fight: everybody stands within reach,
+     and the thing fills the screen. */
+  const R_RING = 370;                  // how far the class stands from the boss
+  const BOSS_R = 170, PLAYER_R = 26;
+  const BODY_H = 120, BOSS_H = 430;
 
   /* Ten seconds, and the shape of them. A fight this short has to start
    * immediately and finish on a beat, so the boss's first wind-up lands at 3.4s
@@ -50,21 +54,202 @@
   const FLOOR_MS = 1500;               // knocked down
   const STAGGER_MS = 1600;             // its window of weakness after a clean dodge
 
-  /* Everyone is fighting the same thing with a different blade.
+  /* ── the weapons ──────────────────────────────────────────
    *
-   * What your answer earns is the tier — greatsword, sword, stick — and which
-   * of the six shapes you carry comes from your blook, so it is yours all game
-   * and the ring is thirty different weapons rather than thirty copies of one.
-   * The tier decides what it does; the shape decides what it looks like. */
-  const SHAPES = [
-    { id: 'straight', tip: 0.00, hilt: 1.0, glow: '#FFFFFF' },
-    { id: 'cleaver',  tip: 0.28, hilt: 1.5, glow: '#FF9A3D' },
-    { id: 'katana',   tip: 0.16, hilt: 0.7, glow: '#7FD8FF' },
-    { id: 'dagger',   tip: 0.06, hilt: 0.9, glow: '#E8467C' },
-    { id: 'axe',      tip: 0.42, hilt: 1.7, glow: '#FFC53D' },
-    { id: 'spear',    tip: -0.1, hilt: 0.6, glow: '#7BC62D' }
-  ];
-  const shapeFor = (avatar) => SHAPES[(Number(avatar) || 0) % SHAPES.length];
+   * A blade used to be two strokes of the canvas: a brown line for the hilt and
+   * a coloured line for the blade. At the size it is drawn that is a scratch,
+   * not a sword, and "everyone has a different knife" meant nothing because you
+   * could not tell one scratch from another.
+   *
+   * So every weapon is built properly now, from the pommel forwards: a wrapped
+   * grip, a cross guard or a tsuba or a bare haft, a blade with a bevel down
+   * each side, a fuller cut along the middle and a bright line on the edge.
+   * Six silhouettes, and you can name all six from across a classroom.
+   *
+   * Drawn in a space where the hand is the origin and the weapon points along
+   * +x, so the same code draws it in a fist in the ring, swinging, and blown up
+   * on the card on your phone.
+   */
+  const WEAPONS = {
+    straight: { name: 'Longsword', len: 1.00, w: 0.085, guard: 0.34, kind: 'sword' },
+    cleaver:  { name: 'Cleaver',   len: 0.62, w: 0.215, guard: 0.22, kind: 'cleaver' },
+    katana:   { name: 'Katana',    len: 1.08, w: 0.062, guard: 0.22, kind: 'katana' },
+    dagger:   { name: 'Dagger',    len: 0.58, w: 0.082, guard: 0.24, kind: 'sword' },
+    axe:      { name: 'War axe',   len: 0.86, w: 0.125, guard: 0.00, kind: 'axe' },
+    spear:    { name: 'Spear',     len: 1.30, w: 0.050, guard: 0.00, kind: 'spear' }
+  };
+  const SHAPE_IDS = ['straight', 'cleaver', 'katana', 'dagger', 'axe', 'spear'];
+  /** Which of the six a child carries. It comes from their blook, so it is
+      theirs for the whole game rather than being dealt out each round. */
+  const shapeFor = (avatar) => SHAPE_IDS[(Number(avatar) || 0) % SHAPE_IDS.length];
+
+  /* What it is made of. The tier is what the answer earned: fast and right is
+     the only way to steel with a light in it. */
+  const METAL = {
+    great: { lip: '#FFFFFF', mid: '#D6F1FF', low: '#3E8FC0', glow: '#7FD8FF',
+             hilt: '#F2C75C', hiltLow: '#9A7420', grip: '#331F5E', wrap: '#5A3FA8' },
+    sword: { lip: '#FFFFFF', mid: '#E2E8F1', low: '#6E7784', glow: '',
+             hilt: '#B99A55', hiltLow: '#715B2C', grip: '#3A2C22', wrap: '#5C4633' },
+    stick: { lip: '#D9BC8E', mid: '#A8814D', low: '#634727', glow: '',
+             hilt: '#634727', hiltLow: '#402C17', grip: '#4A3520', wrap: '#634727' }
+  };
+
+  const fill = (ctx, pts, style) => {
+    ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.closePath();
+    ctx.fillStyle = style;
+    ctx.fill();
+  };
+
+  /**
+   * drawWeapon(ctx, L, shapeId, tier)
+   *   L    how long the weapon is, in pixels, hand to tip
+   *   The hand is at the origin and the weapon points along +x.
+   */
+  function drawWeapon(ctx, L, shapeId, tier) {
+    const W = WEAPONS[shapeId] || WEAPONS.straight;
+    const M = METAL[tier] || METAL.stick;
+    const h = L * W.w;                    // half the blade's width
+    const gl = L * 0.22;                  // the grip, behind the hand
+    const steel = ctx.createLinearGradient(0, -h * 1.4, 0, h * 1.4);
+    steel.addColorStop(0, M.lip);
+    steel.addColorStop(0.42, M.mid);
+    steel.addColorStop(1, M.low);
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    if (M.glow) { ctx.shadowColor = M.glow; ctx.shadowBlur = L * 0.10; }
+
+    if (W.kind === 'axe' || W.kind === 'spear') {
+      // a haft the whole way, in wood, with the head mounted near the end
+      const hw = L * 0.028;
+      fill(ctx, [[-gl, -hw], [L * (W.kind === 'axe' ? 1.0 : 0.82), -hw],
+                 [L * (W.kind === 'axe' ? 1.0 : 0.82), hw], [-gl, hw]], '#5A4028');
+      fill(ctx, [[-gl, -hw], [L * 0.8, -hw], [L * 0.8, -hw * 0.25], [-gl, -hw * 0.25]],
+           'rgba(255,255,255,.16)');
+    }
+
+    if (W.kind === 'sword') {
+      fill(ctx, [[0, -h], [L * 0.86, -h * 0.74], [L, 0], [L * 0.86, h * 0.74], [0, h]], steel);
+      // the fuller, the groove down the middle of a real blade
+      fill(ctx, [[L * 0.06, -h * 0.3], [L * 0.78, -h * 0.22],
+                 [L * 0.78, h * 0.22], [L * 0.06, h * 0.3]], 'rgba(0,0,0,.22)');
+      // and the bright line on the cutting edge
+      ctx.strokeStyle = M.lip;
+      ctx.lineWidth = Math.max(0.6, L * 0.010);
+      ctx.beginPath();
+      ctx.moveTo(0, -h); ctx.lineTo(L * 0.86, -h * 0.74); ctx.lineTo(L, 0);
+      ctx.stroke();
+    } else if (W.kind === 'katana') {
+      const c = L * 0.10;                 // how much it curves
+      ctx.beginPath();
+      ctx.moveTo(0, -h);
+      ctx.quadraticCurveTo(L * 0.55, -h - c, L * 0.99, -c * 1.5 - h * 0.1);
+      ctx.lineTo(L, -c * 1.5 + h * 0.5);
+      ctx.quadraticCurveTo(L * 0.55, h - c, 0, h);
+      ctx.closePath();
+      ctx.fillStyle = steel; ctx.fill();
+      // the hamon: the temper line a folded blade carries along its edge
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = Math.max(0.8, L * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(L * 0.04, h * 0.45);
+      ctx.quadraticCurveTo(L * 0.55, h * 0.4 - c, L * 0.95, -c * 1.3);
+      ctx.stroke();
+    } else if (W.kind === 'cleaver') {
+      fill(ctx, [[0, -h * 0.72], [L * 0.94, -h * 0.92], [L, -h * 0.45],
+                 [L * 0.99, h * 1.25], [L * 0.09, h * 1.05], [0, h * 0.72]], steel);
+      fill(ctx, [[L * 0.06, -h * 0.55], [L * 0.90, -h * 0.72],
+                 [L * 0.90, -h * 0.05], [L * 0.06, h * 0.18]], 'rgba(255,255,255,.22)');
+      // the hole a butcher hangs it by
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); ctx.arc(L * 0.86, -h * 0.5, h * 0.16, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = M.lip;
+      ctx.lineWidth = Math.max(0.8, L * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(L * 0.09, h * 1.05); ctx.lineTo(L * 0.99, h * 1.25);
+      ctx.stroke();
+    } else if (W.kind === 'axe') {
+      /* A bearded head: a horn at the top, an arc for the cutting edge and a
+         beard hanging below the haft. Drawn as straight lines it was a wedge,
+         and a wedge is a doorstop. */
+      const head = () => {
+        ctx.beginPath();
+        ctx.moveTo(L * 0.63, -L * 0.028);
+        ctx.quadraticCurveTo(L * 0.80, -h * 1.00, L * 0.73, -h * 1.75);   // neck, concave
+        ctx.quadraticCurveTo(L * 0.95, -h * 1.30, L * 1.00, -h * 0.10);   // edge, upper
+        ctx.quadraticCurveTo(L * 0.98, h * 1.30, L * 0.71, h * 1.95);     // edge, the beard
+        ctx.quadraticCurveTo(L * 0.80, h * 1.00, L * 0.63, L * 0.028);    // back to the neck
+        ctx.closePath();
+      };
+      head(); ctx.fillStyle = steel; ctx.fill();
+      ctx.strokeStyle = M.lip;
+      ctx.lineWidth = Math.max(0.8, L * 0.011);
+      head(); ctx.stroke();
+      // the langets, the straps that hold a head on
+      fill(ctx, [[L * 0.5, -L * 0.05], [L * 0.62, -L * 0.05],
+                 [L * 0.62, L * 0.05], [L * 0.5, L * 0.05]], M.hiltLow);
+    } else {
+      // spear: a leaf head on a socket
+      fill(ctx, [[L * 0.78, -h * 0.5], [L * 0.86, -h * 1.7], [L, 0],
+                 [L * 0.86, h * 1.7], [L * 0.78, h * 0.5]], steel);
+      fill(ctx, [[L * 0.8, -h * 0.4], [L * 0.87, -h * 1.2],
+                 [L * 0.96, -h * 0.1], [L * 0.86, -h * 0.1]], 'rgba(255,255,255,.3)');
+      fill(ctx, [[L * 0.745, -h * 0.62], [L * 0.80, -h * 0.62],
+                 [L * 0.80, h * 0.62], [L * 0.745, h * 0.62]], M.hiltLow);
+    }
+
+    ctx.shadowBlur = 0;
+
+    // the guard, then the grip, then the pommel
+    if (W.guard > 0) {
+      const gy = L * W.guard / 2, gx = L * 0.030;
+      if (W.kind === 'katana') {
+        ctx.fillStyle = M.hilt;
+        ctx.beginPath(); ctx.ellipse(0, 0, gx * 1.5, gy, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = M.hiltLow;
+        ctx.beginPath(); ctx.ellipse(0, 0, gx * 0.7, gy * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        fill(ctx, [[-gx, -gy], [gx * 1.6, -gy * 0.72], [gx * 1.6, gy * 0.72], [-gx, gy]], M.hilt);
+        fill(ctx, [[-gx, -gy], [gx * 1.6, -gy * 0.72],
+                   [gx * 1.6, -gy * 0.3], [-gx, -gy * 0.4]], 'rgba(255,255,255,.35)');
+      }
+    }
+
+    /* The grip is sized off the weapon, not off the blade. It used to be
+       h * 1.05, so a cleaver — which is wide by definition — came with a fist
+       you could not close and a pommel the size of an apple. */
+    const gh = Math.min(Math.max(h * 0.85, L * 0.026), L * 0.040);
+    ctx.fillStyle = M.grip;
+    ctx.beginPath();
+    ctx.roundRect(-gl, -gh, gl + L * 0.01, gh * 2, gh * 0.5);
+    ctx.fill();
+    ctx.strokeStyle = M.wrap;
+    ctx.lineWidth = Math.max(0.7, L * 0.011);
+    for (let i = 1; i <= 4; i++) {
+      const x = -gl + (gl / 5) * i;
+      ctx.beginPath();
+      ctx.moveTo(x - gh * 0.5, -gh); ctx.lineTo(x + gh * 0.5, gh);
+      ctx.stroke();
+    }
+    ctx.fillStyle = M.hilt;
+    const pr = Math.min(gh * 1.25, L * 0.048);
+    ctx.beginPath(); ctx.arc(-gl, 0, pr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = M.hiltLow;
+    ctx.beginPath(); ctx.arc(-gl, pr * 0.22, pr * 0.46, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  /** The name of what somebody is carrying, for the card and the leaderboard. */
+  function weaponName(avatar, tier) {
+    const base = (WEAPONS[shapeFor(avatar)] || WEAPONS.straight).name;
+    if (tier === 'great') return 'Gleaming ' + base.toLowerCase();
+    if (tier === 'stick') return 'Blunt ' + base.toLowerCase();
+    return base;
+  }
 
   const BLADES = {
     great: { label: 'Greatsword', reach: 250, damage: 26, swing: 420, colour: '#FFC53D' },
@@ -85,6 +270,276 @@
   const now = () => performance.now();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const TAU = Math.PI * 2;
+
+  /* ── the boss ─────────────────────────────────────────────
+   *
+   * It was one quadratic curve with two dots on it: a purple traffic cone. A
+   * class is supposed to be frightened of this thing and then proud of killing
+   * it, and neither works if it looks like a traffic cone.
+   *
+   * So it is built out of parts, the way a creature is: two braced legs with
+   * talons, a heavy torso under a cracked chest plate with a furnace behind it,
+   * spiked pauldrons, two long arms ending in claws, a hunched neck, a skull
+   * with a heavy brow and a jaw full of teeth, and four horns. It breathes, its
+   * furnace pulses, it raises its arms and opens its jaw when it is about to
+   * swing, and it sags with its eyes gone pale when a clean dodge staggers it.
+   *
+   * Drawn in its own units — 330 tall, the origin between its feet, y upwards —
+   * so the whole animal is one transform away from any size on any screen.
+   */
+  const HIDE = { dark: '#1A1426', mid: '#2C2340', lit: '#40325C' };
+  const PLATE = { dark: '#231B34', mid: '#3B2F55', lit: '#57487A' };
+  const BONE = { dark: '#9A917C', mid: '#D9D2BE', lit: '#F3EEDF' };
+
+  function bossArt(ctx, u, t, mood) {
+    const breath = Math.sin(t / 760) * 0.022;
+    const raise = mood.raise || 0;          // 0 resting, 1 arms up to strike
+    const jaw = mood.jaw || 0;              // 0 shut, 1 roaring
+    const sag = mood.sag || 0;              // 0 upright, 1 reeling
+    const eye = mood.eye || '#FF3B2F';
+    const heat = 0.55 + Math.sin(t / 240) * 0.2 + raise * 0.45;
+
+    ctx.save();
+    ctx.scale(u, u);
+    ctx.translate(0, sag * 26);
+    ctx.rotate(sag * Math.sin(t / 110) * 0.05);
+    ctx.lineJoin = 'round';
+
+    /* A limb, tapered and bellied the way a muscle is. Straight-sided boxes
+       were what made this read as a machine rather than an animal. */
+    const limb = (w0, w1, len, style) => {
+      ctx.beginPath();
+      ctx.moveTo(-w0, 0);
+      ctx.quadraticCurveTo(-w0 * 1.22, len * 0.46, -w1, len);
+      ctx.lineTo(w1, len);
+      ctx.quadraticCurveTo(w0 * 1.22, len * 0.46, w0, 0);
+      ctx.closePath();
+      ctx.fillStyle = style; ctx.fill();
+    };
+
+    const poly = (pts, style) => {
+      ctx.beginPath();
+      pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+      ctx.closePath(); ctx.fillStyle = style; ctx.fill();
+    };
+
+    /* ── behind it: the spines down its back ── */
+    [[-16, -252, 30], [14, -244, 36], [44, -222, 28], [70, -192, 20]].forEach(([x, y, s]) => {
+      poly([[x - s * 0.3, y], [x + s * 0.15, y - s * 1.5], [x + s * 0.45, y]], BONE.dark);
+    });
+
+    /* ── the far arm, behind the body ── */
+    drawArm(-1, 0.86);
+
+    /* ── legs: braced apart, heavy at the thigh, taloned ── */
+    [-1, 1].forEach(side => {
+      const hx = side * 44;
+      ctx.save(); ctx.translate(hx, -132);
+      limb(42, 32, 78, HIDE.mid); ctx.restore();
+      ctx.save(); ctx.translate(hx, -56);
+      limb(31, 29, 48, HIDE.dark); ctx.restore();
+      // the foot, and three talons on the front of it
+      poly([[hx - 26, -14], [hx + 34, -14], [hx + 44, 2], [hx - 30, 2]], HIDE.mid);
+      [-18, -2, 14].forEach(tx => {
+        poly([[hx + tx, -2], [hx + tx + 11, -2], [hx + tx + 5, 9]], BONE.mid);
+      });
+      // a seam of light in the cracks of its hide
+      ctx.strokeStyle = `rgba(255,120,40,${0.30 + heat * 0.3})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(hx - 8, -120); ctx.lineTo(hx + 4, -92); ctx.lineTo(hx - 6, -64);
+      ctx.stroke();
+    });
+
+    /* ── the torso ── */
+    ctx.save();
+    ctx.translate(0, -132);
+    ctx.scale(1 + breath, 1 + breath * 0.6);
+    ctx.translate(0, 132);
+
+    ctx.beginPath();
+    ctx.moveTo(-66, -118);
+    ctx.quadraticCurveTo(-108, -180, -92, -240);
+    ctx.quadraticCurveTo(0, -258, 92, -240);
+    ctx.quadraticCurveTo(108, -180, 66, -118);
+    ctx.quadraticCurveTo(0, -104, -66, -118);
+    ctx.closePath();
+    const skin = ctx.createLinearGradient(-96, 0, 96, 0);
+    skin.addColorStop(0, HIDE.dark);
+    skin.addColorStop(0.42, HIDE.lit);
+    skin.addColorStop(1, HIDE.dark);
+    ctx.fillStyle = skin; ctx.fill();
+
+    // the chest plate, bolted on, cracked down the middle
+    poly([[-64, -134], [-74, -228], [74, -228], [64, -134]], PLATE.mid);
+    poly([[-64, -134], [-74, -228], [-30, -228], [-26, -134]], PLATE.lit);
+    ctx.strokeStyle = 'rgba(255,120,40,.9)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-6, -228); ctx.lineTo(8, -196); ctx.lineTo(-10, -168); ctx.lineTo(4, -138);
+    ctx.stroke();
+
+    // the furnace behind the plate
+    const core = ctx.createRadialGradient(0, -186, 3, 0, -186, 46);
+    core.addColorStop(0, '#FFF0C4');
+    core.addColorStop(0.35, `rgba(255,170,50,${0.85 * heat})`);
+    core.addColorStop(1, 'rgba(255,60,0,0)');
+    ctx.fillStyle = core;
+    ctx.beginPath(); ctx.arc(0, -186, 46, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFD98A';
+    ctx.beginPath(); ctx.arc(0, -186, 9 + heat * 4, 0, Math.PI * 2); ctx.fill();
+
+    // rivets round the plate, because a plate is bolted to something
+    ctx.fillStyle = PLATE.dark;
+    [[-58, -214], [58, -214], [-52, -150], [52, -150], [0, -232]].forEach(([x, y]) => {
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+
+    /* ── shoulders: spiked pauldrons over the arm joints ── */
+    [-1, 1].forEach(side => {
+      const sx = side * 92;
+      ctx.save();
+      ctx.translate(sx, -232);
+      ctx.rotate(side * 0.2);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 47, 36, 0, Math.PI, Math.PI * 2);
+      ctx.lineTo(42, 14); ctx.lineTo(-42, 14);
+      ctx.closePath();
+      ctx.fillStyle = PLATE.mid; ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(-7, -3, 35, 26, 0, Math.PI, Math.PI * 2);
+      ctx.fillStyle = PLATE.lit; ctx.fill();
+      [-30, 0, 30].forEach((x, i) => {
+        poly([[x - 9, -22 - i % 2 * 4], [x, -56 + Math.abs(x) * 0.35], [x + 9, -22]], BONE.mid);
+      });
+      ctx.restore();
+    });
+
+    /* ── the near arm, in front of the body ── */
+    drawArm(1, 1);
+
+    /* ── neck and head ── */
+    poly([[-26, -244], [26, -244], [22, -274], [-22, -274]], HIDE.dark);
+
+    ctx.save();
+    ctx.translate(0, -274 - jaw * 2);
+    ctx.rotate(-sag * 0.22);
+
+    // the skull: a heavy brow, a narrow muzzle
+    ctx.beginPath();
+    ctx.moveTo(-54, 6);
+    ctx.quadraticCurveTo(-64, -42, -34, -58);
+    ctx.quadraticCurveTo(0, -70, 34, -58);
+    ctx.quadraticCurveTo(64, -42, 54, 6);
+    ctx.quadraticCurveTo(0, 20, -54, 6);
+    ctx.closePath();
+    const skull = ctx.createLinearGradient(-54, -60, 54, 20);
+    skull.addColorStop(0, HIDE.lit);
+    skull.addColorStop(1, HIDE.dark);
+    ctx.fillStyle = skull; ctx.fill();
+
+    // a cold rim light down its left, so the silhouette lifts off the dark
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(150,130,255,.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-54, 4); ctx.quadraticCurveTo(-64, -42, -34, -58);
+    ctx.stroke();
+    ctx.restore();
+
+    // the brow, which is what makes a face look like it means it
+    poly([[-56, -18], [-30, -34], [30, -34], [56, -18], [34, -12], [-34, -12]], PLATE.dark);
+
+    // sockets, and the light burning in them
+    [-1, 1].forEach(side => {
+      const ex = side * 26;
+      poly([[ex - 18, -14], [ex + 18, -14], [ex + 12, 6], [ex - 14, 4]], '#0A0612');
+      ctx.save();
+      ctx.shadowColor = eye; ctx.shadowBlur = 22;
+      ctx.fillStyle = eye;
+      ctx.beginPath();
+      ctx.ellipse(ex, -5, 10, sag > 0.3 ? 3 : 7, side * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // the jaw, hinged, and the teeth in it
+    ctx.save();
+    ctx.translate(0, 6);
+    ctx.rotate(jaw * 0.42);
+    poly([[-44, 0], [44, 0], [32, 34], [-32, 34]], HIDE.mid);
+    poly([[-32, 30], [32, 30], [26, 40], [-26, 40]], HIDE.dark);
+    for (let i = -3; i <= 3; i++) {
+      const x = i * 11;
+      poly([[x - 5, 2], [x + 5, 2], [x, 17]], BONE.lit);
+    }
+    ctx.restore();
+    // the upper teeth stay with the skull
+    for (let i = -3; i <= 3; i++) {
+      const x = i * 11;
+      poly([[x - 5, 8], [x + 5, 8], [x, -7]], BONE.lit);
+    }
+
+    /* ── horns: two long, two short, all curving back ── */
+    [[-42, -40, -1, 1], [42, -40, 1, 1], [-30, -54, -1, 0.55], [30, -54, 1, 0.55]]
+      .forEach(([hx, hy, side, size]) => {
+        ctx.save();
+        ctx.translate(hx, hy);
+        ctx.scale(side * size, size);
+        ctx.beginPath();
+        ctx.moveTo(-8, 6);
+        ctx.quadraticCurveTo(22, -14, 54, -62);
+        ctx.quadraticCurveTo(30, -18, 10, 4);
+        ctx.closePath();
+        const horn = ctx.createLinearGradient(0, 0, 40, -60);
+        horn.addColorStop(0, BONE.dark);
+        horn.addColorStop(1, BONE.lit);
+        ctx.fillStyle = horn; ctx.fill();
+        // the ridges a horn grows in
+        ctx.strokeStyle = 'rgba(0,0,0,.24)';
+        ctx.lineWidth = 2.2;
+        [0.3, 0.5, 0.7].forEach(f => {
+          ctx.beginPath();
+          ctx.moveTo(6 + 40 * f, -52 * f + 6);
+          ctx.lineTo(1 + 40 * f, -52 * f - 3);
+          ctx.stroke();
+        });
+        ctx.restore();
+      });
+    ctx.restore();
+    ctx.restore();
+
+    /** One arm. `side` is which, `shade` dims the one behind the body. */
+    function drawArm(side, shade) {
+      const lift = raise * 0.95 + sag * -0.35;
+      ctx.save();
+      ctx.globalAlpha = shade;
+      /* Swung out from the shoulder rather than hanging down the front. They
+         used to be drawn straight down the middle at nearly the length of the
+         whole animal, so the chest they were meant to frame was behind them. */
+      ctx.translate(side * 96, -230);
+      ctx.rotate(side * (0.58 - lift));
+      // upper arm
+      limb(21, 14, 64, side > 0 ? HIDE.lit : HIDE.dark);
+      ctx.translate(0, 64);
+      ctx.rotate(side * (0.34 + raise * 0.8));
+      // forearm, thicker at the wrist the way a heavy thing is
+      limb(15, 20, 58, side > 0 ? HIDE.mid : HIDE.dark);
+      poly([[-18, 48], [20, 48], [17, 66], [-15, 66]], PLATE.mid);
+      // the hand, and four talons off the end of it
+      ctx.translate(0, 66);
+      [-15, -5, 5, 15].forEach((tx, i) => {
+        ctx.save();
+        ctx.translate(tx, 0);
+        ctx.rotate((i - 1.5) * 0.24);
+        poly([[-5, 0], [5, 0], [1, 27 - Math.abs(i - 1.5) * 5]], BONE.mid);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+  }
 
   /**
    * start(options) → controller
@@ -175,16 +630,17 @@
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
 
       if (watching) {
-        cam.x = 0; cam.y = R_RING + 1150;
+        cam.x = 0; cam.y = R_RING + 1100;
         const edge = R_RING + 160;
         const corners = [raw(-edge, -edge, 0), raw(edge, -edge, 0),
                          raw(edge, edge, 0), raw(-edge, edge, 0),
-                         raw(0, 0, BOSS_H)].filter(Boolean);
+                         // the horns reach well above the head: frame for the tips
+                         raw(0, 0, BOSS_H * 1.14)].filter(Boolean);
         if (corners.length) {
           const xs = corners.map(c => c.rx), ys = corners.map(c => c.ry);
           const spanX = Math.max(...xs) - Math.min(...xs) || 1;
           const spanY = Math.max(...ys) - Math.min(...ys) || 1;
-          cam.scale = Math.min(w * 0.96 / spanX, h * 0.92 / spanY);
+          cam.scale = Math.min(w * 0.94 / spanX, h * 0.94 / spanY);
           cam.cx = w / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * cam.scale;
           cam.cy = h / 2 + ((Math.max(...ys) + Math.min(...ys)) / 2) * cam.scale;
         } else { cam.scale = 1; cam.cx = w / 2; cam.cy = h / 2; }
@@ -200,13 +656,16 @@
          * In view space this player is at (0, +ringAt) and the boss at the
          * origin, so the camera stands a little further out on the same line
          * and looks along −y at both of them. */
-        const BEHIND = 360, VIEW = 900;
+        /* Close in. It was 900 units across at the player's own depth, which
+           put the thing trying to kill them a thumbnail away at the top of the
+           screen. A boss has to fill the screen to be frightening. */
+        const BEHIND = 250, VIEW = 560;
         cam.x = 0;
         cam.y = ringAt(self) + BEHIND;
         const depth = BEHIND * cosT + EYE * sinT;
         cam.scale = w / (VIEW * (FOCAL / depth));
         cam.cx = w / 2;
-        cam.cy = h * 0.66;
+        cam.cy = h * 0.74;
       }
       return cam;
     }
@@ -220,7 +679,7 @@
       return { x: Math.cos(a) * ringAt(p), y: Math.sin(a) * ringAt(p), a };
     };
     /** How far out this player is standing: lunging in on a swing, out otherwise. */
-    const ringAt = (p) => R_RING - (p.lunge || 0) * 130;
+    const ringAt = (p) => R_RING - (p.lunge || 0) * 90;
 
     // ── what this player does ──
     function swing() {
@@ -322,8 +781,8 @@
       }
       // the hall
       const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, '#0C0820'); sky.addColorStop(0.45, '#1C1442');
-      sky.addColorStop(0.47, '#0A0718'); sky.addColorStop(1, '#07040F');
+      sky.addColorStop(0, '#0A0620'); sky.addColorStop(0.38, '#191140');
+      sky.addColorStop(0.56, '#0C0820'); sky.addColorStop(1, '#06030D');
       ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
 
       // the floor: a disc with rings on it, so distance is readable
@@ -366,7 +825,7 @@
 
       ctx.strokeStyle = 'rgba(180,160,255,.22)';
       ctx.lineWidth = 2;
-      [BOSS_R + 40, R_RING - 120, R_RING].forEach(r => {
+      [BOSS_R + 40, R_RING - 90, R_RING].forEach(r => {
         ctx.beginPath();
         for (let i = 0; i <= steps; i++) {
           const a = (i / steps) * TAU;
@@ -400,135 +859,186 @@
       ctx.stroke();
     }
 
+    /* The blooks in the ring. Canvas cannot draw an SVG string, so each face is
+       rasterised once into an offscreen canvas and then stamped. The data URI
+       needs an explicit xmlns: inline HTML infers the SVG namespace, a data URI
+       does not, and without it the image silently never loads. */
+    const faces = new Map();
+    function blookFace(avatar) {
+      const key = String(avatar || 0);
+      if (faces.has(key)) return faces.get(key);
+      const spot = { ready: false, canvas: null };
+      faces.set(key, spot);
+      try {
+        const svg = global.Sprite.face(Number(avatar) || 0, 128)
+          .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = 128; c.height = 128;
+          c.getContext('2d').drawImage(img, 0, 0, 128, 128);
+          spot.canvas = c; spot.ready = true;
+        };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      } catch { /* no Sprite here: the plain body stands in */ }
+      return spot;
+    }
+
     function bossFigure(t) {
       const foot = project(0, 0, 0);
       const head = project(0, 0, BOSS_H);
       if (!foot || !head) return;
-      const r = BOSS_R * foot.k;
       const tall = Math.max(20, foot.y - head.y);
+      const u = tall / 330;                 // the boss is 330 of its own units tall
       const staggered = now() < staggerUntil;
+      const s = winding(t);
+      // how far into a wind-up it is: arms up, jaw open, furnace roaring
+      const wind = s ? clamp((t - (s.at - TELL_MS)) / TELL_MS, 0, 1) : 0;
 
       ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,.5)';
+
+      // the shadow it stands in
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
       ctx.beginPath();
-      ctx.ellipse(foot.x, foot.y, r * 1.1, r * 0.42, 0, 0, TAU);
+      ctx.ellipse(foot.x, foot.y, BOSS_R * foot.k * 1.5, BOSS_R * foot.k * 0.44, 0, 0, TAU);
       ctx.fill();
 
-      // the body, leaning when it is off balance
-      const lean = staggered ? Math.sin(now() / 90) * 0.12 : 0;
+      // the light it throws on the floor around it
+      const pool = ctx.createRadialGradient(foot.x, foot.y - tall * 0.5, 4,
+                                            foot.x, foot.y - tall * 0.5, tall * 1.1);
+      pool.addColorStop(0, `rgba(255,120,40,${0.16 + wind * 0.22})`);
+      pool.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.arc(foot.x, foot.y - tall * 0.5, tall * 1.1, 0, TAU);
+      ctx.fill();
+
       ctx.translate(foot.x, foot.y);
-      ctx.rotate(lean);
-      const body = ctx.createLinearGradient(0, -tall, 0, 0);
-      body.addColorStop(0, staggered ? '#C9A6FF' : '#9B7BFF');
-      body.addColorStop(1, staggered ? '#5E3BB8' : '#3E2680');
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.78, 0);
-      ctx.quadraticCurveTo(-r * 0.96, -tall * 0.62, 0, -tall);
-      ctx.quadraticCurveTo(r * 0.96, -tall * 0.62, r * 0.78, 0);
-      ctx.closePath();
-      ctx.fill();
-
-      // two eyes, and they close when it is reeling
-      ctx.fillStyle = staggered ? '#FFC53D' : '#FF5A6E';
-      const eyeY = -tall * 0.68, eyeR = Math.max(3, r * 0.14);
-      [-r * 0.3, r * 0.3].forEach(ex => {
-        ctx.beginPath();
-        ctx.ellipse(ex, eyeY, eyeR, staggered ? eyeR * 0.25 : eyeR, 0, 0, TAU);
-        ctx.fill();
+      bossArt(ctx, u, now(), {
+        raise: wind,
+        jaw: staggered ? 0.15 : wind * 0.9,
+        sag: staggered ? 1 : 0,
+        eye: staggered ? '#FFD23F' : '#FF3B2F'
       });
       ctx.restore();
 
       // its health, painted on the floor in front of it
       const bar = project(0, R_RING * 0.42, 6);
       if (bar) {
-        const width = r * 2.4, left = bar.x - width / 2, top = bar.y;
-        ctx.fillStyle = 'rgba(0,0,0,.55)';
-        ctx.fillRect(left, top, width, Math.max(6, 16 * foot.k));
-        ctx.fillStyle = staggered ? '#FFC53D' : '#F4364C';
-        ctx.fillRect(left, top, width * clamp(boss.hp / Math.max(1, boss.max), 0, 1),
-                     Math.max(6, 16 * foot.k));
+        const width = BOSS_R * foot.k * 2.6, left = bar.x - width / 2, top = bar.y;
+        const tallBar = Math.max(7, 18 * foot.k);
+        ctx.fillStyle = 'rgba(0,0,0,.6)';
+        ctx.beginPath();
+        ctx.roundRect(left - 3, top - 3, width + 6, tallBar + 6, tallBar);
+        ctx.fill();
+        const left2 = width * clamp(boss.hp / Math.max(1, boss.max), 0, 1);
+        const g = ctx.createLinearGradient(left, 0, left + width, 0);
+        g.addColorStop(0, staggered ? '#FFE08A' : '#FF8A5A');
+        g.addColorStop(1, staggered ? '#FFC53D' : '#F4364C');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.roundRect(left, top, Math.max(2, left2), tallBar, tallBar / 2);
+        ctx.fill();
       }
     }
 
+    /* One child in the ring: their own blook, stood on a coloured disc, holding
+       the weapon their answer earned them. The weapon points at the boss and
+       swings through an arc when they strike. */
     function figure(p, v) {
       const foot = project(v.x, v.y, 0);
-      const head = project(v.x, v.y, BODY_H);
-      if (!foot || !head) return;
+      const mid = project(v.x, v.y, BODY_H * 0.55);
+      if (!foot || !mid) return;
       const down = now() < (p.downUntil || 0);
       const rolling = now() - (p.dodgeAt || -9999) < DODGE_MS;
-      const r = PLAYER_R * foot.k;
-      const tall = Math.max(6, foot.y - head.y) * (down ? 0.35 : 1);
+      const r = PLAYER_R * foot.k * 1.5;
       const mine = p.id === meId;
+      const colour = SKIN[(p.avatar || 0) % SKIN.length];
+      const bossFoot = project(0, 0, 0);
 
       ctx.save();
-      ctx.globalAlpha = down ? 0.55 : 1;
-      ctx.fillStyle = 'rgba(0,0,0,.42)';
-      ctx.beginPath();
-      ctx.ellipse(foot.x, foot.y, r * 1.05, r * 0.42, 0, 0, TAU);
-      ctx.fill();
+      ctx.globalAlpha = down ? 0.5 : 1;
 
-      /* Own colour per player, taken from their avatar, so a class can find
-       * themselves and each other. Everybody used to be the same blue, which
-       * made the ring look like furniture rather than people. */
-      ctx.fillStyle = mine ? '#FFC53D' : SKIN[(p.avatar || 0) % SKIN.length];
+      // the shadow, and a ring in their own colour so a class can find itself
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
       ctx.beginPath();
-      ctx.roundRect(foot.x - r * 0.6, foot.y - tall, r * 1.2, tall, r * 0.4);
+      ctx.ellipse(foot.x, foot.y, r * 0.95, r * 0.38, 0, 0, TAU);
       ctx.fill();
-      // a head, so it is a person and not a domino
+      ctx.strokeStyle = mine ? '#FFFFFF' : colour;
+      ctx.lineWidth = Math.max(2, 4.5 * foot.k);
       ctx.beginPath();
-      ctx.arc(foot.x, foot.y - tall - r * 0.42, r * 0.46, 0, TAU);
-      ctx.fill();
+      ctx.ellipse(foot.x, foot.y, r * 1.06, r * 0.42, 0, 0, TAU);
+      ctx.stroke();
 
-      // the blade, swung as an arc rather than a line: it reads at a glance
+      const bx = foot.x, by = foot.y - (down ? r * 0.4 : r * 1.05);
+
+      /* The weapon, behind the blook when it is being held at rest and in front
+         of it through a swing, because a swing comes across the body. */
       const b = BLADES[p.blade] || BLADES.stick;
-      const shape = shapeFor(p.avatar);
       const since = now() - (p.swingAt || -9999);
       const swinging = since < b.swing;
-      if (!down) {
-        const arc = swinging ? (1 - since / b.swing) : 0;
-        const tip = project(v.x * (1 - b.reach / R_RING * (swinging ? 1 : 0.55)),
-                            v.y * (1 - b.reach / R_RING * (swinging ? 1 : 0.55)),
-                            BODY_H * (swinging ? 0.5 + arc * 0.5 : 0.75));
-        if (tip) {
-          const hx = foot.x, hy = foot.y - tall * 0.62;
-          // the hilt, which is where the six shapes differ most at a glance
-          ctx.strokeStyle = '#3A2F1E';
-          ctx.lineWidth = Math.max(2, 5 * shape.hilt * foot.k);
-          ctx.lineCap = 'round';
+      const aim = bossFoot
+        ? Math.atan2(bossFoot.y - foot.y, bossFoot.x - foot.x) : -Math.PI / 2;
+      const L = (b.reach * 0.62) * foot.k;
+
+      const paintWeapon = () => {
+        if (down) return;
+        const swung = swinging ? since / b.swing : 0;
+        // wound back, then through: the arc is what reads at this size
+        const angle = aim + (swinging ? (-1.5 + swung * 2.3) : -0.75);
+        ctx.save();
+        ctx.translate(bx + Math.cos(aim) * r * 0.5, by + r * 0.12);
+        ctx.rotate(angle);
+        drawWeapon(ctx, Math.max(14, L), shapeFor(p.avatar), p.blade || 'stick');
+        ctx.restore();
+        if (swinging) {                    // the trail the edge leaves behind it
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,255,255,.5)';
+          ctx.lineWidth = Math.max(1.5, 4 * foot.k);
           ctx.beginPath();
-          ctx.moveTo(hx, hy);
-          ctx.lineTo(hx + (tip.x - hx) * 0.22, hy + (tip.y - hy) * 0.22);
+          ctx.arc(bx, by + r * 0.12, L * 0.9,
+                  aim - 1.5, aim - 1.5 + swung * 2.3);
           ctx.stroke();
-          // and the blade itself, widening for a cleaver, tapering for a spear
-          ctx.strokeStyle = b.colour;
-          ctx.lineWidth = Math.max(2, (swinging ? 9 : 5) * (1 + shape.tip) * foot.k);
-          ctx.globalAlpha = (down ? 0.5 : 1) * (swinging ? 1 : 0.8);
-          ctx.beginPath();
-          ctx.moveTo(hx + (tip.x - hx) * 0.2, hy + (tip.y - hy) * 0.2);
-          ctx.lineTo(tip.x, tip.y);
-          ctx.stroke();
-          if (swinging) {
-            ctx.strokeStyle = shape.glow;
-            ctx.globalAlpha = 0.65;
-            ctx.lineWidth = Math.max(1, 2.5 * foot.k);
-            ctx.stroke();
-          }
+          ctx.restore();
         }
+      };
+
+      if (!swinging) paintWeapon();
+
+      // the blook itself
+      const face = blookFace(p.avatar);
+      const size = r * (down ? 1.5 : 2.1);
+      if (face && face.ready) {
+        ctx.drawImage(face.canvas, bx - size / 2, by - size / 2, size, size);
+      } else {
+        ctx.fillStyle = colour;
+        ctx.beginPath(); ctx.arc(bx, by, size * 0.42, 0, TAU); ctx.fill();
       }
+
+      if (swinging) paintWeapon();
+
       if (rolling) {
-        ctx.strokeStyle = 'rgba(43,168,255,.85)';
-        ctx.lineWidth = Math.max(2, 4 * foot.k);
+        ctx.strokeStyle = 'rgba(43,168,255,.9)';
+        ctx.lineWidth = Math.max(2, 5 * foot.k);
         ctx.beginPath();
-        ctx.ellipse(foot.x, foot.y, r * 1.6, r * 0.7, 0, 0, TAU);
+        ctx.ellipse(foot.x, foot.y, r * 1.5, r * 0.62, 0, 0, TAU);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
+
       if (watching && p.name) {
-        ctx.fillStyle = 'rgba(255,255,255,.9)';
-        ctx.font = `700 ${Math.max(10, 17 * foot.k)}px ui-sans-serif,system-ui,sans-serif`;
+        const fs = Math.max(10, 17 * foot.k);
+        ctx.font = `800 ${fs}px ui-sans-serif,system-ui,sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(p.name, foot.x, foot.y + r * 1.5);
+        const w = ctx.measureText(p.name).width + fs * 0.9;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.roundRect(foot.x - w / 2, foot.y + r * 0.5, w, fs * 1.5, fs * 0.75);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.name, foot.x, foot.y + r * 0.5 + fs * 0.78);
+        ctx.textBaseline = 'alphabetic';
       }
       ctx.restore();
     }
@@ -612,7 +1122,8 @@
     };
   }
 
-  global.NovaStrike = { start, BLADES, SHAPES, shapeFor, bladeFor, ROUND_MS, WINDUPS };
+  global.NovaStrike = { start, BLADES, WEAPONS, SHAPE_IDS, shapeFor, bladeFor,
+                        drawWeapon, weaponName, ROUND_MS, WINDUPS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.NovaStrike;

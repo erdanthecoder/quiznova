@@ -167,6 +167,72 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      blank.length === 0, `${angles.length} phones, ${blank.length} looking at nothing`
                        + ` (lit %: ${angles.join(',')})`);
 
+  /* ── the weapons have to be weapons ──
+   *
+   * A blade was two strokes of the canvas, which at the size it is drawn is a
+   * scratch: "everyone has a different knife" was true in the code and
+   * invisible on the screen. Each of the six is built from a pommel forwards
+   * now, so the test is that they are drawn at all and that no two of them
+   * come out the same. */
+  const blades = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 300; c.height = 140;
+    const ctx = c.getContext('2d');
+    const out = {};
+    for (const shape of NovaStrike.SHAPE_IDS) {
+      for (const tier of ['great', 'sword', 'stick']) {
+        ctx.clearRect(0, 0, 300, 140);
+        ctx.save(); ctx.translate(60, 70);
+        NovaStrike.drawWeapon(ctx, 200, shape, tier);
+        ctx.restore();
+        const d = ctx.getImageData(0, 0, 300, 140).data;
+        let ink = 0, sum = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] > 40) { ink++; sum += (d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + i) % 9973; }
+        }
+        out[shape + ':' + tier] = { ink, sum };
+      }
+    }
+    return out;
+  });
+  const drawn = Object.entries(blades).filter(([, v]) => v.ink > 400);
+  ok('every weapon in every tier is actually drawn',
+     drawn.length === 18, `${drawn.length} of 18 put ink on the canvas`);
+  const prints = new Set(Object.entries(blades)
+    .filter(([k]) => k.endsWith(':sword')).map(([, v]) => v.sum));
+  ok('and no two of the six look the same', prints.size === 6,
+     `${prints.size} distinct silhouettes`);
+
+  // ── the names say what you are holding ──
+  const named = await page.evaluate(() =>
+    [0, 1, 2, 3, 4, 5].map(a => NovaStrike.weaponName(a, 'sword')));
+  ok('and each one is named', new Set(named).size === 6, named.join(', '));
+
+  /* ── the boss has to loom ──
+   *
+   * It was a purple cone at the far end of a hall: on a phone it came out a
+   * thumbnail. The ring is tight now and the thing is big, so it should take a
+   * real share of the screen rather than a corner of it. */
+  const bulk = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'width:380px;height:460px;position:fixed;left:0;top:0';
+    document.body.append(c);
+    const k = NovaStrike.start({ canvas: c, me: { id: 'me', name: 'Me', avatar: 2 },
+      blade: 'sword', boss: { name: 'Boss', hp: 200, max: 200 }, seed: 7, send: () => {} });
+    return new Promise(done => setTimeout(() => {
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      // the middle column of the screen, where the boss stands
+      const d = ctx.getImageData(Math.round(w * 0.3), 0, Math.round(w * 0.4), Math.round(h * 0.62)).data;
+      let lit = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { n++; if (d[i] + d[i + 1] + d[i + 2] > 150) lit++; }
+      k.stop(); c.remove();
+      done(Math.round(lit / n * 100));
+    }, 700));
+  });
+  ok('the boss fills the middle of a phone rather than a corner of it',
+     bulk > 25, `${bulk}% of the upper middle is the boss`);
+
   ok('no errors while fighting', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await page.screenshot({ path: path.join(__dirname, 'shots', 'strike.png') }).catch(() => {});

@@ -200,6 +200,19 @@
   72%{opacity:1;transform:translate(-50%,-58%) scale(1)}
   100%{opacity:0;transform:translate(-50%,-72%) scale(1)}}
 @media (prefers-reduced-motion:reduce){.power-shout.go{animation:none;opacity:1}}
+
+/* ── the weapon in your hand ──
+   "Everyone has a different knife" was true in the code and invisible on the
+   screen: at the size a blade is drawn out in the ring it is a scratch. So the
+   thing you earned is drawn once, big, on a card of its own, with its name
+   under it — the blade, the guard, the wrapped grip and the pommel. */
+.blade-card{display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:16px;
+  background:rgba(10,7,24,.66);border:1px solid rgba(255,255,255,.14)}
+.blade-card canvas{display:block;width:132px;height:46px;flex:none}
+.blade-card .who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.blade-card b{font-size:.92rem;font-weight:900;line-height:1.1}
+.blade-card span{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--faint,#8b86a6)}
 .opt-btn.right{outline:4px solid #12BE8E}
 .opt-btn.wrong{outline:4px solid #F4364C;opacity:.75}
 
@@ -401,7 +414,7 @@
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=d0a0b6df"></script>
-<script src="strike.js?v=d438527a"></script>
+<script src="strike.js?v=5edcbcd0"></script>
 <script src="run.js?v=0cd33cf7"></script>
 <script src="paste.js?v=3032c005"></script>
 <script src="rules.js?v=3c3c1997"></script>
@@ -961,12 +974,37 @@ function strikeCard() {
   shell.append(el('canvas', { class: 'arena-canvas', id: 'strike' }));
   card.append(shell);
 
+  card.append(bladeCard());
+
   const pad = el('div', { class: 'swordpad' });
   pad.innerHTML = `<button class="dodge" id="dodge">DODGE</button>
                    <button class="swing" id="swing">SWING</button>`;
   card.append(pad);
   setTimeout(startStrike, 0);
   return card;
+}
+
+/* Your weapon, drawn by the same code that draws it in your hand out in the
+   ring — so the thing on the card and the thing you are swinging are the same
+   object, not a picture of one. */
+function bladeCard() {
+  const tier = me.blade || 'stick';
+  const box = el('div', { class: 'blade-card' });
+  const canvas = el('canvas', { width: 264, height: 92 });
+  const shape = NovaStrike.shapeFor(me.avatar);
+  const name = NovaStrike.weaponName(me.avatar, tier);
+  const tierName = (NovaStrike.BLADES[tier] || NovaStrike.BLADES.stick).label;
+  box.append(canvas, el('span', { class: 'who' },
+    el('b', {}, name),
+    el('span', {}, tierName + ' · ' + (NovaStrike.BLADES[tier] || {}).damage + ' a hit')));
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 264, 92);
+  ctx.save();
+  ctx.translate(52, 46);
+  ctx.rotate(-0.12);
+  NovaStrike.drawWeapon(ctx, 196, shape, tier);
+  ctx.restore();
+  return box;
 }
 
 function startStrike() {
