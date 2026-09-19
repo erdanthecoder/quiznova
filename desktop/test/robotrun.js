@@ -83,25 +83,45 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   ok('and the boost is reported to the room', charging.sent.length === 1,
      `sent ${JSON.stringify(charging.sent)}`);
 
-  // the robot's distance comes from the room, not from this child
+  /* The robot's distance comes from the room, not from this child — and it is
+     drawn on the board, which is the only place it is drawn at all now. */
   const shared = await page.evaluate(async () => {
     const c = document.getElementById('c');
-    const k = NovaRun.start({ canvas: c, world: 'station', onState: () => {} });
+    const k = NovaRun.start({ canvas: c, world: 'station', onState: () => {},
+      players: [{ id: 'a', name: 'Ana', avatar: 3, boosts: 1 }] });
     // a frame has to actually run before the canvas shows the new room
     const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const shot = () => { const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      let red = 0; for (let i = 0; i < g.length; i += 4 * 17) if (g[i] - g[i+1] > 50) red++; return red; };
+    /* Where the robot is, measured rather than guessed at: the rightmost
+       column holding one of its dark plates. A full bar should leave it well
+       behind; an empty one should have it up against the pack. */
+    const edge = () => {
+      const g = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      const d = g.data;
+      let right = 0;
+      for (let y = Math.round(c.height * 0.35); y < c.height * 0.72; y += 3) {
+        for (let x = 0; x < c.width; x += 2) {
+          const i = (y * c.width + x) * 4;
+          const r = d[i], gg = d[i + 1], b = d[i + 2];
+          // the chassis: a light grey plate, well above the dark blue deck
+          if (r > 70 && r < 130 && Math.abs(r - gg) < 22 && b > gg && b - r < 40
+              && r + gg + b > 240) right = Math.max(right, x);
+        }
+      }
+      return right / c.width;
+    };
     k.setRoom({ escape: 95, target: 100, lives: 3, round: 1 });
     await frame();
-    const far = shot();
+    const far = edge();
     k.setRoom({ escape: 2, target: 100, lives: 1, round: 1 });
     await frame();
-    const near = shot();
+    const near = edge();
     k.stop();
     return { far, near };
   });
   ok('an empty escape bar puts the robot on top of the room',
-     shared.near > shared.far, `red pixels: ${shared.far} when clear, ${shared.near} when it is close`);
+     shared.near > shared.far + 0.08,
+     `the robot reaches ${Math.round(shared.far * 100)}% across when the room is clear,`
+     + ` ${Math.round(shared.near * 100)}% when it is close`);
 
   ok('no errors while running', errs.length === 0, errs.slice(0, 2).join(' | '));
   await page.close();
@@ -135,10 +155,28 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   await phone.locator('button:has-text("Join the game")').first().click();
   await phone.waitForTimeout(900);
 
+  /* The board, which is where the chase lives. It is opened before the game
+     starts, the way a teacher opens it, so the test covers the mount as well as
+     the drawing. */
+  const board = await browser.newPage({ viewport: { width: 1280, height: 760 } });
+  const berrs = [];
+  board.on('pageerror', e => berrs.push(e.message));
+  await board.goto(`${base}/host.html?pin=${pin}#h=${made.hostToken}`,
+                   { waitUntil: 'domcontentloaded' });
+  await board.waitForTimeout(700);
+
   await post(`/api/games/${pin}/start`, { hostToken: made.hostToken });
-  await phone.waitForFunction(() => !!document.getElementById('runner'), null, { timeout: 12000 })
+  await phone.waitForFunction(() => !!document.getElementById('r-boost'), null, { timeout: 12000 })
     .catch(() => {});
-  ok('starting drops everyone straight into the run', await phone.locator('#runner').count() > 0);
+  /* The phone gets the question and the boost button and nothing else. The
+     chase used to run here, competing with the question for a screen the size
+     of a hand; Kahoot puts the robot on the host's screen, and so does this. */
+  ok('starting drops everyone straight into the run',
+     await phone.locator('#r-boost').count() > 0);
+  ok('and the chase is not on the phone', await phone.locator('#runner').count() === 0,
+     'no canvas in the player page');
+  ok('the phone shows how close the next boost is',
+     await phone.locator('.boostmeter').count() > 0);
   ok('with a question already waiting underneath',
      (await phone.locator('#runq .opt-btn').count()) > 0,
      `${await phone.locator('#runq .opt-btn').count()} answers on screen`);
@@ -176,22 +214,34 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      Array.isArray(view.quiz) && view.quiz.length === 5, `${view.quiz && view.quiz.length} questions sent`);
   ok('no errors on the phone', perrs.length === 0, perrs.slice(0, 2).join(' | '));
 
+  // ── the chase is on the board, and the class is in it ──
+  await board.waitForTimeout(1600);
+  const onBoard = await board.evaluate(() => {
+    const c = document.getElementById('board-run');
+    if (!c || !c.isConnected) return { ok: false, why: 'no chase on the board' };
+    const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let on = 0, n = 0;
+    for (let i = 0; i < g.length; i += 4 * 53) { n++; if (g[i] + g[i + 1] + g[i + 2] > 40) on++; }
+    return { ok: true, pct: Math.round(on / n * 100),
+             names: document.body.innerText };
+  });
+  ok('the chase is drawn on the board', onBoard.ok && onBoard.pct > 70,
+     onBoard.ok ? `${onBoard.pct}% of the board is painted` : onBoard.why);
+  ok('no errors on the board', berrs.length === 0, berrs.slice(0, 2).join(' | '));
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'robot-board.png') }).catch(() => {});
+
   /* Somebody else joining used to blank the run: the page rebuilt the screen,
    * handed the engine a canvas that was no longer in the document, and left the
    * question panel empty. */
   await post(`/api/games/${pin}/join`, { name: 'Late', avatar: 9 });
   await phone.waitForTimeout(2200);
-  const stillThere = await phone.evaluate(() => {
-    const c = document.getElementById('runner');
-    if (!c || !c.isConnected) return { ok: false, why: 'no canvas in the page' };
-    const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    let on = 0, n = 0;
-    for (let i = 0; i < g.length; i += 4 * 61) { n++; if (g[i] + g[i+1] + g[i+2] > 24) on++; }
-    return { ok: true, pct: Math.round(on / n * 100),
-             answers: document.querySelectorAll('#runq .opt-btn').length };
-  });
-  ok('somebody joining does not blank the run', stillThere.ok && stillThere.pct > 55,
-     stillThere.ok ? `${stillThere.pct}% of the canvas is still painted` : stillThere.why);
+  const stillThere = await phone.evaluate(() => ({
+    boost: !!document.getElementById('r-boost'),
+    meter: !!document.querySelector('.boostmeter'),
+    answers: document.querySelectorAll('#runq .opt-btn').length
+  }));
+  ok('somebody joining does not blank the run', stillThere.boost && stillThere.meter,
+     `boost button ${stillThere.boost}, meter ${stillThere.meter}`);
   ok('and the question is still there to answer', stillThere.answers > 0,
      `${stillThere.answers} answers on screen`);
 

@@ -296,6 +296,7 @@
 .arena-board{position:relative;flex:1 1 auto;min-height:min(56vh,460px);border-radius:22px;overflow:hidden;
   border:3px solid #0b0718;box-shadow:0 22px 50px -24px rgba(0,0,0,.9)}
 .arena-board canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+.runboard{min-height:min(62vh,540px)}
 
 /* laser arena */
 .arena{display:grid;grid-template-columns:1fr 74px 1fr;gap:14px;align-items:stretch;margin-top:18px}
@@ -566,7 +567,7 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=d0a0b6df"></script>
 <script src="strike.js?v=5edcbcd0"></script>
-<script src="run.js?v=0cd33cf7"></script>
+<script src="run.js?v=3afa534f"></script>
 <script src="paste.js?v=3032c005"></script>
 <script src="rules.js?v=3c3c1997"></script>
 <script src="live.js?v=32b5cdf7"></script>
@@ -856,9 +857,16 @@ function render(fresh) {
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
   if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
   if (game.state === 'strike') { if (paint(stage, strikeView, fresh)) watchStrike(); return; }
-  if (game.state === 'running') { paint(stage, runView, fresh); return; }
+  if (game.state === 'running') {
+    /* The canvas is mounted once and then fed. Repainting the whole view on
+       every poll would tear the chase down and build it again several times a
+       second, which is how you get a robot that stutters in place. */
+    if (paint(stage, runView, fresh)) watchRun(); else feedRun();
+    return;
+  }
   if (boardArena) { boardArena.stop(); boardArena = null; }
   if (boardStrike) { boardStrike.stop(); boardStrike = null; }
+  stopRun();
   if (!game.question) return;
   if (paint(stage, () => questionView(fresh), fresh)) { bindQuestion(); runTimer(); }
 }
@@ -1029,31 +1037,52 @@ function arenaView() {
  * child's business. What the room wants is the standings: who is furthest, who
  * has got deepest, and who is about to be caught. */
 function runView() {
+  /* The chase, on the projector. Kahoot's host screen shows the robot chasing
+     the class with the collective lives in the corner, and the phones show the
+     question and the boost button. This board used to be a progress bar over a
+     list of names — a spreadsheet — while the chase ran in thirty pockets where
+     nobody could see it. */
   const root = el('div', { class: 'board' });
-  const panel = el('div', { class: 'ask' });
-  const lives = game.lives === undefined ? 3 : game.lives;
-  const target = game.escapeTarget || 100;
-  const pct = Math.round(Math.max(0, Math.min(1, (game.escape || 0) / target)) * 100);
-  const left = game.roundEndsAt ? Math.max(0, Math.round((game.roundEndsAt - (Date.now() + drift)) / 1000)) : 0;
-  panel.innerHTML = `<h1>Robot Run</h1>
-    <div class="tally"><b>${'&#9829;'.repeat(Math.max(0, lives)) || '—'}</b><span>lives left</span></div>`;
-  root.append(panel);
-  /* The escape bar is the board's whole job. Everybody's boosts are in it, so
-     the room can see at a glance whether it is going to make the door — which
-     is what turns this into thirty children shouting at each other to answer. */
-  const esc = el('div', { class: 'escape' });
-  esc.innerHTML = `<div class="escape-head">
-      <strong>Deck ${game.round || 1}</strong>
-      <span>${left}s before the robot reaches you</span></div>
-    <div class="escape-bar"><i style="width:${pct}%"></i></div>
-    <p class="tiny faint">${pct}% of the way out · every boost anybody spends fills this</p>`;
-  root.append(esc);
+  root.append(el('div', { class: 'arena-board runboard' },
+                el('canvas', { id: 'board-run' })));
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 8, title: 'Boosts put in' }));
+  rest.append(leaderboard({ rows: 6, title: 'Boosts put in' }));
   root.append(rest);
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
     el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
   return root;
+}
+
+let boardRun = null;
+
+function watchRun() {
+  const canvas = document.getElementById('board-run');
+  if (!canvas || boardRun) return;
+  boardRun = NovaRun.start({ canvas, world: game.map || 'station' });
+  feedRun();
+  const advance = document.getElementById('advance');
+  if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
+    .catch(e => toast(e.message, 'bad'));
+}
+
+/** Hand the board the room and the class, every time the game changes. */
+function feedRun() {
+  if (!boardRun) return;
+  const target = game.escapeTarget || 100;
+  const before = boardRun.lastEscape || 0;
+  boardRun.setRoom({
+    escape: game.escape || 0, target,
+    lives: game.lives === undefined ? 3 : game.lives,
+    round: game.round || 1,
+    endsAt: game.roundEndsAt ? game.roundEndsAt - drift : 0,
+    roundMs: game.robotRoundMs || 75000
+  });
+  boardRun.setPlayers((game.players || []).map(p => ({
+    id: p.id, name: p.name, avatar: p.avatar, boosts: p.boosts || p.score || 0
+  })));
+  // somebody put a boost in since the last update: shake the deck
+  if ((game.escape || 0) > before) boardRun.cheer();
+  boardRun.lastEscape = game.escape || 0;
 }
 
 /* The fight, on the projector. This is the half of Boss Battle that belongs on
@@ -1071,6 +1100,8 @@ function strikeView() {
   root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
   return root;
 }
+
+function stopRun() { if (boardRun) { boardRun.stop(); boardRun = null; } }
 
 function watchStrike() {
   const canvas = document.getElementById('board-strike');
