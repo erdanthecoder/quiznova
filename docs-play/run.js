@@ -53,6 +53,12 @@
             tint: '#FF7A45', name: 'Ruined City' }
   };
 
+  /* The chase works in its own units — they only ever get compared with each
+   * other — but the number on screen is the one a child repeats afterwards, so
+   * it is shown in something a person can picture. A strong run is a few
+   * hundred metres, not forty thousand. */
+  const METRES = 0.08;
+
   const now = () => performance.now();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const TAU = Math.PI * 2;
@@ -166,7 +172,8 @@
 
     const say = (t) => { banner = t; bannerUntil = now() + 1300; };
     const tell = () => opts.onState && opts.onState({
-      gap: Math.round(me.gap), distance: Math.round(me.distance),
+      gap: Math.round(me.gap), distance: Math.round(me.distance * METRES),
+      raw: Math.round(me.distance),
       boosts: me.boosts, level: me.level, streak: me.streak,
       need: SPRINT_STREAK - me.streak, perLevel: BOOSTS_PER_LEVEL });
 
@@ -357,7 +364,7 @@
       ctx.textAlign = 'left';
       ctx.fillStyle = '#fff';
       ctx.font = `800 ${Math.max(14, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
-      ctx.fillText(Math.round(me.distance) + ' m', w * 0.04, h * 0.085);
+      ctx.fillText(Math.round(me.distance * METRES) + ' m', w * 0.04, h * 0.085);
       ctx.textAlign = 'right';
       ctx.fillStyle = world.tint;
       ctx.fillText('Level ' + me.level, w * 0.96, h * 0.085);
@@ -424,13 +431,14 @@
 
     return {
       answered,
-      get state() { return { gap: me.gap, distance: me.distance, level: me.level,
+      get state() { return { gap: me.gap, distance: Math.round(me.distance * METRES),
+                             raw: me.distance, level: me.level,
                              boosts: me.boosts, streak: me.streak }; },
       stop() { stopped = true; if (raf) cancelAnimationFrame(raf); }
     };
   }
 
-  global.NovaRun = { start, WORLDS, SPRINT_STREAK, BOOSTS_PER_LEVEL, MAX_LEVEL,
+  global.NovaRun = { start, WORLDS, METRES, SPRINT_STREAK, BOOSTS_PER_LEVEL, MAX_LEVEL,
                      RIGHT_GAIN, SPRINT_GAIN, CHASE };
 })(typeof window !== 'undefined' ? window : globalThis);
 

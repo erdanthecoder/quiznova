@@ -359,7 +359,7 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
 <script src="strike.js?v=d438527a"></script>
-<script src="run.js?v=3db39e07"></script>
+<script src="run.js?v=2f14eb1e"></script>
 <script src="paste.js?v=3032c005"></script>
 <script src="rules.js?v=1f915780"></script>
 <script src="live.js?v=175efcb1"></script>
@@ -381,7 +381,7 @@ const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
 let strike = null, strikeTotal = 0;
-let runner = null, runQ = 0, runTeller = null;
+let runner = null, runQ = 0, runTeller = null, runStarting = false;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -716,7 +716,8 @@ function render(fresh) {
   if (arena) { arena.stop(); arena = null; }
   if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state !== 'running' && runner) {
-    runner.stop(); runner = null; clearInterval(runTeller); runTeller = null;
+    runner.stop(); runner = null; runStarting = false;
+    clearInterval(runTeller); runTeller = null;
   }
   if (game.state === 'over') return app.append(overCard());
   if (game.state === 'reveal') return app.append(revealCard());
@@ -784,7 +785,11 @@ function runCard() {
 
 function startRun() {
   const canvas = document.getElementById('runner');
-  if (!canvas || runner) return;
+  /* Set before anything can yield. startRun is queued from render(), and a poll
+   * arriving in between could queue a second one before the first had assigned
+   * runner — two chases on one phone, both reporting. */
+  if (!canvas || runner || runStarting) return;
+  runStarting = true;
   runQ = 0;
   runner = NovaRun.start({
     canvas,
@@ -800,6 +805,7 @@ function startRun() {
     },
     onLevel: () => { askRunQuestion(); report(); }
   });
+  runStarting = false;
   askRunQuestion();
   // the phone tells the board where it has got to, rather than every stride
   runTeller = setInterval(report, 2500);
