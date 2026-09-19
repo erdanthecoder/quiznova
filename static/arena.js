@@ -185,32 +185,31 @@
     moon: mirrored(HALVES.moon)
   };
 
-  /* How each map is painted. The three were the same purple room with the
-     furniture moved; they are three different places now. */
+  /* How each map is painted.
+   *
+   * A real laser tag arena is a dark room under blacklight with bold neon
+   * shapes painted over every surface, and that is what these are: a dark
+   * floor, bright paint on it, chunky walls with a thick outline and a lighter
+   * cap. `line` is the outline every solid shape gets — one dark colour per
+   * map, so the whole arena reads as having been drawn by one hand. */
   const LOOK = {
     arena: {
-      sky: ['#0A0716', '#1A1038', '#07040F'],
-      floor: ['#2B1E5C', '#110B28'], grid: 'rgba(150,120,255,.16)', grid2: 130,
-      top: '#7C5FE6', face: '#3A2570', side: '#4E3499',
-      edge: 'rgba(200,170,255,.85)', trim: '#00E5FF',
-      wall: 'rgba(124,77,255,.20)', rim: 'rgba(180,150,255,.6)',
-      haze: 'rgba(124,77,255,.22)', scene: 'neon'
+      floor: '#120A2E', floor2: '#231553',
+      carpet: ['#00E5FF', '#FF2FB0', '#FFC53D', '#7C4DFF'],
+      wall: '#7C4DFF', wallLow: '#4C3390', wallLip: '#B79BFF',
+      line: '#0A0520', trim: '#00E5FF', pattern: 'triangles'
     },
     bunker: {
-      sky: ['#0D0C0A', '#241E16', '#0A0908'],
-      floor: ['#4A4235', '#1C1813'], grid: 'rgba(255,225,170,.10)', grid2: 200,
-      top: '#A3926F', face: '#50452F', side: '#6B5C3F',
-      edge: 'rgba(255,230,170,.7)', trim: '#FFB020',
-      wall: 'rgba(180,150,90,.18)', rim: 'rgba(255,220,150,.5)',
-      haze: 'rgba(255,170,60,.16)', scene: 'hangar'
+      floor: '#1D1810', floor2: '#332C1C',
+      carpet: ['#FFB020', '#12BE8E', '#FF6B3D', '#FFE08A'],
+      wall: '#A3926F', wallLow: '#6E6148', wallLip: '#E4D3A6',
+      line: '#120E06', trim: '#FFB020', pattern: 'stripes'
     },
     moon: {
-      sky: ['#01030C', '#060D22', '#01020A'],
-      floor: ['#3E4763', '#14192B'], grid: 'rgba(190,220,255,.12)', grid2: 160,
-      top: '#C6D1E8', face: '#3C4560', side: '#525D7C',
-      edge: 'rgba(235,245,255,.85)', trim: '#38E0C0',
-      wall: 'rgba(120,160,220,.16)', rim: 'rgba(200,225,255,.55)',
-      haze: 'rgba(90,150,255,.18)', scene: 'space'
+      floor: '#0C1426', floor2: '#18233C',
+      carpet: ['#38E0C0', '#4F8BFF', '#C6D1E8', '#8E7BFF'],
+      wall: '#C6D1E8', wallLow: '#7C88A4', wallLip: '#FFFFFF',
+      line: '#050A15', trim: '#38E0C0', pattern: 'hex'
     }
   };
   const coverFor = (map) => COVER[map] || COVER.arena;
@@ -564,802 +563,481 @@
       }
     }
 
-    /* ── drawing: a real camera, not a floor plan ─────────
+    /* ── drawing: straight down at the arena ──────────────
      *
-     * The arena is still simulated flat — x and y on the ground, which is what
-     * makes hit detection honest and cheap. What changed is the view: instead of
-     * looking straight down at a diagram, there is a camera standing above and
-     * behind, tilted at the floor, and every point is put through a perspective
-     * projection before it is drawn.
+     * This was a tilted camera with a perspective projection, a lit back wall
+     * and figures standing up off the floor. It was handsome and it was the
+     * wrong game. Blooket's Laser Tag is flat and top-down — you look straight
+     * down at an arcade floor and see the whole corner you are fighting in —
+     * and every hour spent making the tilted version prettier was an hour spent
+     * making something that was never going to feel like it.
      *
-     * That means one thing above all: things further away are smaller and higher
-     * up the screen. Everything else follows from it — figures that stand up off
-     * the floor and cast a shadow onto it, walls with lit tops and dark sides,
-     * beams that travel at chest height rather than scraping the ground, and a
-     * floor grid that converges towards a horizon.
+     * So: orthographic, from directly above. What follows from that is most of
+     * why it plays better. Nothing is ever hidden behind a wall you cannot see
+     * past, because you are above the walls. Nothing is ever the wrong size
+     * because it is far away. There is no horizon, so there is no void beyond
+     * the arena to paper over. And a blook is drawn as a blook — the whole
+     * character, face on, the size it is on the leaderboard — rather than as a
+     * coloured capsule with a face pasted on the front of it.
      *
-     * No library and no WebGL: it is about forty lines of arithmetic on the 2D
-     * canvas that was already here, so it still works with the wifi unplugged and
-     * on a school laptop with no graphics driver worth the name.
+     * Cover still stops a shot; it does not stop you seeing. That is the normal
+     * bargain in a top-down arena and it is what makes corners worth taking.
      */
-    const TILT = 0.86;                    // how far the camera leans over, radians
-    const FOCAL = 900;                    // lens: bigger is flatter, smaller is wider
-    const EYE = 620;                      // how high the camera stands
-    const NEAR = 60;                      // anything closer than this is behind us
-    const BODY_H = 84;                    // how tall a player stands, in arena units
-    const sinT = Math.sin(TILT), cosT = Math.cos(TILT);
+    /* How much arena fits across a phone. Smaller means closer in, and closer
+       in is the whole difference between blooks you can recognise and coloured
+       specks: at 1080 a character was thirty pixels across. */
+    const VIEW = 640;
 
     let cam = { x: W / 2, y: H / 2, scale: 1, cx: 0, cy: 0 };
 
-    /* The camera stands at (cam.x, cam.y, EYE) and looks along −y, tilted TILT
-       below the horizontal. Everything below is that one idea written out:
-         forward = (0, −cos, −sin)   right = (1, 0, 0)   up = (0, sin, −cos)
-       so for a point ahead of the camera by ey and below it by ez,
-         depth = ey·cos + ez·sin      (into the screen)
-         rise  = ey·sin − ez·cos      (up the screen)
-       and both x and rise shrink by FOCAL/depth, which is the whole of
-       perspective: further away is smaller and nearer the horizon. */
-    function raw(x, y, z) {
-      const ey = cam.y - y;
-      const ez = EYE - z;
-      const depth = ey * cosT + ez * sinT;
-      if (depth < NEAR) return null;
-      const k = FOCAL / depth;
-      return { rx: (x - cam.x) * k, ry: (ey * sinT - ez * cosT) * k, k, depth };
-    }
-
-    /** The same point, in pixels on this canvas. */
+    /* World to screen. `z` is a small lift towards the viewer — it does not make
+       anything smaller, it just floats a beam or an orb a little off the floor
+       so it reads as above it rather than painted on it. */
     function project(x, y, z) {
-      const r = raw(x, y, z);
-      if (!r) return null;
-      return { x: cam.cx + r.rx * cam.scale, y: cam.cy - r.ry * cam.scale,
-               k: r.k * cam.scale, depth: r.depth };
+      return { x: cam.cx + (x - cam.x) * cam.scale,
+               y: cam.cy + (y - cam.y) * cam.scale - (z || 0) * cam.scale * 0.22,
+               k: cam.scale, depth: y };
     }
 
-    /* Where the camera stands, and how much of what it sees fits on this screen.
-       The board holds the whole floor: the four corners are projected and the
-       result is scaled to fit, so the arena fills the space it is given whatever
-       shape that space is. A phone rides behind its own player instead. */
     function fit() {
       const box = canvas.getBoundingClientRect();
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.max(1, Math.round(box.width * dpr));
       const h = Math.max(1, Math.round(box.height * dpr));
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      cam.cx = w / 2; cam.cy = h / 2;
 
       if (watching) {
-        cam.x = W / 2; cam.y = H + 780;
-        const corners = [raw(0, 0, 0), raw(W, 0, 0), raw(W, H, 0), raw(0, H, 0),
-                         raw(0, 0, 120), raw(W, 0, 120)].filter(Boolean);
-        if (corners.length) {
-          const xs = corners.map(c => c.rx), ys = corners.map(c => c.ry);
-          const spanX = Math.max(...xs) - Math.min(...xs) || 1;
-          const spanY = Math.max(...ys) - Math.min(...ys) || 1;
-          cam.scale = Math.min(w * 0.97 / spanX, h * 0.94 / spanY);
-          cam.cx = w / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * cam.scale;
-          cam.cy = h / 2 + ((Math.max(...ys) + Math.min(...ys)) / 2) * cam.scale;
-        } else {
-          cam.scale = 1; cam.cx = w / 2; cam.cy = h / 2;
-        }
+        // the board shows the whole arena, with a margin for the wall
+        cam.scale = Math.min(w / (W + 90), h / (H + 90));
+        cam.x = W / 2; cam.y = H / 2;
       } else {
-        // the camera rides a fixed distance behind this player, and the scale is
-        // worked out from that distance so the same amount of arena is in view on
-        // any phone: about VIEW units across at the player's own depth
-        const BEHIND = 560, VIEW = 1020;
-        cam.x = self.x; cam.y = self.y + BEHIND;
-        const depth = BEHIND * cosT + EYE * sinT;
-        cam.scale = w / (VIEW * (FOCAL / depth));
-        cam.cx = w / 2;
-        /* The player sits just above the middle. It was 0.62, which on a phone
-           held upright spent the top third of the screen on the wall at the far
-           end of the hall — handsome, and none of it is where you are playing. */
-        cam.cy = h * 0.54;
+        /* A phone follows its own player, but stops at the edges of the arena
+           rather than walking off them: half a screen of nothing outside the
+           wall is half a screen wasted. */
+        cam.scale = w / VIEW;
+        const halfW = w / 2 / cam.scale, halfH = h / 2 / cam.scale;
+        cam.x = halfW * 2 >= W ? W / 2 : clamp(self.x, halfW, W - halfW);
+        cam.y = halfH * 2 >= H ? H / 2 : clamp(self.y, halfH, H - halfH);
       }
       return cam;
     }
 
-    /** Where a screen point lands on the floor of the arena: project(), inverted
-        for z = 0, so aiming with a finger still means what it looks like. */
+    /** Where a screen point lands on the floor: project(), the other way round. */
     function toArena(clientX, clientY) {
       const box = canvas.getBoundingClientRect();
       const dpr = canvas.width / box.width;
-      const u = ((clientX - box.left) * dpr - cam.cx) / cam.scale;
-      const v = (cam.cy - (clientY - box.top) * dpr) / cam.scale;
-      // v = (ey·sin − EYE·cos)·FOCAL / (ey·cos + EYE·sin), solved for ey
-      const denom = FOCAL * sinT - v * cosT;
-      const ey = Math.abs(denom) < 1e-6 ? 1e6
-               : EYE * (FOCAL * cosT + v * sinT) / denom;
-      const depth = ey * cosT + EYE * sinT;
-      return { x: cam.x + u * depth / FOCAL, y: cam.y - ey };
-    }
-
-    /* The mark of a superpower, floating over whoever is holding one. Powers
-       used to be invisible on everybody but yourself, so a classmate suddenly
-       firing three beams at once read as the game cheating rather than as
-       somebody who got to the orb first. */
-    function aura(x, y, kind) {
-      if (!kind || !POWERS[kind]) return;
-      const p = project(x, y, BODY_H + 52);
-      if (!p) return;
-      const R = 13 * p.k;
-      const beat = 0.85 + Math.sin(now() / 220) * 0.15;
-      ctx.save();
-      ctx.globalAlpha = 0.95;
-      ctx.shadowColor = POWERS[kind].colour;
-      ctx.shadowBlur = 18 * p.k;
-      ctx.fillStyle = POWERS[kind].colour;
-      ctx.beginPath(); ctx.arc(p.x, p.y, R * beat, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      glyph(ctx, kind, p.x, p.y, R * 0.62);
-      ctx.restore();
-    }
-
-    /* One standing figure: a shadow on the floor, a body between the floor and its
-       own height, and a face on the front of it. Sizes come from the projection, so
-       somebody at the far end of the arena is genuinely smaller. */
-    function body(x, y, angle, colour, alive, label, isSelf, avatar, wild) {
-      const foot = project(x, y, 0);
-      const head = project(x, y, BODY_H);
-      if (!foot || !head) return;
-      const r = PLAYER_R * foot.k;
-      const tall = Math.max(6, foot.y - head.y);
-
-      ctx.save();
-      ctx.globalAlpha = alive ? 1 : 0.3;
-
-      // the shadow is what puts a figure on the floor rather than in front of it
-      ctx.fillStyle = 'rgba(0,0,0,.42)';
-      ctx.beginPath();
-      ctx.ellipse(foot.x, foot.y, r * 1.05, r * 0.42, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      /* A wild blook has no gun, and a ring on the floor under it so nobody
-         wastes a shot working out whether that one is a bot or a classmate. */
-      if (wild) {
-        ctx.strokeStyle = 'rgba(255,255,255,.5)';
-        ctx.setLineDash([r * 0.45, r * 0.4]);
-        ctx.lineWidth = Math.max(1.5, 3 * foot.k);
-        ctx.beginPath();
-        ctx.ellipse(foot.x, foot.y, r * 1.25, r * 0.5, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // the barrel, lying along the floor in the direction of aim
-      const reach = wild ? null
-        : project(x + Math.cos(angle) * 52, y + Math.sin(angle) * 52, BODY_H * 0.55);
-      if (reach) {
-        ctx.strokeStyle = colour;
-        ctx.lineWidth = Math.max(2, 7 * foot.k);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(head.x, head.y + tall * 0.42);
-        ctx.lineTo(reach.x, reach.y);
-        ctx.stroke();
-      }
-
-      // the body, shaded down one side so it reads as round under a light
-      const shade = ctx.createLinearGradient(head.x - r, 0, head.x + r, 0);
-      shade.addColorStop(0, colour);
-      shade.addColorStop(0.55, colour);
-      shade.addColorStop(1, 'rgba(0,0,0,.45)');
-      ctx.fillStyle = colour;
-      ctx.beginPath();
-      ctx.roundRect(head.x - r * 0.82, head.y, r * 1.64, tall, r * 0.7);
-      ctx.fill();
-      ctx.fillStyle = shade;
-      ctx.globalAlpha *= 0.5;
-      ctx.beginPath();
-      ctx.roundRect(head.x - r * 0.82, head.y, r * 1.64, tall, r * 0.7);
-      ctx.fill();
-      ctx.globalAlpha = alive ? 1 : 0.3;
-
-      // a lit top, because the light is above
-      ctx.fillStyle = 'rgba(255,255,255,.22)';
-      ctx.beginPath();
-      ctx.ellipse(head.x, head.y + r * 0.16, r * 0.82, r * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      /* The blook itself, over the body. Until its picture has finished
-         loading the plain shape underneath stands in, so nobody ever sees a
-         gap — and a device that cannot rasterise it keeps playing. */
-      const face = blookFace(avatar);
-      if (face && face.ready) {
-        const size = r * 2.1;
-        ctx.drawImage(face.canvas, head.x - size / 2, head.y + tall * 0.06 - size * 0.12,
-                      size, size);
-      } else {
-        const eye = Math.max(1.6, r * 0.2);
-        ctx.fillStyle = 'rgba(10,6,22,.85)';
-        ctx.beginPath();
-        ctx.arc(head.x - r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
-        ctx.arc(head.x + r * 0.34, head.y + tall * 0.3, eye, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      if (isSelf) {
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = Math.max(1.5, 3 * foot.k);
-        ctx.beginPath();
-        ctx.ellipse(foot.x, foot.y, r * 1.3, r * 0.52, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-
-      if (label) {
-        const size = Math.max(9, 22 * foot.k);
-        ctx.font = `700 ${size}px system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        const w = ctx.measureText(label).width + size * 0.8;
-        ctx.fillStyle = 'rgba(0,0,0,.55)';
-        ctx.beginPath();
-        ctx.roundRect(head.x - w / 2, head.y - size * 1.7, w, size * 1.35, size * 0.7);
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillText(label, head.x, head.y - size * 0.68);
-      }
-      ctx.restore();
+      return { x: cam.x + ((clientX - box.left) * dpr - cam.cx) / cam.scale,
+               y: cam.y + ((clientY - box.top) * dpr - cam.cy) / cam.scale };
     }
 
     const teamColour = (team) => team === 'blue' ? '#4F6BFF' : '#F4364C';
 
-    /* The floor, drawn as a real plane: dim ground stretching away outside the
-       arena, the lit floor inside it, a grid whose lines converge, and a wall all
-       the way round with a lit top and a darker inside face. The ground outside
-       matters — without it the space beyond the wall reads as "not drawn" rather
-       than as somewhere you are not allowed to go. */
-    const WALL = 130;
-
-    function quad(a, b, c, d, fill) {
-      if (!a || !b || !c || !d) return;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y);
-      ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-    }
-
-    /* Where the floor would vanish if it went on for ever. Everything above this
-       line on the screen is sky, everything below it is ground — which is how the
-       world gets an edge without drawing a quad the size of a county. */
-    function horizon() {
-      return cam.cy - FOCAL * (sinT / cosT) * cam.scale;
-    }
-
-    /* How tall a piece of cover stands. A wall is over your head, so it breaks
-       line of sight completely; a low one is chest height, which you can shoot
-       over but not walk through. Having both is what stops a maze reading as one
-       endless slab: you can see across half of it and still not walk across. */
-    const HEIGHT = { wall: 156, low: 92 };
-    const tallOf = (b) => HEIGHT[b.t] || HEIGHT.wall;
-
-    /* The back of the room. A phone held upright was half black above the far
-       barrier, and that did not read as a dark hall, it read as a missing one:
-       these are indoor arenas and an indoor arena has a wall behind it. So there
-       is one, far enough back and tall enough to close the space, with each
-       map's own thing hung on it — a lighting rig over the neon maze, girders
-       and lamps over the bunker, a window on to the Earth at the moon base. */
-    const BACK_Y = -70, BACK_H = 620, BACK_OUT = 700;
-
-    function drawBack() {
-      const bl = project(-BACK_OUT, BACK_Y, 0), br = project(W + BACK_OUT, BACK_Y, 0);
-      const tr = project(W + BACK_OUT, BACK_Y, BACK_H), tl = project(-BACK_OUT, BACK_Y, BACK_H);
-      if (!bl || !br || !tr || !tl) return;
-      const top = Math.min(tl.y, tr.y), bot = Math.max(bl.y, br.y);
-      const w = canvas.width;
+    /* The house style, and the reason the whole thing hangs together: a thick
+       dark outline round every solid shape, a flat bright fill inside it, and a
+       soft shadow under it. It is how the rest of Quoldek is drawn and it is how
+       Blooket is drawn, and a game that is drawn like the site it lives on stops
+       looking like a different program that opened on top of it. */
+    function outlined(path, fill, lw, shadow) {
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
-      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath();
-      const g = ctx.createLinearGradient(0, top, 0, bot);
-      g.addColorStop(0, look.sky[0]);
-      g.addColorStop(0.55, look.sky[1]);
-      g.addColorStop(1, look.sky[2]);
-      ctx.fillStyle = g; ctx.fill();
-      ctx.clip();
-      // scene art is laid out between the top of the wall and its foot
-      const hz = bot, y0 = top, span = Math.max(1, bot - top);
-      const at = (f) => y0 + span * f;
-
-      if (look.scene === 'space') {
-        // a fixed sky: the same stars every time, so it reads as one place
-        let seed = 9301;
-        const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
-        for (let i = 0; i < 160; i++) {
-          const x = rnd() * w, y = at(rnd() * 0.82), r = 0.6 + rnd() * 1.6;
-          ctx.globalAlpha = 0.25 + rnd() * 0.75;
-          ctx.fillStyle = '#EAF2FF';
-          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        // the Earth, low and to one side, lit from the left
-        const R = Math.max(40, span * 0.26), cx = w * 0.74, cy = at(0.34);
-        const g = ctx.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.1, cx, cy, R);
-        g.addColorStop(0, '#6FB5FF'); g.addColorStop(0.55, '#2C64B8');
-        g.addColorStop(1, '#07142B');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.5; ctx.fillStyle = '#2E8B57';
-        ctx.beginPath(); ctx.ellipse(cx - R * 0.25, cy - R * 0.1, R * 0.4, R * 0.22, 0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(cx + R * 0.2, cy + R * 0.35, R * 0.3, R * 0.16, -0.3, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      } else if (look.scene === 'hangar') {
-        // a corrugated roof of girders, and lamps hanging off it
-        ctx.strokeStyle = 'rgba(120,104,78,.55)';
-        ctx.lineWidth = Math.max(3, w * 0.006);
-        for (let i = 0; i <= 7; i++) {
-          const x = (i / 7) * w;
-          ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(w / 2 + (x - w / 2) * 0.62, at(0.9)); ctx.stroke();
-        }
-        ctx.beginPath(); ctx.moveTo(0, at(0.28)); ctx.lineTo(w, at(0.28)); ctx.stroke();
-        for (let i = 0; i < 5; i++) {
-          const x = ((i + 0.5) / 5) * w, y = at(0.46);
-          ctx.strokeStyle = 'rgba(90,78,58,.8)'; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(x, at(0.28)); ctx.lineTo(x, y); ctx.stroke();
-          const lamp = ctx.createRadialGradient(x, y, 2, x, y, span * 0.3);
-          lamp.addColorStop(0, 'rgba(255,196,96,.85)');
-          lamp.addColorStop(1, 'rgba(255,170,60,0)');
-          ctx.fillStyle = lamp;
-          ctx.beginPath(); ctx.arc(x, y, span * 0.3, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#FFD990';
-          ctx.beginPath(); ctx.ellipse(x, y, span * 0.04, span * 0.02, 0, 0, Math.PI * 2); ctx.fill();
-        }
-      } else {
-        // a lighting rig: bars of colour running away over the maze
-        // steel ribs first, so the bars read as hung off something
-        ctx.strokeStyle = 'rgba(120,96,200,.30)';
-        ctx.lineWidth = Math.max(2, w * 0.004);
-        for (let i = 0; i <= 9; i++) {
-          const x = (i / 9) * w;
-          ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, at(0.95)); ctx.stroke();
-        }
-        const bars = ['#00E5FF', '#FF2FB0', '#7C4DFF', '#00E5FF', '#FFC53D'];
-        bars.forEach((c, i) => {
-          const y = at(0.10 + i * 0.15);
-          const inset = w * (0.02 + i * 0.03);
-          const glow = ctx.createLinearGradient(0, y - span * 0.07, 0, y + span * 0.07);
-          glow.addColorStop(0, 'rgba(0,0,0,0)');
-          glow.addColorStop(0.5, c); glow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.globalAlpha = 0.16;
-          ctx.fillStyle = glow;
-          ctx.fillRect(inset, y - span * 0.07, w - inset * 2, span * 0.14);
-          ctx.globalAlpha = 0.6;
-          ctx.fillStyle = c;
-          ctx.fillRect(inset, y - span * 0.008, w - inset * 2, span * 0.016);
-        });
-        ctx.globalAlpha = 1;
+      if (shadow) {
+        ctx.shadowColor = 'rgba(0,0,0,.45)';
+        ctx.shadowBlur = 14 * cam.scale;
+        ctx.shadowOffsetY = 5 * cam.scale;
       }
+      ctx.fillStyle = fill;
+      path(); ctx.fill();
+      ctx.restore();
+      if (lw > 0) {
+        ctx.strokeStyle = look.line;
+        ctx.lineWidth = lw;
+        ctx.lineJoin = 'round';
+        path(); ctx.stroke();
+      }
+    }
 
-      /* A dark top on every backdrop. Whatever is hung up there is scenery, and
-         scenery that is as bright as the floor competes with the game for the
-         one thing a phone screen has least of, which is room. */
-      const dim = ctx.createLinearGradient(0, y0, 0, bot);
-      dim.addColorStop(0, 'rgba(0,0,0,.62)');
-      dim.addColorStop(0.55, 'rgba(0,0,0,.12)');
-      dim.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = dim;
-      ctx.fillRect(0, y0, w, bot - y0);
+    /* ── the floor ────────────────────────────────────────
+     *
+     * "Arcade floor textures similar to a real Laser Tag" is exactly what a
+     * laser tag arena has: a dark floor under blacklight with bold neon shapes
+     * painted all over it. Each map's shapes are laid out once from a fixed
+     * seed, so the arena is the same room every time you play it rather than a
+     * different one each frame. */
+    let carpet = null;
+
+    function buildCarpet() {
+      let seed = 20260919;
+      const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+      const out = [];
+      const n = look.pattern === 'stripes' ? 44 : 66;
+      for (let i = 0; i < n; i++) {
+        /* Painted over a wider area than the arena itself. On a board wider
+           than the arena is, the space outside the barrier used to be flat
+           black — a hole beside the room rather than the rest of the room. */
+        out.push({
+          x: -520 + rnd() * (W + 1040), y: -520 + rnd() * (H + 1040),
+          s: 50 + rnd() * 90,
+          a: Math.floor(rnd() * 8) * (Math.PI / 4),   // snapped, so the paint is tidy
+          c: look.carpet[Math.floor(rnd() * look.carpet.length)],
+          o: 0.07 + rnd() * 0.12
+        });
+      }
+      return out;
+    }
+
+    function drawFloor() {
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = look.floor;
+      ctx.fillRect(0, 0, w, h);
+
+      // the arena's own floor, a shade lighter than whatever is outside it
+      const a = project(0, 0, 0), b = project(W, H, 0);
+      ctx.fillStyle = look.floor2;
+      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+
+      // the painted shapes, inside the arena and on out past it
+      if (!carpet) carpet = buildCarpet();
+      ctx.save();
+      carpet.forEach(m => {
+        const p = project(m.x, m.y, 0);
+        const s = m.s * cam.scale;
+        if (p.x < -s * 2 || p.x > w + s * 2 || p.y < -s * 2 || p.y > h + s * 2) return;
+        ctx.save();
+        ctx.globalAlpha = m.o;
+        ctx.fillStyle = m.c;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(m.a);
+        if (look.pattern === 'stripes') {
+          ctx.fillRect(-s, -s * 0.16, s * 2, s * 0.32);
+        } else if (look.pattern === 'hex') {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const t = (i / 6) * Math.PI * 2;
+            ctx[i ? 'lineTo' : 'moveTo'](Math.cos(t) * s * 0.6, Math.sin(t) * s * 0.6);
+          }
+          ctx.closePath(); ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(0, -s * 0.6); ctx.lineTo(s * 0.55, s * 0.45); ctx.lineTo(-s * 0.55, s * 0.45);
+          ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+      });
+
+      // a grid over the paint, so distance is readable while you run
+      ctx.globalAlpha = 0.10;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.4;
+      for (let x = 200; x < W; x += 200) {
+        const p = project(x, 0, 0), q = project(x, H, 0);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+      }
+      for (let y = 200; y < H; y += 200) {
+        const p = project(0, y, 0), q = project(W, y, 0);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      floorMarks();
+
+      /* The barrier. It was the same near-black as everything else, so on a
+         screen taller than the arena the play area just faded out into a void
+         with no edge. It is a lit wall now — which is what the edge of a laser
+         tag arena actually looks like from above, and what stops the outside
+         reading as more floor you could have walked on. */
+      const lw = Math.max(4, 14 * cam.scale);
+      ctx.save();
+      ctx.strokeStyle = look.wall;
+      ctx.lineWidth = lw;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.roundRect(a.x - lw / 2, a.y - lw / 2,
+                    (b.x - a.x) + lw, (b.y - a.y) + lw, 26 * cam.scale);
+      ctx.stroke();
+      ctx.strokeStyle = look.trim;
+      ctx.lineWidth = Math.max(2, 4 * cam.scale);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.roundRect(a.x, a.y, b.x - a.x, b.y - a.y, 22 * cam.scale);
+      ctx.stroke();
       ctx.restore();
     }
 
-    /** A shape on the floor, given as arena points. */
-    function floorShape(pts, fill, stroke, wide) {
-      const ps = pts.map(([x, y]) => project(x, y, 0));
-      if (ps.some(q => !q)) return;
-      ctx.beginPath();
-      ps.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
-      ctx.closePath();
-      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = wide || 3; ctx.stroke(); }
-    }
-
-    function floorEllipse(cx, cy, rx, ry, fill, stroke) {
-      const pts = [];
-      for (let i = 0; i < 36; i++) {
-        const a = (i / 36) * Math.PI * 2;
-        pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
+    /** A shape on the floor, given in arena units. */
+    function floorRing(cx, cy, r, fill, stroke, lw) {
+      const p = project(cx, cy, 0);
+      const rr = r * cam.scale;
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2); ctx.fill();
       }
-      floorShape(pts, fill, stroke, 3);
+      if (stroke) {
+        ctx.strokeStyle = stroke; ctx.lineWidth = lw || Math.max(2, 5 * cam.scale);
+        ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2); ctx.stroke();
+      }
     }
 
     function floorMarks() {
       ctx.save();
 
-      // the two ends the teams start from: a painted pad, a ring round it and
-      // cross hairs, so it reads as somewhere you are meant to stand
+      // the two ends the teams start from
       [[150, '#F4364C'], [W - 150, '#4F6BFF']].forEach(([cx, colour]) => {
-        ctx.globalAlpha = 0.30;
-        floorEllipse(cx, H / 2, 130, 130, colour, null);
-        ctx.globalAlpha = 0.95;
-        ctx.lineWidth = 6;
-        floorEllipse(cx, H / 2, 130, 130, null, colour);
-        ctx.globalAlpha = 0.75;
-        floorEllipse(cx, H / 2, 74, 74, null, colour);
-        [[[cx - 130, H / 2], [cx - 74, H / 2]], [[cx + 74, H / 2], [cx + 130, H / 2]],
-         [[cx, H / 2 - 130], [cx, H / 2 - 74]], [[cx, H / 2 + 74], [cx, H / 2 + 130]]]
-          .forEach(([a, b]) => {
-            const pa = project(a[0], a[1], 0), pb = project(b[0], b[1], 0);
-            if (!pa || !pb) return;
-            ctx.strokeStyle = colour; ctx.lineWidth = 6;
-            ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
-          });
+        ctx.globalAlpha = 0.22; floorRing(cx, H / 2, 135, colour, null);
+        ctx.globalAlpha = 0.9;  floorRing(cx, H / 2, 135, null, colour, Math.max(3, 7 * cam.scale));
+        ctx.globalAlpha = 0.7;  floorRing(cx, H / 2, 74, null, colour, Math.max(2, 4 * cam.scale));
         ctx.globalAlpha = 1;
       });
 
-      if (look.scene === 'hangar') {
-        // a hazard line down the middle of the hall
-        ctx.globalAlpha = 0.5;
-        for (let y = 40; y < H; y += 120) {
-          floorShape([[W / 2 - 16, y], [W / 2 + 16, y],
-                      [W / 2 + 16, y + 70], [W / 2 - 16, y + 70]], '#FFB020', null);
-        }
-        ctx.globalAlpha = 1;
-      } else if (look.scene === 'space') {
-        // the landing pad, and craters worn into the regolith
-        ctx.globalAlpha = 0.5;
-        floorEllipse(W / 2, H / 2, 300, 300, null, '#38E0C0');
-        ctx.globalAlpha = 0.16;
-        [[330, 250, 90, 54], [1290, 790, 120, 70], [420, 830, 70, 40],
-         [1180, 210, 84, 48]].forEach(([x, y, rx, ry]) =>
-          floorEllipse(x, y, rx, ry, '#0A1020', null));
-        ctx.globalAlpha = 1;
-      } else {
-        // chevrons pointing into the corners of the neon arena
-        ctx.globalAlpha = 0.34;
-        [[70, 70, 1, 1], [W - 70, 70, -1, 1],
-         [70, H - 70, 1, -1], [W - 70, H - 70, -1, -1]].forEach(([x, y, sx, sy]) => {
-          for (let i = 0; i < 3; i++) {
-            const d = i * 34;
-            floorShape([[x + sx * d, y + sy * (d + 74)],
-                        [x + sx * (d + 16), y + sy * (d + 74)],
-                        [x + sx * (d + 90), y + sy * d],
-                        [x + sx * (d + 74), y + sy * d]], look.trim, null);
-          }
-        });
-        ctx.globalAlpha = 1;
-      }
+      // and the middle, which is what both ends are running at
+      ctx.globalAlpha = 0.55;
+      floorRing(W / 2, H / 2, 250, null, look.trim, Math.max(2, 5 * cam.scale));
+      ctx.globalAlpha = 0.28;
+      floorRing(W / 2, H / 2, 210, null, look.trim, Math.max(2, 3 * cam.scale));
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
 
-    /* The rest of the hall.
+    /* ── the walls ────────────────────────────────────────
      *
-     * The camera stands behind the player, so when you are near the front of
-     * the arena it is looking across ground that is outside it — and that
-     * ground was flat black, which reads as a hole in the world rather than as
-     * floor you are not allowed on. So the floor carries on past the barrier,
-     * darker, with the same grid on it. The barrier is what says where the
-     * arena stops; the dark is not asked to do that job any more. */
-    function apron() {
-      const OUT = 1400;
-      const c1 = project(-OUT, -OUT, 0), c2 = project(W + OUT, -OUT, 0);
-      const c3 = project(W + OUT, H + OUT, 0), c4 = project(-OUT, H + OUT, 0);
-      if (!c1 || !c2 || !c3 || !c4) return;
+     * Chunky blocks with a dark outline and a shadow under them, and a lighter
+     * cap inset inside so the eye reads a top and a side. A head-high wall is
+     * drawn solid; a chest-high one is drawn paler with a dashed cap, because
+     * from above the only way to say "you can shoot over this one" is to say
+     * it in the drawing. */
+    function drawWalls() {
+      const lw = Math.max(2, 5 * cam.scale);
+      cover.forEach(bk => {
+        const a = project(bk.x, bk.y, 0);
+        const wpx = bk.w * cam.scale, hpx = bk.h * cam.scale;
+        if (a.x > canvas.width || a.y > canvas.height ||
+            a.x + wpx < 0 || a.y + hpx < 0) return;
+        const low = bk.t === 'low';
+        const r = Math.min(wpx, hpx) * 0.28;
+        outlined(() => {
+          ctx.beginPath(); ctx.roundRect(a.x, a.y, wpx, hpx, r);
+        }, low ? look.wallLow : look.wall, lw, true);
+
+        // the cap: a lighter panel inset, which is what gives it thickness
+        const inset = Math.min(wpx, hpx) * 0.22;
+        if (wpx > inset * 2.4 && hpx > inset * 2.4) {
+          ctx.save();
+          ctx.globalAlpha = low ? 0.5 : 0.85;
+          ctx.fillStyle = look.wallLip;
+          ctx.beginPath();
+          ctx.roundRect(a.x + inset, a.y + inset, wpx - inset * 2, hpx - inset * 2,
+                        Math.max(2, r * 0.6));
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // a neon strip down the long side, the arena's own colour
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = look.trim;
+        const thin = Math.max(2, 4 * cam.scale);
+        if (bk.w > bk.h) ctx.fillRect(a.x + r, a.y + hpx - thin * 1.8, wpx - r * 2, thin);
+        else ctx.fillRect(a.x + wpx - thin * 1.8, a.y + r, thin, hpx - r * 2);
+        ctx.restore();
+      });
+    }
+
+    /* The mark of a superpower, floating over whoever is holding one, so a
+       classmate suddenly firing three beams at once reads as somebody who got
+       to the orb first rather than as the game cheating. */
+    function aura(x, y, kind) {
+      if (!kind || !POWERS[kind]) return;
+      const p = project(x, y, 0);
+      const R = Math.max(7, 15 * cam.scale);
+      const up = (PLAYER_R + 30) * cam.scale;
+      const beat = 0.86 + Math.sin(now() / 220) * 0.14;
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y);
-      ctx.lineTo(c3.x, c3.y); ctx.lineTo(c4.x, c4.y); ctx.closePath();
-      const g = ctx.createLinearGradient(0, Math.min(c1.y, c2.y), 0, Math.max(c3.y, c4.y));
-      g.addColorStop(0, look.sky[2]);
-      g.addColorStop(0.5, look.floor[1]);
-      g.addColorStop(1, look.sky[2]);
-      ctx.fillStyle = g; ctx.fill();
-      ctx.clip();
-      ctx.strokeStyle = look.grid;
-      ctx.globalAlpha = 0.45;
-      ctx.lineWidth = 1.2;
-      const step = look.grid2 * 2;
-      for (let x = -OUT; x <= W + OUT; x += step) {
-        const a = project(x, -OUT, 0), b = project(x, H + OUT, 0);
-        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
-      }
-      for (let y = -OUT; y <= H + OUT; y += step) {
-        const a = project(-OUT, y, 0), b = project(W + OUT, y, 0);
-        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
-      }
+      ctx.shadowColor = POWERS[kind].colour;
+      ctx.shadowBlur = 16 * cam.scale;
+      ctx.fillStyle = POWERS[kind].colour;
+      ctx.beginPath(); ctx.arc(p.x, p.y - up, R * beat, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = look.line; ctx.lineWidth = Math.max(1.5, 2.6 * cam.scale);
+      ctx.beginPath(); ctx.arc(p.x, p.y - up, R * beat, 0, Math.PI * 2); ctx.stroke();
+      glyph(ctx, kind, p.x, p.y - up, R * 0.6);
       ctx.restore();
     }
 
-    function drawFloor() {
-      const hz = horizon();
-      const h = canvas.height;
-      // the ground, out to wherever the screen ends
-      ctx.fillStyle = look.sky[2];
-      ctx.fillRect(0, Math.max(0, hz), canvas.width, h);
-      apron();
-      drawBack();
-      // and a little light along the horizon, so the two meet rather than butt
-      if (hz > -60 && hz < h + 60) {
-        const glow = ctx.createLinearGradient(0, hz - 70, 0, hz + 40);
-        glow.addColorStop(0, 'rgba(0,0,0,0)');
-        glow.addColorStop(0.6, look.haze);
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, hz - 70, canvas.width, 110);
-      }
+    /* ── one blook ────────────────────────────────────────
+     *
+     * Face on, the whole character, the size it is on the leaderboard. A ring
+     * under it in its team's colour, a blaster pointing wherever it is aiming,
+     * and its name over the top. A player used to be a coloured capsule with a
+     * face stuck on the front, which is a thing you draw when the camera is
+     * looking at the front of something. Nothing is looking at the front of
+     * anything now. */
+    function body(x, y, angle, colour, alive, label, isSelf, avatar, wild) {
+      const p = project(x, y, 0);
+      const R = PLAYER_R * cam.scale;
+      if (p.x < -R * 6 || p.x > canvas.width + R * 6 ||
+          p.y < -R * 6 || p.y > canvas.height + R * 6) return;
 
-      const fl = project(0, 0, 0), fr = project(W, 0, 0);
-      const nr = project(W, H, 0), nl = project(0, H, 0);
-      if (fl && fr && nr && nl) {
+      ctx.save();
+      ctx.globalAlpha = alive ? 1 : 0.32;
+
+      // the shadow, offset the same way everything else's is
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + R * 0.34, R * 1.02, R * 0.88, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // the ring: whose side this one is on, or dashed for a wild blook
+      ctx.strokeStyle = wild ? 'rgba(255,255,255,.62)' : colour;
+      ctx.lineWidth = Math.max(2, 5 * cam.scale);
+      if (wild) ctx.setLineDash([R * 0.5, R * 0.42]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.24, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // the blaster, pointing where they are aiming
+      if (!wild) {
+        const gl = R * 1.9, gw = Math.max(3, 8 * cam.scale);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(angle);
+        ctx.fillStyle = colour;
+        ctx.strokeStyle = look.line;
+        ctx.lineWidth = Math.max(1.5, 2.6 * cam.scale);
         ctx.beginPath();
-        ctx.moveTo(fl.x, fl.y); ctx.lineTo(fr.x, fr.y);
-        ctx.lineTo(nr.x, nr.y); ctx.lineTo(nl.x, nl.y);
-        ctx.closePath();
-        const g = ctx.createLinearGradient(0, fl.y, 0, nr.y);
-        g.addColorStop(0, look.floor[0]);
-        g.addColorStop(1, look.floor[1]);
-        ctx.fillStyle = g;
-        ctx.fill();
+        ctx.roundRect(R * 0.5, -gw / 2, gl, gw, gw / 2);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
       }
 
-      ctx.strokeStyle = look.grid;
-      ctx.lineWidth = 1.5;
-      const step = look.grid2;
-      for (let x = 0; x <= W; x += step) {
-        const a = project(x, 0, 0), b = project(x, H, 0);
-        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
-      }
-      for (let y = 0; y <= H; y += step) {
-        const a = project(0, y, 0), b = project(W, y, 0);
-        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      /* The blook. Until its picture has finished loading a plain disc in its
+         own colour stands in, so nobody ever sees a gap. */
+      const face = blookFace(avatar);
+      if (face && face.ready) {
+        const size = R * 2.6;
+        ctx.drawImage(face.canvas, p.x - size / 2, p.y - size / 2, size, size);
+      } else {
+        ctx.fillStyle = colour;
+        ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = look.line;
+        ctx.lineWidth = Math.max(1.5, 3 * cam.scale);
+        ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.stroke();
       }
 
-      /* Painted on the floor. A big plane with a grid on it reads as a texture;
-         a plane with markings on it reads as a room somebody uses. Each map
-         gets its own — hazard chevrons in the corners of the neon arena, a lane
-         line down the bunker, a landing pad and craters on the moon — and all
-         three get the two team pads, so you can see where the other end starts
-         from without being told. */
-      floorMarks();
-
-      /* The centre of the floor gets a painted ring, because a big empty plane
-         with nothing on it reads as a texture rather than as a place. */
-      const ring = [];
-      for (let i = 0; i <= 40; i++) {
-        const a = (i / 40) * Math.PI * 2;
-        ring.push(project(W / 2 + Math.cos(a) * 250, H / 2 + Math.sin(a) * 250, 0));
+      // your own player gets a white ring, so you never lose yourself in a crowd
+      if (isSelf) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = Math.max(2, 4 * cam.scale);
+        ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.55, 0, Math.PI * 2); ctx.stroke();
       }
-      if (ring.every(Boolean)) {
-        ctx.strokeStyle = look.trim;
-        ctx.globalAlpha = 0.28;
-        ctx.lineWidth = 4;
+
+      ctx.globalAlpha = 1;
+
+      // the name, on a pill in their team's colour
+      if (label) {
+        const size = Math.max(9, 17 * cam.scale);
+        ctx.font = `800 ${size}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(label).width + size * 0.9;
+        const th = size * 1.5;
+        const ty = p.y - R * 1.9 - th / 2;
+        ctx.fillStyle = colour;
+        ctx.strokeStyle = look.line;
+        ctx.lineWidth = Math.max(1.5, 2.6 * cam.scale);
         ctx.beginPath();
-        ring.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-        ctx.closePath();
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+        ctx.roundRect(p.x - tw / 2, ty - th / 2, tw, th, th / 2);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(label, p.x, ty + size * 0.04);
       }
-
-      /* The cover. Each block is a box: a top face, and the two sides that face
-         the camera, which is enough to read as solid from this angle. Sorted by
-         how far away they are so a near block draws over a far one, and given a
-         lit strip along its top edge — the one line that says "this is a wall in
-         a room somebody built" rather than "this is a grey rectangle". */
-      [...cover].sort((p, q) => (q.y + q.h) - (p.y + p.h)).forEach(bk => {
-        const BLOCK_H = tallOf(bk);
-        const x0 = bk.x, x1 = bk.x + bk.w, y0 = bk.y, y1 = bk.y + bk.h;
-        const tl = project(x0, y0, BLOCK_H), tr = project(x1, y0, BLOCK_H);
-        const br = project(x1, y1, BLOCK_H), bl = project(x0, y1, BLOCK_H);
-        const nfl = project(x0, y1, 0), nfr = project(x1, y1, 0);
-        const rt = project(x1, y0, 0);
-
-        // a shadow on the floor first, which is what sits it in the room
-        const sa = project(x0, y0, 0), sb = project(x1, y0, 0);
-        if (sa && sb && nfl && nfr) {
-          ctx.fillStyle = 'rgba(0,0,0,.38)';
-          ctx.beginPath();
-          ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y);
-          ctx.lineTo(nfr.x, nfr.y); ctx.lineTo(nfl.x, nfl.y); ctx.closePath();
-          ctx.fill();
-        }
-        // the near face and the right-hand face, then the lit top over them
-        quad(bl, br, nfr, nfl, look.face);
-        quad(tr, br, nfr, rt, look.side);
-        quad(tl, tr, br, bl, look.top);
-
-        // the painted stripe: chest high on a wall, along the lip of a low one
-        if (nfl && nfr && bl && br) {
-          const zs = bk.t === 'low' ? 0.78 : 0.56;
-          const a = project(x0, y1, BLOCK_H * zs), b = project(x1, y1, BLOCK_H * zs);
-          if (a && b) {
-            ctx.strokeStyle = look.trim;
-            ctx.globalAlpha = 0.55;
-            ctx.lineWidth = Math.max(2, 7 * (a.k || 1));
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-        }
-        /* Seams, every metre or so along the run. A four-hundred-unit wall drawn
-           as one flat quad reads as a slab of colour; the same wall with panel
-           joints in it reads as something that was built, and gives the eye
-           something to measure distance against as you run past. */
-        const along = Math.max(bk.w, bk.h);
-        if (along > 150) {
-          const across = bk.w > bk.h;
-          ctx.strokeStyle = 'rgba(0,0,0,.28)';
-          ctx.lineWidth = 1.5;
-          for (let d = 110; d < along - 40; d += 110) {
-            const sx = across ? x0 + d : x0, sy = across ? y0 : y0 + d;
-            const ex = across ? x0 + d : x1;
-            const a = project(sx, across ? y1 : sy, 0);
-            const b = project(across ? ex : x1, across ? y1 : sy, BLOCK_H);
-            const a2 = project(sx, across ? y1 : sy, BLOCK_H);
-            if (a && a2) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a2.x, a2.y); ctx.stroke(); }
-            // and across the top, so the joint carries over the lip
-            const t1 = project(sx, across ? y0 : sy, BLOCK_H);
-            if (t1 && a2) { ctx.beginPath(); ctx.moveTo(t1.x, t1.y); ctx.lineTo(a2.x, a2.y); ctx.stroke(); }
-            void b;
-          }
-        }
-        if (tl && tr) {
-          ctx.strokeStyle = look.edge;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
-          ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath();
-          ctx.stroke();
-        }
-      });
-
-      /* The four walls. Each is a quad from the floor up to WALL, drawn with the
-         face towards the middle of the arena lit a little and a bright strip along
-         the top, which is what makes it read as an edge rather than a stripe. */
-      const sides = [
-        [[0, 0], [W, 0]],        // far
-        [[W, 0], [W, H]],        // right
-        [[W, H], [0, H]],        // near
-        [[0, H], [0, 0]]         // left
-      ];
-      sides.forEach(([[ax, ay], [bx, by]], i) => {
-        const a = project(ax, ay, 0), b = project(bx, by, 0);
-        const c = project(bx, by, WALL), d = project(ax, ay, WALL);
-        quad(a, b, c, d, look.wall);
-        if (c && d) {
-          ctx.strokeStyle = look.rim;
-          ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(c.x, c.y); ctx.stroke();
-        }
-      });
+      ctx.restore();
     }
 
     function draw() {
       fit();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      // the sky above the far wall, so the arena has a horizon to sit under
-      const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      sky.addColorStop(0, look.sky[0]);
-      sky.addColorStop(0.45, look.sky[1]);
-      sky.addColorStop(1, look.sky[2]);
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       drawFloor();
+      drawWalls();
 
-      /* Everything that stands on the floor is collected first and drawn far to
-         near, which is the whole trick to making one flat canvas look solid: a
-         figure in front must be painted over the one behind it. */
+      /* Everything that moves, painted down the screen: a blook lower down is
+         nearer the bottom of the picture and goes over one above it, which is
+         the only overlap rule a top-down view needs. */
       const solids = [];
 
-      /* The superpowers, waiting to be picked up.
-       *
-       * A pill you have to have been told the colour code for is not a prize.
-       * Each one is an orb now: a pool of its own light on the floor, a ring
-       * turning round it, and its mark on the front. You can see from across
-       * the maze that there is something there and what it is, which is the
-       * whole reason to break cover and go and get it. */
+      /* The superpowers, waiting to be picked up. A flat disc with a thick
+         outline and its own mark on it — the same drawing the chip on your
+         phone carries, so the thing you ran for and the thing you are holding
+         look like the same thing. */
       capsules.forEach(c => {
         const age = now() - c.born;
-        const bob = Math.sin(age / 380) * 7;
-        const p = project(c.x, c.y, 40 + bob);
-        const foot = project(c.x, c.y, 0);
-        if (!p || !foot) return;
-        solids.push({ depth: p.depth, paint: () => {
-          const kind = POWERS[c.kind];
-          const R = 21 * p.k;
+        const beat = 1 + Math.sin(age / 340) * 0.07;
+        const p = project(c.x, c.y, 0);
+        const kind = POWERS[c.kind];
+        const R = 22 * cam.scale * beat;
+        solids.push({ depth: c.y - 1, paint: () => {
           ctx.save();
-
-          // light pooled on the floor under it
-          const pool = ctx.createRadialGradient(foot.x, foot.y, 1, foot.x, foot.y, R * 2.4);
-          pool.addColorStop(0, kind.colour);
-          pool.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.globalAlpha = 0.32;
-          ctx.fillStyle = pool;
-          ctx.beginPath();
-          ctx.ellipse(foot.x, foot.y, R * 2.4, R * 0.95, 0, 0, Math.PI * 2);
-          ctx.fill();
+          // a halo on the floor, so it is visible from the far end of a corridor
+          const halo = ctx.createRadialGradient(p.x, p.y, R * 0.4, p.x, p.y, R * 3);
+          halo.addColorStop(0, kind.colour);
+          halo.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.28;
+          ctx.fillStyle = halo;
+          ctx.beginPath(); ctx.arc(p.x, p.y, R * 3, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
 
-          // a ring turning round it, flattened so it lies in the world
-          const spin = age / 620;
+          // a ring turning round it
           ctx.strokeStyle = kind.colour;
-          ctx.globalAlpha = 0.85;
-          ctx.lineWidth = Math.max(1.5, 3 * p.k);
-          ctx.beginPath();
-          ctx.ellipse(p.x, p.y, R * 1.5, R * 0.5, Math.sin(spin) * 0.5, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+          ctx.lineWidth = Math.max(1.5, 3 * cam.scale);
+          ctx.setLineDash([R * 0.7, R * 0.5]);
+          ctx.lineDashOffset = -age / 24;
+          ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.6, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
 
-          // the orb: bright at the top left, its own colour through the middle
-          const ball = ctx.createRadialGradient(p.x - R * 0.35, p.y - R * 0.4, R * 0.1,
-                                                p.x, p.y, R);
-          ball.addColorStop(0, '#FFFFFF');
-          ball.addColorStop(0.42, kind.colour);
-          ball.addColorStop(1, 'rgba(0,0,0,.55)');
-          ctx.shadowColor = kind.colour; ctx.shadowBlur = 30 * p.k;
-          ctx.fillStyle = ball;
-          ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.fill();
-          ctx.shadowBlur = 0;
-
-          // and its mark on the front
+          ctx.fillStyle = kind.colour;
+          ctx.strokeStyle = look.line;
+          ctx.lineWidth = Math.max(2, 4 * cam.scale);
+          ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+          ctx.fill(); ctx.stroke();
           glyph(ctx, c.kind, p.x, p.y, R * 0.62);
           ctx.restore();
         } });
       });
 
-      /* The wandering blooks, drawn exactly as a player is: same body, same
-         face, same light on it. They were a different kind of thing before —
-         a green oval — which made half of what moves in the arena look like it
-         came from a different game. */
+      // the ring a superpower leaves when somebody takes it
+      rings.forEach(r => {
+        const age = (now() - r.born) / 640;
+        if (age > 1) return;
+        const p = project(r.x, r.y, 0);
+        solids.push({ depth: r.y - 2, paint: () => {
+          ctx.save();
+          ctx.globalAlpha = (1 - age) * 0.9;
+          ctx.strokeStyle = r.colour;
+          ctx.lineWidth = Math.max(2, 9 * cam.scale * (1 - age));
+          ctx.beginPath(); ctx.arc(p.x, p.y, 150 * age * cam.scale, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } });
+      });
+
+      // the trail you leave while the speed boost is on you
+      ghosts.forEach(g => {
+        const age = (now() - g.born) / 420;
+        if (age > 1) return;
+        solids.push({ depth: g.y - 3, paint: () =>
+          body(g.x, g.y, g.a, teamColour(g.team), false, '', false, g.avatar, true) });
+      });
+
+      // the wandering blooks
       bots.forEach(a => {
-        const p = project(a.x, a.y, BODY_H);
-        if (!p) return;
-        solids.push({ depth: p.depth, paint: () => {
+        solids.push({ depth: a.y, paint: () => {
           body(a.x, a.y, a.angle,
                global.Sprite ? Sprite.colourFor(a.avatar) : '#7BC62D',
                true, '', false, a.avatar, true);
         } });
       });
 
-      // beams travel at chest height and leave a bright trail behind them
-      shots.forEach(sh => {
-        const head = project(sh.x, sh.y, BODY_H * 0.55);
-        const tail = project(sh.x - sh.dx * 34, sh.y - sh.dy * 34, BODY_H * 0.55);
-        if (!head || !tail) return;
-        solids.push({ depth: head.depth, paint: () => {
-          ctx.save();
-          ctx.strokeStyle = sh.team === 'blue' ? '#8FA6FF' : '#FF8A7A';
-          ctx.shadowColor = ctx.strokeStyle;
-          ctx.shadowBlur = 18 * head.k;
-          ctx.lineWidth = Math.max(1.5, 7 * head.k);
-          ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(head.x, head.y); ctx.lineTo(tail.x, tail.y); ctx.stroke();
-          ctx.restore();
-        } });
-      });
-
-      /* The ring a superpower leaves behind when somebody takes it, opening out
-         along the floor. It is the one moment in the round worth announcing. */
-      rings.forEach(r => {
-        const age = (now() - r.born) / 640;
-        const foot = project(r.x, r.y, 0);
-        if (!foot || age > 1) return;
-        solids.push({ depth: foot.depth, paint: () => {
-          ctx.save();
-          ctx.globalAlpha = (1 - age) * 0.9;
-          ctx.strokeStyle = r.colour;
-          ctx.lineWidth = Math.max(2, 7 * foot.k * (1 - age));
-          ctx.beginPath();
-          ctx.ellipse(foot.x, foot.y, 120 * age * foot.k, 44 * age * foot.k, 0, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.restore();
-        } });
-      });
-
-      // and the trail you leave while the speed boost is on you
-      ghosts.forEach(g => {
-        const age = (now() - g.born) / 420;
-        const p = project(g.x, g.y, 0);
-        if (!p || age > 1) return;
-        // drawn as "not alive", which is what body() already fades to a ghost
-        solids.push({ depth: p.depth + 1, paint: () =>
-          body(g.x, g.y, g.a, teamColour(g.team), false, '', false, g.avatar, true) });
-      });
-
       others.forEach(o => {
-        const p = project(o.x, o.y, 0);
-        if (!p) return;
-        solids.push({ depth: p.depth, paint: () => {
+        solids.push({ depth: o.y, paint: () => {
           body(o.x, o.y, o.a || 0, teamColour(o.team), o.alive !== false, o.name, false, o.avatar);
-          // what they are holding, so you can see who is dangerous right now
           if (o.alive !== false && (o.power || o.shield)) {
             aura(o.x, o.y, o.shield ? 'shield' : o.power);
           }
@@ -1367,88 +1045,101 @@
       });
 
       if (!watching) {
-        const p = project(self.x, self.y, 0);
-        if (p) solids.push({ depth: p.depth, paint: () => {
-          body(self.x, self.y, self.angle, teamColour(self.team), self.alive, '', true, self.avatar);
+        solids.push({ depth: self.y + 0.5, paint: () => {
+          body(self.x, self.y, self.angle, teamColour(self.team), self.alive,
+               '', true, self.avatar);
           if (self.alive && self.power) aura(self.x, self.y, self.power);
           if (self.shield) {
-            const mid = project(self.x, self.y, BODY_H * 0.5);
-            if (mid) {
-              ctx.save();
-              ctx.strokeStyle = '#12BE8E';
-              ctx.lineWidth = Math.max(1.5, 4 * mid.k);
-              ctx.shadowColor = '#12BE8E'; ctx.shadowBlur = 20 * mid.k;
-              ctx.beginPath();
-              ctx.ellipse(mid.x, mid.y, (PLAYER_R + 15) * mid.k, (PLAYER_R + 22) * mid.k, 0, 0, Math.PI * 2);
-              ctx.stroke();
-              ctx.restore();
-            }
+            const p = project(self.x, self.y, 0);
+            ctx.save();
+            ctx.strokeStyle = '#12BE8E';
+            ctx.lineWidth = Math.max(2, 5 * cam.scale);
+            ctx.shadowColor = '#12BE8E'; ctx.shadowBlur = 18 * cam.scale;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, (PLAYER_R + 18) * cam.scale, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
           }
         } });
       }
 
-      sparks.forEach(sp => {
-        const p = project(sp.x, sp.y, 40);
-        if (!p) return;
-        solids.push({ depth: p.depth, paint: () => {
+      // beams: a bright bolt with a trail, over everything, because a shot in
+      // flight is the thing you most need to see
+      shots.forEach(sh => {
+        const head = project(sh.x, sh.y, 0);
+        const tail = project(sh.x - sh.dx * 46, sh.y - sh.dy * 46, 0);
+        solids.push({ depth: 1e8, paint: () => {
           ctx.save();
-          ctx.globalAlpha = Math.max(0, 1 - (now() - sp.born) / 620);
-          ctx.fillStyle = sp.colour;
-          ctx.shadowColor = sp.colour; ctx.shadowBlur = 12 * p.k;
-          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1, 5 * p.k), 0, Math.PI * 2); ctx.fill();
+          const c = sh.team === 'blue' ? '#8FB4FF' : '#FF9484';
+          ctx.strokeStyle = c;
+          ctx.shadowColor = c;
+          ctx.shadowBlur = 16 * cam.scale;
+          ctx.lineWidth = Math.max(2, 8 * cam.scale);
+          ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(head.x, head.y); ctx.lineTo(tail.x, tail.y); ctx.stroke();
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = Math.max(1, 3 * cam.scale);
+          ctx.beginPath(); ctx.moveTo(head.x, head.y); ctx.lineTo(tail.x, tail.y); ctx.stroke();
           ctx.restore();
         } });
       });
 
-      solids.sort((a, b) => b.depth - a.depth);
+      sparks.forEach(sp => {
+        const p = project(sp.x, sp.y, 0);
+        solids.push({ depth: 1e8 + 1, paint: () => {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - (now() - sp.born) / 620);
+          ctx.fillStyle = sp.colour;
+          ctx.shadowColor = sp.colour; ctx.shadowBlur = 10 * cam.scale;
+          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.5, 6 * cam.scale), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } });
+      });
+
+      solids.sort((a, b) => a.depth - b.depth);
       solids.forEach(item => item.paint());
 
       if (!watching) miniMap();
     }
 
-    /* A plan of the arena in the corner. A labyrinth you can only see one
-       corridor of is frustrating rather than tense: you need to know there is a
-       way round, even if you cannot see it. So the walls are drawn from above,
-       with you and everyone near you on them. */
+    /* A plan of the whole arena in the corner. From above you can see the
+       corner you are in, but not the far end, and knowing where everybody else
+       is is half of deciding where to go next. */
     function miniMap() {
-      /* Top right. It used to sit bottom left, where the energy bar runs across
-         it and the superpower slot sits beside it; a plan you have to read
-         through two other things is not a plan. */
       const pad = Math.round(canvas.width * 0.03);
-      const mw = Math.min(canvas.width * 0.32, 280);
+      const mw = Math.min(canvas.width * 0.30, 260);
       const mh = mw * (H / W);
       const ox = canvas.width - mw - pad, oy = pad;
       const s = mw / W;
       const at = (x, y) => ({ x: ox + x * s, y: oy + y * s });
 
       ctx.save();
-      ctx.globalAlpha = 0.86;
-      ctx.fillStyle = 'rgba(6,4,16,.78)';
-      ctx.beginPath(); ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10); ctx.fill();
-      ctx.strokeStyle = look.rim; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10); ctx.stroke();
+      ctx.fillStyle = 'rgba(8,5,20,.72)';
+      ctx.strokeStyle = 'rgba(255,255,255,.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10);
+      ctx.fill(); ctx.stroke();
 
-      ctx.fillStyle = look.top;
+      ctx.fillStyle = look.wallLip;
       cover.forEach(b => {
-        ctx.globalAlpha = b.t === 'low' ? 0.45 : 0.85;
+        ctx.globalAlpha = b.t === 'low' ? 0.42 : 0.8;
         ctx.fillRect(ox + b.x * s, oy + b.y * s, b.w * s, b.h * s);
       });
 
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.95;
       capsules.forEach(c => {
         const p = at(c.x, c.y);
         ctx.fillStyle = POWERS[c.kind].colour;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.8, 0, Math.PI * 2); ctx.fill();
       });
-
       others.forEach(o => {
         if (o.alive === false) return;
         const p = at(o.x, o.y);
         ctx.fillStyle = teamColour(o.team);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 3.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3.8, 0, Math.PI * 2); ctx.fill();
       });
 
-      // you, with a wedge for which way you are facing
       const me = at(self.x, self.y);
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
@@ -1507,6 +1198,8 @@
       shotCount() { return shots.length; },
       botCount() { return bots.length; },
       botsAt() { return bots.map(b => ({ x: b.x, y: b.y, avatar: b.avatar })); },
+      /** Where an arena point lands on the screen. Only the tests use it. */
+      toScreen(x, y) { const p = project(x, y, 0); return { x: p.x, y: p.y }; },
       /** Hand this player a superpower. Tests and the shots in the docs use it;
           in a real round the only way to one is to go and stand on it. */
       grant(kind) {
@@ -1544,25 +1237,27 @@
     const s = [];
     s.push('<svg class="scene" viewBox="0 0 ' + W + ' ' + H + '" width="' + width +
            '" height="' + h + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true">');
-    s.push('<rect width="' + W + '" height="' + H + '" fill="' + look.floor[1] + '"/>');
-    s.push('<g stroke="' + look.grid + '" stroke-width="3">');
-    for (let x = look.grid2; x < W; x += look.grid2) s.push('<path d="M' + x + ' 0V' + H + '"/>');
-    for (let y = look.grid2; y < H; y += look.grid2) s.push('<path d="M0 ' + y + 'H' + W + '"/>');
+    s.push('<rect width="' + W + '" height="' + H + '" fill="' + look.floor2 + '"/>');
+    s.push('<g stroke="#fff" stroke-width="3" opacity=".10">');
+    for (let x = 200; x < W; x += 200) s.push('<path d="M' + x + ' 0V' + H + '"/>');
+    for (let y = 200; y < H; y += 200) s.push('<path d="M0 ' + y + 'H' + W + '"/>');
     s.push('</g>');
     s.push('<circle cx="' + (W / 2) + '" cy="' + (H / 2) + '" r="250" fill="none" stroke="' +
-           look.trim + '" stroke-width="6" opacity=".35"/>');
+           look.trim + '" stroke-width="8" opacity=".45"/>');
     coverFor(id).forEach(b => {
+      const fill = b.t === 'low' ? look.wallLow : look.wall;
       s.push('<rect x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h +
-             '" rx="8" fill="' + look.top + '" opacity="' + (b.t === 'low' ? 0.55 : 1) + '"/>');
+             '" rx="14" fill="' + fill + '" stroke="' + look.line + '" stroke-width="8"/>');
     });
-    // the two ends the teams start from, so the shape has a direction
-    s.push('<circle cx="90" cy="' + (H / 2) + '" r="34" fill="#F4364C"/>');
-    s.push('<circle cx="' + (W - 90) + '" cy="' + (H / 2) + '" r="34" fill="#4F6BFF"/>');
-    s.push('<rect x="6" y="6" width="' + (W - 12) + '" height="' + (H - 12) +
-           '" rx="16" fill="none" stroke="' + look.rim + '" stroke-width="10"/>');
+    // the two ends the teams start from
+    s.push('<circle cx="150" cy="' + (H / 2) + '" r="60" fill="#F4364C"/>');
+    s.push('<circle cx="' + (W - 150) + '" cy="' + (H / 2) + '" r="60" fill="#4F6BFF"/>');
+    s.push('<rect x="8" y="8" width="' + (W - 16) + '" height="' + (H - 16) +
+           '" rx="26" fill="none" stroke="' + look.line + '" stroke-width="16"/>');
     s.push('</svg>');
     return s.join('');
   }
+
 
   global.NovaArena = { start, POWERS, BOT_POINTS, ALIEN_POINTS: BOT_POINTS,
                        PLAYER_POINTS, ENERGY_SECONDS,

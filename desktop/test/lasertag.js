@@ -216,6 +216,31 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
     k.stop();
     return loaded;
   });
+  /* ── the view is straight down ──
+   *
+   * This was a tilted camera with a perspective projection, which is handsome
+   * and is not the game: Blooket's Laser Tag is flat and top-down. The test
+   * for that is arithmetic — under perspective the same wall is drawn shorter
+   * when it is further away, and under a top-down view it is not. */
+  const flat = await page.evaluate(() => {
+    const k = NovaArena.start({ canvas: document.getElementById('c'), map: 'arena',
+      me: { id: 'me', name: 'Me', avatar: 1, team: 'red' }, send: () => {} });
+    k.place(800, 500);
+    const near = k.toScreen(700, 900), near2 = k.toScreen(900, 900);
+    const far = k.toScreen(700, 100), far2 = k.toScreen(900, 100);
+    const out = {
+      nearWide: Math.abs(near2.x - near.x),
+      farWide: Math.abs(far2.x - far.x),
+      nearY: near.y, farY: far.y
+    };
+    k.stop();
+    return out;
+  });
+  ok('the same wall is the same size near and far',
+     Math.abs(flat.nearWide - flat.farWide) < 0.5,
+     `${flat.nearWide.toFixed(1)} near, ${flat.farWide.toFixed(1)} far`);
+  ok('and the far end of the arena is up the screen', flat.farY < flat.nearY);
+
   /* ── the bots are blooks too ──
    *
    * They were green ovals with two eyes: the one thing in a game built out of
