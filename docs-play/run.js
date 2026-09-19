@@ -126,8 +126,24 @@
     }
 
     // ── what answering does ──
-    function answered(right) {
+    let lastToken = null;
+
+    /* answered(right, token)
+     *
+     * The token says which question this was. One answer per question counts,
+     * however many times the button is hit — a child on a phone double-taps
+     * constantly: an impatient thumb, a slow screen, a button that redraws
+     * under them, and every one of those taps used to be another sprint.
+     *
+     * It is keyed on the question rather than on a stopwatch on purpose. A time
+     * limit would also throttle a child who is genuinely quick, and being quick
+     * is the thing this mode is for. */
+    function answered(right, token) {
       if (stopped || flying) return;
+      if (token !== undefined && token !== null) {
+        if (token === lastToken) return;
+        lastToken = token;
+      }
       if (right) {
         me.streak += 1;
         if (me.streak >= SPRINT_STREAK) {

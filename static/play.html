@@ -810,6 +810,7 @@ function askRunQuestion() {
   const set = (game.quiz && game.quiz.length) ? game.quiz : [];
   if (!set.length) { host.textContent = 'Waiting for the quiz…'; return; }
   const q = set[runQ % set.length];
+  const asked = runQ;
   runQ += 1;
 
   host.innerHTML = '';
@@ -824,7 +825,8 @@ function askRunQuestion() {
       const right = !!c.correct;
       btn.classList.add(right ? 'right' : 'wrong');
       if (navigator.vibrate) navigator.vibrate(right ? [16, 36, 16] : 70);
-      if (runner) runner.answered(right);
+      // the question's own number, so a double-tap cannot answer it twice
+      if (runner) runner.answered(right, asked);
       setTimeout(askRunQuestion, right ? 340 : 620);
     };
     opts.append(btn);

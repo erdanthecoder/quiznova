@@ -35,6 +35,8 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
       level: 1, onState: (s) => { window.last = s; }, onLevel: (l) => window.levels.push(l) });
   });
   await page.waitForTimeout(500);
+  const NovaRun_RIGHT = await page.evaluate(() => NovaRun.RIGHT_GAIN);
+  const NovaRun_METRES = await page.evaluate(() => NovaRun.METRES);
 
   const lit = await page.evaluate(() => {
     const c = document.getElementById('c');
@@ -87,6 +89,23 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   });
   ok('four sprints carries you to the next level', levelled.level === 2,
      `level ${levelled.level}, hand-offs ${JSON.stringify(levelled.levels)}`);
+
+  /* A child on a phone double-taps: an impatient thumb, a slow screen, a button
+   * that redraws under them. Every extra tap used to be another sprint. */
+  const spam = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'width:300px;height:200px;display:block';
+    document.body.append(c);
+    let st = null;
+    const k = NovaRun.start({ canvas: c, world: 'city', level: 1, onState: (s) => { st = s; } });
+    for (let i = 0; i < 12; i++) k.answered(true, 'q7');   // one question, twelve taps
+    const after = st ? st.distance : 0;
+    k.stop(); c.remove();
+    return after;
+  });
+  const oneRight = Math.round(NovaRun_RIGHT * NovaRun_METRES);
+  ok('hammering the button counts once, not twelve times', spam <= oneRight + 1,
+     `twelve taps moved them ${spam}m; one answer is ${oneRight}m`);
 
   ok('no errors while running', errs.length === 0, errs.slice(0, 2).join(' | '));
   await page.close();
