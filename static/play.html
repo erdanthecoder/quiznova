@@ -266,6 +266,16 @@
 /* The move: the row of choices under the question. It has to read at a glance
  * on a phone held under a desk, so each one is a short verb and one line saying
  * what it costs. A choice whose terms you cannot see is not a choice. */
+/* Monster Run: the chase on top, the question underneath, both in view. A
+ * child who has to scroll to answer is a child who gets caught. */
+.runshell{position:relative;flex:0 0 auto;height:38vh;min-height:190px;max-height:340px;
+  border-radius:18px;overflow:hidden;border:2px solid rgba(0,0,0,.5);
+  box-shadow:0 14px 34px -18px rgba(0,0,0,.9)}
+.runshell canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.runq{margin-top:12px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.runq-text{font-size:1.02rem;font-weight:800;line-height:1.3;margin-bottom:10px;color:#fff}
+.runq .opts{flex:1 1 auto}
+
 /* The sword pad. Both buttons are as big as a thumb can miss, because a child
  * in a ten-second fight is watching the boss, not their own hands. */
 .swordpad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;flex:none}
@@ -342,6 +352,7 @@
 <script src="/progress.js"></script>
 <script src="/arena.js"></script>
 <script src="/strike.js"></script>
+<script src="/run.js"></script>
 <script src="/rules.js"></script>
 <script src="/nova.js"></script>
 <script>
@@ -352,6 +363,7 @@ const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
 let strike = null, strikeTotal = 0;
+let runner = null, runQ = 0, runTeller = null;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -682,8 +694,12 @@ function render(fresh) {
   if (game.state === 'lobby') return app.append(lobbyCard());
   if (game.state === 'arena') return app.append(arenaCard());
   if (game.state === 'strike') return app.append(strikeCard());
+  if (game.state === 'running') return app.append(runCard());
   if (arena) { arena.stop(); arena = null; }
   if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
+  if (game.state !== 'running' && runner) {
+    runner.stop(); runner = null; clearInterval(runTeller); runTeller = null;
+  }
   if (game.state === 'over') return app.append(overCard());
   if (game.state === 'reveal') return app.append(revealCard());
   app.append(questionCard(fresh));
@@ -726,6 +742,89 @@ function lobbyCard() {
  * player. The joystick walks and aims at once; a keyboard uses WASD and the mouse.
  */
 let arena = null, arenaQ = 0, arenaAsking = false;
+
+/* Monster Run, on the phone.
+ *
+ * The chase on top and the question underneath, both on screen at once, so a
+ * child never stops running to read. Nobody waits for anybody: this child is on
+ * their own question and the class is spread across the whole quiz, which is
+ * the point — it is a race, and a race where everybody moves together is a
+ * queue.
+ */
+function runCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', id: 'r-dist' }, '0 m'),
+    el('span', { class: 'chip live', id: 'r-need' }, '3 right in a row to sprint')));
+  const shell = el('div', { class: 'runshell' });
+  shell.append(el('canvas', { class: 'arena-canvas', id: 'runner' }));
+  card.append(shell);
+  card.append(el('div', { class: 'runq', id: 'runq' }));
+  setTimeout(startRun, 0);
+  return card;
+}
+
+function startRun() {
+  const canvas = document.getElementById('runner');
+  if (!canvas || runner) return;
+  runQ = 0;
+  runner = NovaRun.start({
+    canvas,
+    world: game.map || 'sewer',
+    level: me.level || 1,
+    colour: Sprite.colourFor ? Sprite.colourFor(me.avatar || 0) : '#FFC53D',
+    onState: (st) => {
+      const d = document.getElementById('r-dist');
+      if (d) d.textContent = Math.round(st.distance) + ' m';
+      const n = document.getElementById('r-need');
+      if (n) n.textContent = st.need === 1 ? 'One more to sprint'
+                           : `${st.need} right in a row to sprint`;
+    },
+    onLevel: () => { askRunQuestion(); report(); }
+  });
+  askRunQuestion();
+  // the phone tells the board where it has got to, rather than every stride
+  runTeller = setInterval(report, 2500);
+
+  function report() {
+    if (!runner) return;
+    const st = runner.state;
+    api(`/games/${pin}/run`, { method: 'POST', body: { playerId: me.id,
+      distance: Math.round(st.distance), level: st.level, boosts: st.boosts } })
+      .catch(() => {});
+  }
+}
+
+/* The next question, in the panel under the chase. There is always one waiting:
+ * a child who has just answered should be able to answer again immediately,
+ * because the monster did not stop while they read. */
+function askRunQuestion() {
+  const host = document.getElementById('runq');
+  if (!host) return;
+  const set = (game.quiz && game.quiz.length) ? game.quiz : [];
+  if (!set.length) { host.textContent = 'Waiting for the quiz…'; return; }
+  const q = set[runQ % set.length];
+  runQ += 1;
+
+  host.innerHTML = '';
+  host.append(el('p', { class: 'runq-text' }, q.text || 'Question'));
+  const opts = el('div', { class: 'opts' + ((q.choices || []).length <= 2 ? ' one' : '') });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: `opt-btn a${i % 6}` });
+    btn.innerHTML = `${SHAPES[i % 6]}<span class="lbl">${esc(c.text || '')}</span>`;
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      opts.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      const right = !!c.correct;
+      btn.classList.add(right ? 'right' : 'wrong');
+      if (navigator.vibrate) navigator.vibrate(right ? [16, 36, 16] : 70);
+      if (runner) runner.answered(right);
+      setTimeout(askRunQuestion, right ? 340 : 620);
+    };
+    opts.append(btn);
+  });
+  host.append(opts);
+}
 
 /* Ten seconds with a sword.
  *

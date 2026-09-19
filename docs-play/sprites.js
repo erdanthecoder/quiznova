@@ -294,16 +294,17 @@
       '<circle cx="26" cy="78" r="10" fill="#12BE8E"/><circle cx="50" cy="83" r="8" fill="#FFC53D"/>' +
       '<circle cx="124" cy="80" r="9" fill="#F4364C"/><circle cx="144" cy="85" r="7" fill="#2BA8FF"/>' +
       '<rect y="91" width="160" height="9" fill="#DED2FF"/>',
-    volcano:
-      '<rect width="160" height="100" fill="#2B1030"/>' +
-      '<path d="M0 100 L44 26 L70 60 L96 18 L160 100z" fill="#3E2033"/>' +
-      '<path d="M0 100 L44 26 L58 44 L36 100z" fill="#4E2A3C"/>' +
-      '<path d="M0 100h160V74c-16 4-30-4-46-2s-24 8-40 6-24-8-38-6z" fill="#F4364C"/>' +
-      '<path d="M0 100h160V84c-14 3-28-3-44-1s-22 7-38 5-24-7-38-5z" fill="#FF7A45"/>' +
-      '<circle cx="96" cy="14" r="5" fill="#FFD86B"/><circle cx="112" cy="24" r="3.4" fill="#FF9A3D"/>' +
-      '<circle cx="82" cy="26" r="2.6" fill="#FFD86B"/>' +
-      '<circle cx="52" cy="48" r="8" fill="#12BE8E"/><circle cx="49" cy="45" r="2.4" fill="#fff"/>' +
-      '<circle cx="106" cy="56" r="8" fill="#4F6BFF"/><circle cx="103" cy="53" r="2.4" fill="#fff"/>'
+    monster:
+      '<rect width="160" height="100" fill="#0A1418"/>' +
+      '<path d="M26 100 L64 38 L96 38 L134 100z" fill="#1B2422"/>' +
+      '<path d="M56 100 L74 50 L86 50 L104 100z" fill="#0A1214"/>' +
+      '<ellipse cx="80" cy="44" rx="13" ry="8" fill="#05080A"/>' +
+      '<path d="M0 86h160v14H0z" fill="#16201F"/>' +
+      '<circle cx="80" cy="60" r="5" fill="#FFC53D"/>' +
+      '<rect x="77.4" y="62" width="5.2" height="8" rx="2.4" fill="#FFC53D"/>' +
+      '<path d="M92 100c-5-26 8-38 22-38s27 12 22 38z" fill="#0C060F"/>' +
+      '<circle cx="105" cy="72" r="3" fill="#FF5A6E"/><circle cx="118" cy="72" r="3" fill="#FF5A6E"/>' +
+      '<path d="M90 86c-9-4-14-10-14-17M136 86c9-4 14-10 14-17" stroke="#0C060F" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
   };
 
   /* ── the maps ─────────────────────────────────────────────
@@ -467,56 +468,64 @@
       '<g fill="#7BC62D"><circle cx="24" cy="54" r="2.6"/><circle cx="50" cy="64" r="2.6"/><circle cx="108" cy="60" r="2.6"/></g>' +
       '<circle cx="132" cy="70" r="7" fill="#7C4DFF"/><circle cx="129.6" cy="67.6" r="2.1" fill="#fff"/>',
 
-    // ── Volcano Climb ──
-    crater:
-      '<rect width="160" height="100" fill="#1A0D18"/>' +
-      // the sky, seen through the mouth of the crater far above
-      '<path d="M58 0h44l10 18H48z" fill="#4A2B3E"/>' +
-      '<path d="M64 0h32l5 10H59z" fill="#7C4DFF" opacity=".45"/>' +
-      // the bowl: both walls lean in as they rise, so it reads as depth
-      '<path d="M0 0h58L30 52 44 100H0z" fill="#3A1E2A"/>' +
-      '<path d="M160 0h-58l28 52-14 48h44z" fill="#3A1E2A"/>' +
-      '<path d="M0 22h44L24 60l12 40H0z" fill="#54283A"/>' +
-      '<path d="M160 22h-44l20 38-12 40h36z" fill="#54283A"/>' +
-      // ledges to stand on, which is what the mode is about
-      '<g fill="#6E3448">' +
-      '<rect x="34" y="46" width="26" height="5" rx="2.5"/><rect x="100" y="38" width="26" height="5" rx="2.5"/>' +
-      '<rect x="56" y="64" width="24" height="5" rx="2.5"/><rect x="88" y="72" width="24" height="5" rx="2.5"/></g>' +
-      '<path d="M0 100h160V86c-16 3-30-4-46-2s-24 7-40 5-24-7-38-5z" fill="#F4364C"/>' +
-      '<path d="M0 100h160V93c-14 2-28-2-44-1s-22 5-38 4-24-5-38-4z" fill="#FFD86B"/>' +
-      '<g fill="#FF9A3D" opacity=".9"><circle cx="46" cy="78" r="2.4"/><circle cx="104" cy="60" r="2"/>' +
-      '<circle cx="74" cy="34" r="1.8"/></g>' +
-      '<circle cx="46" cy="42" r="7" fill="#12BE8E"/><circle cx="43.6" cy="39.6" r="2.1" fill="#fff"/>' +
-      '<circle cx="112" cy="34" r="7" fill="#FFC53D"/><circle cx="109.6" cy="31.6" r="2.1" fill="#fff"/>' +
-      '<circle cx="68" cy="60" r="6.4" fill="#2BA8FF"/><circle cx="65.8" cy="57.8" r="2" fill="#fff"/>',
-    ashfall:
-      '<rect width="160" height="100" fill="#3B3640"/>' +
-      '<rect width="160" height="46" fill="#4A444F"/>' +
-      '<path d="M0 46h160v10c-16 4-30-3-46-1s-24 7-40 5-24-7-38-5-22 4-36 1z" fill="#56505C" opacity=".7"/>' +
-      '<path d="M18 100 L52 34 L62 34 L96 100z" fill="#2B2730"/>' +
-      '<path d="M84 100 L118 48 L126 48 L156 100z" fill="#232028"/>' +
-      '<path d="M52 38h10l8 16-13-5-11 5z" fill="#C4442E" opacity=".85"/>' +
-      '<g fill="#D6D0DA" opacity=".75">' +
-      '<circle cx="14" cy="12" r="1.8"/><circle cx="38" cy="26" r="1.4"/><circle cx="66" cy="14" r="1.6"/>' +
-      '<circle cx="92" cy="30" r="1.5"/><circle cx="118" cy="18" r="1.7"/><circle cx="142" cy="34" r="1.4"/>' +
-      '<circle cx="26" cy="52" r="1.5"/><circle cx="76" cy="58" r="1.6"/><circle cx="132" cy="62" r="1.5"/>' +
-      '<circle cx="50" cy="76" r="1.4"/><circle cx="104" cy="82" r="1.6"/></g>' +
-      '<path d="M0 100h160V90c-16 2-30-3-46-1s-24 5-40 4-24-5-38-4z" fill="#8C3A24" opacity=".7"/>' +
-      '<circle cx="74" cy="72" r="8" fill="#FFC53D"/><circle cx="71" cy="69" r="2.4" fill="#fff"/>',
-    obsidian:
-      '<rect width="160" height="100" fill="#0D2B33"/>' +
-      '<rect width="160" height="40" fill="#124049"/>' +
-      '<path d="M0 40h160v8c-16 4-30-3-46-1s-24 6-40 4-24-6-38-4-22 3-36 0z" fill="#0D2B33" opacity=".6"/>' +
-      '<path d="M10 100 L34 30 L44 46 L58 24 L76 100z" fill="#100E1A"/>' +
-      '<path d="M34 30 L44 46 L38 100 L24 100z" fill="#1E1A2E"/>' +
-      '<path d="M86 100 L112 38 L122 54 L134 34 L152 100z" fill="#100E1A"/>' +
-      '<path d="M112 38 L122 54 L118 100 L102 100z" fill="#1E1A2E"/>' +
-      '<g stroke="#3AC0D8" stroke-width="1.6" fill="none" opacity=".85">' +
-      '<path d="M34 32 L40 60 L32 84"/><path d="M112 40 L118 66 L110 88"/>' +
-      '<path d="M58 26 L64 52"/><path d="M134 36 L140 60"/></g>' +
-      '<path d="M0 100h160V92c-14 2-28-2-44-1s-22 4-38 3-24-4-38-3z" fill="#2B7FBF" opacity=".35"/>' +
-      '<circle cx="80" cy="66" r="8" fill="#12BE8E"/><circle cx="77" cy="63" r="2.4" fill="#fff"/>' +
-      '<circle cx="80" cy="66" r="10" fill="none" stroke="#3AC0D8" stroke-width="1.2" opacity=".6"/>'
+    // ── Monster Run ──
+    sewer:
+      '<rect width="160" height="100" fill="#0A1418"/>' +
+      // the tunnel, closing to a point you are running towards
+      '<path d="M0 0h160v100H0z" fill="#101C20"/>' +
+      '<path d="M22 100 L64 40 L96 40 L138 100z" fill="#1B2422"/>' +
+      '<path d="M52 100 L74 52 L86 52 L108 100z" fill="#0A1214"/>' +
+      '<ellipse cx="80" cy="46" rx="14" ry="9" fill="#06090A"/>' +
+      '<g stroke="#2E3E3A" stroke-width="3" fill="none">' +
+      '<path d="M0 18h30M130 18h30M0 34h18M142 34h18"/></g>' +
+      '<g fill="#14201E"><rect x="6" y="46" width="10" height="54" rx="3"/>' +
+      '<rect x="144" y="46" width="10" height="54" rx="3"/></g>' +
+      '<path d="M0 86h160v14H0z" fill="#16201F"/>' +
+      '<path d="M0 92h160v3H0z" fill="#3AC0D8" opacity=".25"/>' +
+      // the runner, small and ahead
+      '<circle cx="80" cy="62" r="4.6" fill="#FFC53D"/>' +
+      '<rect x="77.6" y="64" width="4.8" height="7" rx="2.2" fill="#FFC53D"/>' +
+      // and the thing behind, close to us
+      '<path d="M96 100c-4-22 6-34 18-34s22 12 18 34z" fill="#0C060F"/>' +
+      '<circle cx="108" cy="74" r="2.6" fill="#FF5A6E"/><circle cx="118" cy="74" r="2.6" fill="#FF5A6E"/>' +
+      '<path d="M96 88c-8-4-12-10-12-16M132 88c8-4 12-10 12-16" stroke="#0C060F" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    forest:
+      '<rect width="160" height="100" fill="#070E1C"/>' +
+      '<circle cx="128" cy="16" r="9" fill="#E9ECF5" opacity=".85"/>' +
+      '<circle cx="124" cy="14" r="7.5" fill="#070E1C"/>' +
+      '<path d="M0 0h160v56c-18 6-32-4-50-2S74 62 56 58 16 48 0 52z" fill="#16233F" opacity=".7"/>' +
+      '<path d="M28 100 L62 44 L98 44 L132 100z" fill="#0C1A12"/>' +
+      '<path d="M58 100 L74 54 L86 54 L102 100z" fill="#070F0A"/>' +
+      '<g fill="#101B14">' +
+      '<rect x="10" y="40" width="9" height="60" rx="3"/><rect x="141" y="40" width="9" height="60" rx="3"/>' +
+      '<rect x="30" y="52" width="7" height="48" rx="3"/><rect x="123" y="52" width="7" height="48" rx="3"/></g>' +
+      '<g fill="#17301F">' +
+      '<path d="M14.5 42 L2 60h25z"/><path d="M145.5 42 L133 60h25z"/>' +
+      '<path d="M33.5 54 L24 68h19z"/><path d="M126.5 54 L117 68h19z"/></g>' +
+      '<path d="M0 88h160v12H0z" fill="#1A1510"/>' +
+      '<circle cx="80" cy="64" r="4.4" fill="#7BC62D"/>' +
+      '<rect x="77.8" y="66" width="4.4" height="7" rx="2" fill="#7BC62D"/>' +
+      '<path d="M94 100c-4-24 7-36 20-36s24 12 20 36z" fill="#0A0610"/>' +
+      '<circle cx="106" cy="72" r="2.8" fill="#FFD86B"/><circle cx="118" cy="72" r="2.8" fill="#FFD86B"/>',
+    city:
+      '<rect width="160" height="100" fill="#160A14"/>' +
+      '<path d="M0 0h160v44c-16 6-28-4-44-2s-22 8-38 6-24-8-38-6-22 4-40 0z" fill="#37152A"/>' +
+      '<g fill="#221224">' +
+      '<rect x="2" y="14" width="22" height="70"/><rect x="28" y="28" width="16" height="56"/>' +
+      '<rect x="116" y="22" width="20" height="62"/><rect x="140" y="34" width="18" height="50"/></g>' +
+      '<g fill="#FF9A3D" opacity=".55">' +
+      '<rect x="7" y="22" width="5" height="6"/><rect x="16" y="34" width="5" height="6"/>' +
+      '<rect x="122" y="30" width="5" height="6"/><rect x="145" y="44" width="5" height="6"/></g>' +
+      '<path d="M30 100 L64 42 L96 42 L130 100z" fill="#2C2830"/>' +
+      '<path d="M58 100 L74 52 L86 52 L102 100z" fill="#141118"/>' +
+      '<path d="M0 86h160v14H0z" fill="#1C1622"/>' +
+      '<path d="M0 93h160v2H0z" fill="#FF7A45" opacity=".3"/>' +
+      '<circle cx="80" cy="62" r="4.6" fill="#2BA8FF"/>' +
+      '<rect x="77.7" y="64" width="4.6" height="7" rx="2.1" fill="#2BA8FF"/>' +
+      '<path d="M94 100c-5-26 7-38 21-38s26 12 21 38z" fill="#0C060F"/>' +
+      '<circle cx="106" cy="70" r="2.9" fill="#FF5A6E"/><circle cx="118" cy="70" r="2.9" fill="#FF5A6E"/>' +
+      '<path d="M92 84c-9-3-14-9-14-16M136 84c9-3 14-9 14-16" stroke="#0C060F" stroke-width="4" fill="none" stroke-linecap="round"/>'
+
   };
 
   /** A map's own picture, falling back to the mode's if one is ever missing. */
@@ -656,7 +665,10 @@
   const combine = (colour, shape, rest) => pack(Object.assign({ colour, shape }, rest || {}));
   const partsOf = unpack;
 
-  global.Sprite = { face, icon, scene, map, crest, logo, freeFace, looksLike,
+  /** The colour a given avatar wears, so other drawings can match the blook. */
+  const colourFor = (n) => SKIN[(Number(n) || 0) % SKIN.length];
+
+  global.Sprite = { face, icon, scene, map, colourFor, crest, logo, freeFace, looksLike,
                     COMBINATIONS, ALL, COLOURS, SHAPES,
                     EYES: EYES_N, MOUTHS: MOUTHS_N, PATTERNS: PATTERNS_N,
                     palette: SKIN.slice(), combine, partsOf, pack, unpack,

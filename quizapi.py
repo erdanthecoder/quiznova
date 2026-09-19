@@ -872,9 +872,9 @@ MODES = {
     "tower":    {"label": "Tower Build", "icon": "bricks", "teams": False,
                  "blurb": "Build tall and sway, or stop and brace before the wind"},
     "boss":     {"label": "Boss Battle", "icon": "dragon", "teams": False,
-                 "blurb": "It says what it will do next. The class has to agree"},
-    "volcano":  {"label": "Volcano Climb", "icon": "flame", "teams": False,
-                 "blurb": "Three routes up. The fastest drops rocks on those below"},
+                 "blurb": "Answer to arm yourself, then ten seconds to cut it down"},
+    "monster":  {"label": "Monster Run", "icon": "dragon", "teams": False,
+                 "blurb": "Something is chasing you. Three right in a row and you sprint"},
 }
 
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -883,7 +883,7 @@ MAPS = {
     "laser":    [("arena", "Neon Arena"), ("bunker", "Bunker"), ("moon", "Moon Base")],
     "tower":    [("site", "Building Site"), ("candy", "Candy Land"), ("castle", "Castle Walls")],
     "boss":     [("lair", "Dragon Lair"), ("volcano", "Volcano"), ("ruins", "Old Ruins")],
-    "volcano":  [("crater", "The Crater"), ("ashfall", "Ashfall"), ("obsidian", "Obsidian Cliffs")],
+    "monster":  [("sewer", "The Sewers"), ("forest", "Night Forest"), ("city", "Ruined City")],
 }
 
 
@@ -930,9 +930,6 @@ def mode_finished(game):
     if mode == "boss":
         boss = game.get("boss")
         return bool(boss) and (boss["hp"] == 0 or boss["classHp"] == 0)
-    if mode == "volcano":
-        everyone = list(game["players"].values())
-        return bool(everyone) and all(not p.get("safe") for p in everyone)
     return False
 
 
@@ -1015,9 +1012,6 @@ BOSS_HP_PER_QUESTION = 55    # scales the boss to the length of the quiz
 # Volcano Climb: how far one very fast right answer gets you, the least the lava
 # rises in a round, and how much of the room's average it adds on top — so a
 # class that is doing well gets a harder game. Mirrors static/rules.js.
-CLIMB_PER = 14
-LAVA_BASE = 5
-LAVA_CHASE = 7
 
 
 # Characters are numbers drawn by sprites.js in the browser: 12 colours x 12
@@ -1121,7 +1115,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "blocks", "sway", "height", "safe", "lastGain",
+                                           "blocks", "sway", "distance", "level", "boosts", "lastGain",
                                            "blade", "struck", "move", "on")}
                     for p in players],
         "teams": game["teams"],
@@ -1252,9 +1246,9 @@ def join_game(pin):
             "lastDamage": 0,
             "blocks": 0,        # tower build
             "sway": 0,          # and how close it is to coming down
-            "height": 0,        # volcano climb: how far up the wall
-            "safe": True,       # and whether the lava has passed them
-            "rocks": False,     # whether they kicked any down this round
+            "distance": 0,      # monster run: how far they have run
+            "level": 1,         # and how deep they have got
+            "boosts": 0,
             "target": "",       # laser tag: who they lined up
             "lastGain": 0,
             # the move, and whatever it is aimed at
@@ -1379,11 +1373,6 @@ def start_game(pin):
         # everybody starts on the safe move rather than on nothing
         for p in game["players"].values():
             p["move"] = default_move(game["mode"])
-        if game["mode"] == "volcano":
-            game["lava"] = 0
-            for p in game["players"].values():
-                p["height"] = 0
-                p["safe"] = True
         if game["mode"] == "boss":
             total = max(1, len(game["questions"]))
             game["boss"] = {"hp": BOSS_HP_PER_QUESTION * total, "max": BOSS_HP_PER_QUESTION * total,
@@ -1451,11 +1440,8 @@ MOVES = {
         {"id": "wide", "label": "Build wide", "note": "One block. It will never fall"},
         {"id": "tall", "label": "Build tall", "note": "Three blocks, but the tower starts to sway"},
         {"id": "brace", "label": "Brace it", "note": "No blocks. Steadies everything you have"}]},
-    "volcano": {"ask": "Which way up?", "list": [
-        {"id": "ledge", "label": "The ledge", "note": "A short, certain climb"},
-        {"id": "chimney", "label": "The chimney", "note": "Much faster. A slip costs you double"},
-        {"id": "overhang", "label": "The overhang",
-         "note": "Fastest, and it sends rocks down on anyone below you"}]},
+    # Monster Run has no move to pick: it is played in real time, at each
+    # child's own pace, and a menu would get in the way of the next question.
 }
 
 
@@ -1614,35 +1600,15 @@ def score_boss(game, player, question, ok, speed):
     player["lastGain"] = gain
     if ok and speed >= 0.5:
         game["lastEvents"].append(f"{player['name']} picked up a greatsword")
-def score_volcano(game, player, question, ok, speed):
-    """Three routes up, and the fast one drops rocks on the people below."""
-    move = move_of(game, player)
-    player["rocks"] = False
-    if ok:
-        rate = 2.2 if move == "overhang" else 1.7 if move == "chimney" else 1
-        climb = round(CLIMB_PER * (0.45 + 0.55 * speed) * streak_bonus(game, player) * rate)
-        player["height"] = player.get("height", 0) + climb
-        player["lastGain"] = climb
-        if move == "overhang":
-            player["rocks"] = True
-        if player["streak"] >= 3:
-            game["lastEvents"].append(f"{player['name']} is going up fast")
-    else:
-        rate = 1.8 if move == "overhang" else 1.6 if move == "chimney" else 0.6
-        slip = round(CLIMB_PER * 0.35 * rate)
-        player["height"] = max(0, player.get("height", 0) - slip)
-        player["lastGain"] = 0
-        game["lastEvents"].append(
-            f"{player['name']} slipped {slip}" + ("" if move == "ledge" else f" on the {move}"))
-    was_safe = player.get("safe", True)
-    player["safe"] = player["height"] >= game.get("lava", 0)
-    if was_safe and not player["safe"]:
-        game["lastEvents"].append(f"The lava caught {player['name']}")
-    if not was_safe and player["safe"]:
-        game["lastEvents"].append(f"{player['name']} climbed back out")
-    player["score"] = player["height"]
+def score_monster(game, player, question, ok, speed):
+    """Monster Run scores nothing here.
 
-
+    Every child is running their own race at their own pace — they are not all
+    on the same question, so there is no round to settle and nothing to compare.
+    Their phone runs the chase and reports how far they got; the board keeps the
+    table. Mirrors SCORERS.monster in static/rules.js.
+    """
+    player["lastGain"] = 0
 def resolve(game):
     """The moves that touch somebody else, settled together.
 
@@ -1653,33 +1619,6 @@ def resolve(game):
     """
     everyone = list(game.get("players", {}).values())
     mode = game.get("mode")
-
-
-    if mode == "volcano":
-        for k in [p for p in everyone if p.get("rocks")]:
-            below = [x for x in everyone
-                     if x["id"] != k["id"] and x.get("height", 0) < k.get("height", 0)]
-            if not below:
-                continue
-            hit = max(below, key=lambda x: x.get("height", 0))
-            hit["height"] = max(0, hit.get("height", 0) - 10)
-            hit["score"] = hit["height"]
-            game["lastEvents"].append(f"{k['name']} sent rocks down onto {hit['name']}")
-        for p in everyone:
-            p["rocks"] = False
-
-
-    if mode == "laser":
-        for p in everyone:
-            if p.get("exposed") and not p["down"]:
-                p["hp"] = max(0, p["hp"] - 8)
-                if p["hp"] == 0:
-                    p["down"] = True
-                    game["lastEvents"].append(f"{p['name']} was caught out in the open")
-            p["shielded"] = False
-            p["exposed"] = False
-
-
 def after_round(game):
     """What happens between the questions.
 
@@ -1712,25 +1651,9 @@ def after_round(game):
         elif random.random() < 0.34:
             game["wind"] = True
             game["lastEvents"].append("The wind is getting up — brace anything that is swaying")
-
-
-    if game.get("mode") == "volcano":
-        average = (sum(p.get("height", 0) for p in everyone) / len(everyone)) if everyone else 0
-        rise = round(LAVA_BASE + (average - game.get("lava", 0)) * (LAVA_CHASE / 100))
-        game["lava"] = max(0, game.get("lava", 0) + max(LAVA_BASE, rise))
-        for p in everyone:
-            was_safe = p.get("safe", True)
-            p["safe"] = p.get("height", 0) >= game["lava"]
-            if was_safe and not p["safe"]:
-                game["lastEvents"].append(f"The lava caught {p['name']}")
-
-
-    game["lastEvents"] = game["lastEvents"][-6:]
-
-
 SCORERS = {
     "laser": score_laser, "tower": score_tower,
-    "boss": score_boss, "volcano": score_volcano,
+    "boss": score_boss, "monster": score_monster,
 }
 
 

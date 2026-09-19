@@ -17,7 +17,7 @@ function newGame(mode, names) {
   const g = {
     mode, players, questions: [QUESTION], index: 0, state: 'question',
     lastEvents: [], setup: R.readSetup({}), goal: { kind: 'questions' },
-    lava: 0, wind: false,
+    wind: false,
     teams: {
       red:  { name: 'Red',  score: 0, hp: 600 },
       blue: { name: 'Blue', score: 0, hp: 600 }
@@ -103,24 +103,16 @@ console.log('\n— the choice changes the game —');
   })(), 'sway goes back to nothing');
 }
 
-// volcano: routes climb at different rates, and the overhang drops rocks
+// monster: the chase is played, not scored — the scorer must stay out of it
 {
-  const g = newGame('volcano', ['Over', 'Ledge']);
-  round(g, { Over: { ok: true, speed: .8, move: 'overhang' }, Ledge: { ok: true, speed: .8, move: 'ledge' } });
-  ok('volcano: the overhang climbs faster than the ledge', g.players.Over.height > g.players.Ledge.height,
-     `${g.players.Over.height} vs ${g.players.Ledge.height}`);
-  const h = newGame('volcano', ['Over', 'Below']);
-  h.players.Over.height = 200; h.players.Below.height = 100;
-  round(h, { Over: { ok: true, speed: .8, move: 'overhang' }, Below: { ok: false, speed: .5, move: 'ledge' } });
-  ok('volcano: the overhang drops rocks on whoever is below',
-     h.lastEvents.some(e => /rocks down/.test(e)), h.lastEvents.slice(-2).join(' | '));
-  // partway up, or there is no ground to lose and the comparison is vacuous
-  const c = newGame('volcano', ['A']); c.players.A.height = 200;
-  round(c, { A: { ok: false, speed: .5, move: 'chimney' } });
-  const d = newGame('volcano', ['A']); d.players.A.height = 200;
-  round(d, { A: { ok: false, speed: .5, move: 'ledge' } });
-  ok('volcano: a slip on the chimney costs more than one on the ledge',
-     c.players.A.height < d.players.A.height, `chimney ${c.players.A.height}, ledge ${d.players.A.height}`);
+  const g = newGame('monster', ['A', 'B']);
+  g.players.A.distance = 900; g.players.A.level = 2;
+  round(g, { A: { ok: true, speed: .9 }, B: { ok: false, speed: .2 } });
+  ok('monster: answering does not move anybody on the server',
+     g.players.A.distance === 900 && g.players.A.level === 2,
+     `${g.players.A.distance}m, level ${g.players.A.level}`);
+  ok('monster: and it has no move to pick, because it is played with a thumb',
+     R.movesFor('monster').length === 0, `${R.movesFor('monster').length} moves`);
 }
 
 // boss: the answer no longer scores, it arms you for the fight

@@ -17,11 +17,9 @@
     
     tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Build tall and sway, or stop and brace before the wind' },
     
-    boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'It says what it will do next. The class has to agree' },
+    boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'Answer to arm yourself, then ten seconds to cut it down' },
 
-    
-    
-    volcano:  { label: 'Volcano Climb', icon: 'flame', blurb: 'Three routes up. The fastest drops rocks on those below' },
+    monster:  { label: 'Monster Run',   icon: 'dragon', blurb: 'Something is chasing you. Three right in a row and you sprint' },
     
     };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -34,9 +32,7 @@
     
     boss:     [['lair', 'Dragon Lair'], ['volcano', 'Volcano'], ['ruins', 'Old Ruins']],
 
-    
-    
-    volcano:  [['crater', 'The Crater'], ['ashfall', 'Ashfall'], ['obsidian', 'Obsidian Cliffs']],
+    monster:  [['sewer', 'The Sewers'], ['forest', 'Night Forest'], ['city', 'Ruined City']],
     
     };
   /* How a game finishes. Playing every question is the default, but a class with
@@ -221,16 +217,10 @@
      * thumb in the ten seconds after the question: when to swing and when to
      * roll. A menu of three words would be a worse version of that. */
 
-    
-    
-    volcano: {
-      ask: 'Which way up?', when: 'question',
-      list: [
-        { id: 'ledge',    label: 'The ledge',   note: 'A short, certain climb' },
-        { id: 'chimney',  label: 'The chimney', note: 'Much faster. A slip costs you double' },
-        { id: 'overhang', label: 'The overhang', note: 'Fastest, and it sends rocks down on anyone below you' }
-      ]
-    },
+    /* Monster Run has no move to pick either. It is played in real time with a
+     * thumb, at each child's own pace, and a menu would only get in the way of
+     * the next question. */
+
     
     };
 
@@ -371,32 +361,17 @@
       if (ok && speed >= 0.5) game.lastEvents.push(`${p.name} picked up a greatsword`);
     },
 
-    /* Three routes up, and the fast one drops rocks on the people below. That is
-     * the first thing in this game that made the class shout at each other. */
-    volcano(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      p.rocks = false;
-      if (ok) {
-        const rate = move === 'overhang' ? 2.2 : move === 'chimney' ? 1.7 : 1;
-        const climb = Math.round(CLIMB_PER * (0.45 + 0.55 * speed) * streakBonus(game, p) * rate);
-        p.height += climb;
-        p.lastGain = climb;
-        if (move === 'overhang') { p.rocks = true; }
-        if (p.streak >= 3) game.lastEvents.push(`${p.name} is going up fast`);
-      } else {
-        const rate = move === 'overhang' ? 1.8 : move === 'chimney' ? 1.6 : 0.6;
-        const slip = Math.round(CLIMB_PER * 0.35 * rate);
-        p.height = Math.max(0, p.height - slip);
-        p.lastGain = 0;
-        game.lastEvents.push(`${p.name} slipped ${slip}`
-          + (move === 'ledge' ? '' : ' on the ' + move));
-      }
-      const wasSafe = p.safe;
-      p.safe = p.height >= (game.lava || 0);
-      if (wasSafe && !p.safe) game.lastEvents.push(`The lava caught ${p.name}`);
-      if (!wasSafe && p.safe) game.lastEvents.push(`${p.name} climbed back out`);
-      p.score = p.height;
-    },
+    /* Monster Run scores nothing here.
+     *
+     * Every child is running their own race at their own pace — they are not
+     * all on the same question, so there is no round to settle and nothing to
+     * compare. Their phone runs the chase and reports how far they got; the
+     * board keeps the table. All this does is keep a note of the answer so the
+     * teacher's marking still works. */
+    monster(game, p, q, ok, speed) {
+      p.lastGain = 0;
+    }
+
 
 };
 
@@ -410,31 +385,13 @@
    * the game was decided by whose phone was on better wifi. Nobody would ever
    * see why they lost.
    *
-   * Then the world takes its own turn: lava rises, wind gets up, machines pay
-   * out, the boss swings, the shoal moves. This is the half of a game that
-   * happens whether or not you were any good this round, and this mode had none
-   * of it before — which is why every round felt the same as the last one.
+   * Then the world takes its own turn: the wind gets up and towers come down.
+   * This is the half of a game that happens whether or not you were any good
+   * this round, and the modes had none of it before — which is why every round
+   * felt the same as the last one.
    */
   function resolve(game) {
     const everyone = Object.values(game.players);
-
-    /* Volcano Climb: anyone who took the overhang sends rocks down on the
-     * climbers below them. It cannot reach above you, so the leader is safe and
-     * the scramble is in the middle, which is where most of the class is. */
-    if (game.mode === 'volcano') {
-      const kickers = everyone.filter(p => p.rocks);
-      for (const k of kickers) {
-        const below = everyone.filter(x => x.id !== k.id && (x.height || 0) < (k.height || 0));
-        if (!below.length) continue;
-        const hit = below.reduce((a, b) => ((a.height || 0) >= (b.height || 0) ? a : b));
-        const knock = 10;
-        hit.height = Math.max(0, (hit.height || 0) - knock);
-        hit.score = hit.height;
-        game.lastEvents.push(`${k.name} sent rocks down onto ${hit.name}`);
-      }
-      everyone.forEach(p => { p.rocks = false; });
-    }
-
 
     /* Laser Tag: shields last one round, and pushing up leaves you open to the
      * next one, so the choice has a consequence that arrives after you made it. */
@@ -448,17 +405,6 @@
       });
     }
   }
-
-  /* ── Volcano Climb ──
-   * Everyone climbs the same wall and the lava climbs with them, at a rate set
-   * by how well the room as a whole is doing: a class that is getting them right
-   * gets a harder game, which is the only way a shared threat can stay a threat.
-   * Being caught is not being out — a caught climber keeps answering to get back
-   * above it — because a child watching the last four minutes has stopped
-   * learning anything. */
-  const CLIMB_PER = 14;          // the most one very fast right answer gains
-  const LAVA_BASE = 5;           // the least it rises in a round
-  const LAVA_CHASE = 7;          // and how much of the room's average it adds
 
   /* ── Tower Build ──
    * A tall tower sways, and the wind topples swaying towers. The board is told
@@ -476,7 +422,7 @@
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, lastGain: 0, target: '',
     blocks: 0, sway: 0,                       // tower build
-    height: 0, safe: true, rocks: false,      // volcano climb
+    distance: 0, level: 1, boosts: 0,         // monster run: how far, and how deep
     guarding: false, acted: '',               // boss battle
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
@@ -490,20 +436,6 @@
     const everyone = Object.values(game.players);
 
     resolve(game);
-
-    if (game.mode === 'volcano') {
-      // the lava chases the room: the better everybody is doing, the faster it
-      // comes, so a strong class is not simply strolling up a wall
-      const average = everyone.length
-        ? everyone.reduce((n, p) => n + (p.height || 0), 0) / everyone.length : 0;
-      const rise = Math.round(LAVA_BASE + (average - (game.lava || 0)) * (LAVA_CHASE / 100));
-      game.lava = Math.max(0, (game.lava || 0) + Math.max(LAVA_BASE, rise));
-      everyone.forEach(p => {
-        const wasSafe = p.safe;
-        p.safe = (p.height || 0) >= game.lava;
-        if (wasSafe && !p.safe) game.lastEvents.push(`The lava caught ${p.name}`);
-      });
-    }
 
     /* Tower Build: the wind. It is announced a round early and then it arrives,
      * and every tower that is swaying loses the top of itself. A child who built
@@ -532,16 +464,10 @@
   }
 
   /* Two of the four end themselves before the questions run out — a boss dies,
-   * or the lava has everybody. Asked in one place so the website, the app and
+   * Asked in one place so the website, the app and
    * the Flask edition cannot drift apart on it. */
   function modeFinished(game) {
     if (game.mode === 'boss') return !!game.boss && (game.boss.hp === 0 || game.boss.classHp === 0);
-    /* Volcano Climb ends when the lava has everybody, which is a real ending
-     * rather than a countdown: the room can see it coming and can stop it. */
-    if (game.mode === 'volcano') {
-      const everyone = Object.values(game.players);
-      return everyone.length > 0 && everyone.every(p => !p.safe);
-    }
     return false;
   }
 
@@ -552,7 +478,6 @@
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
-    CLIMB_PER, LAVA_BASE, LAVA_CHASE,
     BOSS_HP_PER_QUESTION, MAX_PLAYER_HIT, SWAY_LIMIT
   };
 })(typeof window !== 'undefined' ? window : globalThis);

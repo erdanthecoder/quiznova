@@ -76,6 +76,7 @@
    * above this is a bug or a joke and is treated as both. */
   const STRIKE_MS = 10000;
   const STRIKE_CAP = 900;
+  const RUN_CAP = 200000;         // further than any lesson can run
 
 
   /* ── state helpers ────────────────────────────────────── */
@@ -136,7 +137,11 @@
       // Laser Tag asks each child their own questions as their bar runs out, so
       // their phone needs the set. A child who digs into the page can read the
       // answers; the same is true of every game of this shape.
-      quiz: game.mode === 'laser' && game.state === 'arena' ? questions : null,
+      // Laser Tag and Monster Run both run at each child's own pace, so their
+      // phones need the questions rather than being fed one at a time. A child
+      // who digs into the page can read the answers; that is true of every game
+      // of this shape and always has been.
+      quiz: (game.state === 'arena' || game.state === 'running') ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
       // the world's own state: without these the wind and the shoal are things
       // that happen to the scores with nothing on screen to explain them
@@ -282,6 +287,7 @@
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
   const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move', '/strike',
+                                '/run',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -439,6 +445,23 @@
       return { ok: true, damage: dealt, view: publicView(game) };
     }
 
+    /* How far one child has got. Reported by their own phone every few seconds,
+     * the same trust model the arena has always used, and clamped so a fumbled
+     * message cannot put somebody a hundred kilometres ahead. */
+    if (tail === '/run') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      if (game.mode !== 'monster') return { ok: false, why: 'Not that kind of game.' };
+      const ran = Math.max(0, Math.min(RUN_CAP, Math.round(Number(body.distance) || 0)));
+      // only ever forwards: a reconnecting phone must not erase a good run
+      if (ran > (p.distance || 0)) p.distance = ran;
+      p.level = Math.max(1, Math.min(3, Math.round(Number(body.level) || 1)));
+      p.boosts = Math.max(0, Math.min(99, Math.round(Number(body.boosts) || 0)));
+      p.score = p.distance;
+      await writeGame(pin, game);
+      return { ok: true, distance: p.distance, view: publicView(game) };
+    }
+
     /* The move: which way this player is playing the round. Every mode has them
      * now, so this is the busiest thing in here — it is written while the
      * question is still up, and read when the answer is scored. The rules decide
@@ -464,6 +487,19 @@
     if (tail === '/start') {
       await reconcile(pin, game);
       game.startedAt = now();
+      /* Monster Run never gathers the class on one question. It starts and then
+       * everybody is simply running, answering at their own speed, until the
+       * teacher stops it or they get out. */
+      if (game.mode === 'monster') {
+        game.state = 'running';
+        game.index = 0;
+        game.endsAt = null;
+        for (const p of Object.values(game.players)) {
+          p.distance = 0; p.level = 1; p.boosts = 0; p.score = 0;
+        }
+        await writeGame(pin, game);
+        return publicView(game);
+      }
       if (game.mode === 'laser') {
         // one long round: the arena runs until the teacher stops it, and each
         // child's own energy bar decides when they break off to answer

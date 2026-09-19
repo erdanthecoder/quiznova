@@ -556,18 +556,20 @@
 
 <main class="stage" id="stage"></main>
 
-<script src="sprites.js?v=d30905f0"></script>
+<script src="sprites.js?v=06b2255e"></script>
 <script src="music.js?v=0280affb"></script>
+
 
 
 <script src="nova.js?v=9fa1dfb0"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
-<script src="strike.js?v=6b255d35"></script>
+<script src="strike.js?v=d438527a"></script>
+<script src="run.js?v=3db39e07"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=769bc388"></script>
-<script src="live.js?v=8aa4e06f"></script>
+<script src="rules.js?v=1f915780"></script>
+<script src="live.js?v=175efcb1"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -854,6 +856,7 @@ function render(fresh) {
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
   if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
   if (game.state === 'strike') { if (paint(stage, strikeView, fresh)) watchStrike(); return; }
+  if (game.state === 'running') { paint(stage, runView, fresh); return; }
   if (boardArena) { boardArena.stop(); boardArena = null; }
   if (boardStrike) { boardStrike.stop(); boardStrike = null; }
   if (!game.question) return;
@@ -1017,6 +1020,28 @@ function arenaView() {
   return root;
 }
 
+/* Monster Run's board is a table and nothing else.
+ *
+ * Every child is on a different question, so there is no question to put up and
+ * no answer split to draw — putting one up would only be showing the room one
+ * child's business. What the room wants is the standings: who is furthest, who
+ * has got deepest, and who is about to be caught. */
+function runView() {
+  const root = el('div', { class: 'board' });
+  const panel = el('div', { class: 'ask' });
+  const deepest = Math.max(1, ...game.players.map(p => p.level || 1));
+  panel.innerHTML = `<h1>Monster Run</h1>
+    <div class="tally"><b>${game.players.length}</b><span>running</span></div>
+    <p class="tiny faint" style="margin-top:8px">Everyone answers at their own pace · deepest is level ${deepest}</p>`;
+  root.append(panel);
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 10, title: 'How far they have run' }));
+  root.append(rest);
+  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
+    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  return root;
+}
+
 /* The fight, on the projector. This is the half of Boss Battle that belongs on
  * the big screen rather than in thirty pockets: everyone can see who is still
  * standing, who is on the floor, and the red arc closing on half the ring. */
@@ -1152,7 +1177,7 @@ function runTimer() {
 /* ── leaderboard / arena under the question ────── */
 function extraInto(host) {
   if (!host) return;
-  const views = { laser: arena, tower: skyline, boss: bossArena, volcano: volcanoWall };
+  const views = { laser: arena, tower: skyline, boss: bossArena };
   const view = views[game.mode];
   /* The wind, announced a round before it arrives. It belongs above the towers
    * rather than on the phones: everybody has to see it at the same moment or
@@ -1213,33 +1238,6 @@ const CARD_ICON = { star: 'star', moon: 'moon', leaf: 'leaf', flame: 'flame',
                     drop: 'drop', bolt: 'bolt', gem: 'gem', crown: 'crown' };
 const CARD_COLOUR = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
                       drop: '#2BA8FF', bolt: '#F4364C', gem: '#7C4DFF', crown: '#E5A02A' };
-
-/* Volcano Climb. A wall seen from the side rather than a floor seen from above,
- * because the whole game is one axis — how high you are — and the lava is a line
- * across it that everybody can see coming.
- *
- * Everything is placed as a percentage of the highest climber, so the wall
- * rescales as the room climbs and the leader is always near the top. That means
- * the lava line appears to *chase*, which is what it is doing. */
-function volcanoWall() {
-  const highest = Math.max(40, game.lava || 0, ...game.players.map(p => p.height || 0));
-  const up = (n) => Math.max(2, Math.min(92, (n || 0) / highest * 88 + 4));
-  const wall = el('div', { class: 'wall3d' });
-  wall.append(el('div', { class: 'rock' }),
-              el('div', { class: 'lava', style: `height:${up(game.lava)}%` },
-                 el('span', { class: 'lip' }),
-                 el('span', { class: 'lvl' }, 'Lava · ' + Math.round(game.lava || 0))));
-
-  game.players.slice(0, 14).forEach((p, i) => {
-    const lane = 5 + (i % 7) * 13.5 + (i > 6 ? 6 : 0);
-    wall.append(el('div', { class: 'climber' + (p.safe ? '' : ' caught') + (i === 0 ? ' lead' : ''),
-      'data-id': p.id, style: `left:${lane}%;bottom:${up(p.height)}%` },
-      el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 46) }),
-      el('span', { class: 'tag' }, `${p.name} · ${Math.round(p.height || 0)}`)));
-  });
-  if (!game.players.length) wall.append(el('p', { class: 'faint tiny' }, 'Nobody on the wall yet.'));
-  return wall;
-}
 
 /* Snowball Fight. The two forts are the whole story, so they are what the room
  * looks at: the throwers stand behind their own wall and the blocks come off the
@@ -1323,6 +1321,7 @@ function bossArena() {
 let lastBossHp = null;
 
 const unitFor = (p) => game.mode === 'tower' ? `${p.blocks || 0} blocks`
+  : game.mode === 'monster' ? `${Math.round(p.distance || 0)} m · level ${p.level || 1}`
   : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
   : String(p.score);
 

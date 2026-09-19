@@ -29,6 +29,7 @@ const { rid, now } = require('./store.js');
  * off the boss in them. Reported damage above this is a bug or a joke. */
 const STRIKE_MS = 10000;
 const STRIKE_CAP = 900;
+const RUN_CAP = 200000;          // further than any lesson can run
 
 const ARENA_SECONDS = 20;
 const GAME_LIFETIME = 6 * 60 * 60 * 1000;   // a game nobody ended is forgotten after six hours
@@ -99,7 +100,7 @@ class Games {
       total: questions.length, quizTitle: game.quizTitle, quizId: game.quizId,
       question, endsAt: game.endsAt, serverNow: now(), players, teams: game.teams,
       counts: game.counts, lastEvents: game.lastEvents,
-      quiz: game.mode === 'laser' && game.state === 'arena' ? questions : null,
+      quiz: (game.state === 'arena' || game.state === 'running') ? questions : null,
       boss: game.boss || null, trackLength: R.TRACK_LENGTH,
       modeInfo: R.MODES[game.mode] || R.MODES[R.DEFAULT_MODE],
       goal: game.goal, setup: game.setup || null, rope: game.rope || 0,
@@ -154,6 +155,15 @@ class Games {
       game.state = 'arena'; game.index = 0; game.endsAt = null;
       return this.changed(game);
     }
+    /* Monster Run never gathers the class on one question: it starts, and then
+     * everybody is running at their own pace until the teacher stops it. */
+    if (game.mode === 'monster') {
+      game.state = 'running'; game.index = 0; game.endsAt = null;
+      for (const p of Object.values(game.players)) {
+        p.distance = 0; p.level = 1; p.boosts = 0; p.score = 0;
+      }
+      return this.changed(game);
+    }
     if (game.mode === 'tower') game.wind = false;
     if (game.mode === 'volcano') {
       game.lava = 0;
@@ -182,6 +192,20 @@ class Games {
     }
     game.state = 'question';
     game.endsAt = now() + R.secondsFor(game, game.questions[game.index]) * 1000 + 700;
+  }
+
+  /* How far one child has got in Monster Run, reported by their own phone. */
+  run(game, body) {
+    const p = game.players[body.playerId];
+    if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
+    if (game.mode !== 'monster') return { ok: false, why: 'Not that kind of game.' };
+    const ran = Math.max(0, Math.min(RUN_CAP, Math.round(Number(body.distance) || 0)));
+    if (ran > (p.distance || 0)) p.distance = ran;      // only ever forwards
+    p.level = Math.max(1, Math.min(3, Math.round(Number(body.level) || 1)));
+    p.boosts = Math.max(0, Math.min(99, Math.round(Number(body.boosts) || 0)));
+    p.score = p.distance;
+    this.changed(game);
+    return { ok: true, distance: p.distance };
   }
 
   /* Boss Battle: the question is followed by ten seconds of fighting. */

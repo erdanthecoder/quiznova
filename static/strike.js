@@ -50,6 +50,22 @@
   const FLOOR_MS = 1500;               // knocked down
   const STAGGER_MS = 1600;             // its window of weakness after a clean dodge
 
+  /* Everyone is fighting the same thing with a different blade.
+   *
+   * What your answer earns is the tier — greatsword, sword, stick — and which
+   * of the six shapes you carry comes from your blook, so it is yours all game
+   * and the ring is thirty different weapons rather than thirty copies of one.
+   * The tier decides what it does; the shape decides what it looks like. */
+  const SHAPES = [
+    { id: 'straight', tip: 0.00, hilt: 1.0, glow: '#FFFFFF' },
+    { id: 'cleaver',  tip: 0.28, hilt: 1.5, glow: '#FF9A3D' },
+    { id: 'katana',   tip: 0.16, hilt: 0.7, glow: '#7FD8FF' },
+    { id: 'dagger',   tip: 0.06, hilt: 0.9, glow: '#E8467C' },
+    { id: 'axe',      tip: 0.42, hilt: 1.7, glow: '#FFC53D' },
+    { id: 'spear',    tip: -0.1, hilt: 0.6, glow: '#7BC62D' }
+  ];
+  const shapeFor = (avatar) => SHAPES[(Number(avatar) || 0) % SHAPES.length];
+
   const BLADES = {
     great: { label: 'Greatsword', reach: 250, damage: 26, swing: 420, colour: '#FFC53D' },
     sword: { label: 'Sword',      reach: 200, damage: 16, swing: 380, colour: '#E9ECF5' },
@@ -466,6 +482,7 @@
 
       // the blade, swung as an arc rather than a line: it reads at a glance
       const b = BLADES[p.blade] || BLADES.stick;
+      const shape = shapeFor(p.avatar);
       const since = now() - (p.swingAt || -9999);
       const swinging = since < b.swing;
       if (!down) {
@@ -474,14 +491,29 @@
                             v.y * (1 - b.reach / R_RING * (swinging ? 1 : 0.55)),
                             BODY_H * (swinging ? 0.5 + arc * 0.5 : 0.75));
         if (tip) {
-          ctx.strokeStyle = b.colour;
-          ctx.lineWidth = Math.max(2, (swinging ? 9 : 5) * foot.k);
+          const hx = foot.x, hy = foot.y - tall * 0.62;
+          // the hilt, which is where the six shapes differ most at a glance
+          ctx.strokeStyle = '#3A2F1E';
+          ctx.lineWidth = Math.max(2, 5 * shape.hilt * foot.k);
           ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(hx, hy);
+          ctx.lineTo(hx + (tip.x - hx) * 0.22, hy + (tip.y - hy) * 0.22);
+          ctx.stroke();
+          // and the blade itself, widening for a cleaver, tapering for a spear
+          ctx.strokeStyle = b.colour;
+          ctx.lineWidth = Math.max(2, (swinging ? 9 : 5) * (1 + shape.tip) * foot.k);
           ctx.globalAlpha = (down ? 0.5 : 1) * (swinging ? 1 : 0.8);
           ctx.beginPath();
-          ctx.moveTo(foot.x, foot.y - tall * 0.62);
+          ctx.moveTo(hx + (tip.x - hx) * 0.2, hy + (tip.y - hy) * 0.2);
           ctx.lineTo(tip.x, tip.y);
           ctx.stroke();
+          if (swinging) {
+            ctx.strokeStyle = shape.glow;
+            ctx.globalAlpha = 0.65;
+            ctx.lineWidth = Math.max(1, 2.5 * foot.k);
+            ctx.stroke();
+          }
         }
       }
       if (rolling) {
@@ -580,7 +612,7 @@
     };
   }
 
-  global.NovaStrike = { start, BLADES, bladeFor, ROUND_MS, WINDUPS };
+  global.NovaStrike = { start, BLADES, SHAPES, shapeFor, bladeFor, ROUND_MS, WINDUPS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.NovaStrike;

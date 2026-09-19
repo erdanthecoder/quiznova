@@ -32,7 +32,7 @@ def fresh(mode, names):
             "id": n, "name": n, "avatar": i, "team": "blue" if i % 2 else "red",
             "score": 0, "hp": 100, "streak": 0, "best": 0, "answered": False,
             "correct": None, "down": False, "lastDamage": 0, "lastGain": 0,
-            "blocks": 0, "sway": 0, "height": 0, "safe": True, "rocks": False,
+            "blocks": 0, "sway": 0, "distance": 0, "level": 1, "boosts": 0,
             "guarding": False, "acted": "", "shielded": False, "exposed": False,
             "target": "", "move": "", "on": "", "answers": {},
         }
@@ -59,7 +59,7 @@ def py_run(mode, move, ok, speed):
     Q.SCORERS[mode](g, g["players"]["Ana"], QUESTION, ok, speed)
     return {
         "score": g["players"]["Ana"]["score"], "hp": g["players"]["Ana"]["hp"],
-        "blocks": g["players"]["Ana"]["blocks"], "height": g["players"]["Ana"]["height"],
+        "blocks": g["players"]["Ana"]["blocks"], "distance": g["players"]["Ana"]["distance"],
         "sway": g["players"]["Ana"]["sway"], "lastGain": g["players"]["Ana"]["lastGain"],
         "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
         "blade": g["players"]["Ana"].get("blade", ""),
@@ -80,7 +80,7 @@ for (const [mode, move, ok, speed] of cases) {
   });
   const g = { mode, players, questions:[QUESTION], index:0, state:'question',
     lastEvents:[], setup:R.readSetup({}), goal:{kind:'questions'},
-    lava:0, wind:false,
+    wind:false,
     teams:{ red:{name:'Red',score:0,hp:600}, blue:{name:'Blue',score:0,hp:600} },
     boss:{ name:'Boss', hp:800, max:800, classHp:100, classMax:100, next:'poke', says:'' } };
   const spec = R.movesFor(mode).find(m => m.id === move) || {};
@@ -90,8 +90,9 @@ for (const [mode, move, ok, speed] of cases) {
   g.players.Ana.streak = ok ? 3 : 0;
   (R.SCORERS[mode])(g, g.players.Ana, QUESTION, ok, speed);
   const a = g.players.Ana;
-  out.push({ score:a.score, hp:a.hp, blocks:a.blocks, height:a.height, sway:a.sway,
+  out.push({ score:a.score, hp:a.hp, blocks:a.blocks, sway:a.sway,
     lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp, blade:a.blade||'',
+    distance:a.distance,
     redHp:g.teams.red.hp, blueHp:g.teams.blue.hp });
 }
 console.log(JSON.stringify(out));

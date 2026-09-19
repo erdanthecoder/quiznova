@@ -313,6 +313,9 @@ class Server {
        * the game's state rather than trusting what arrived. The app was missing
        * all of them, which meant fishing and the factory were played here
        * without the decisions that are the point of them. */
+      if (tail === 'run' && method === 'POST') {
+        return this.send(res, 200, this.games.run(game, body));
+      }
       if (tail === 'strike' && method === 'POST') {
         return this.send(res, 200, this.games.strike(game, body));
       }
