@@ -53,21 +53,31 @@
     let source = null;
     let poll = null;
     let alive = true;
+    let polling = false;
 
+    const pollOnce = async () => {
+      if (!alive || !pollPath) return;
+      try { onMessage({ event: 'poll', data: await api(pollPath) }); } catch { /* retry */ }
+    };
     const startPolling = () => {
       if (poll || !pollPath) return;
-      poll = setInterval(async () => {
-        try { onMessage({ event: 'poll', data: await api(pollPath) }); } catch { /* keep trying */ }
-      }, 1500);
+      polling = true;
+      pollOnce();
+      poll = setInterval(pollOnce, 1500);
+    };
+    const stopPolling = () => {
+      if (!poll) return;
+      clearInterval(poll);
+      poll = null;
+      polling = false;
     };
 
     try {
       source = new EventSource('/api' + path);
+      source.onopen = stopPolling;
       source.onmessage = (evt) => {
         let msg;
-        try { msg = JSON.parse(evt.data); } catch { return; }   // heartbeat or comment
-        // Errors thrown while rendering must not kill the stream, but swallowing
-        // them silently turns a bug into a blank screen — report and carry on.
+        try { msg = JSON.parse(evt.data); } catch { return; }
         try { onMessage(msg); }
         catch (err) { console.error('[nova] realtime handler failed:', err); }
       };
@@ -78,7 +88,7 @@
       close() {
         alive = false;
         if (source) source.close();
-        if (poll) clearInterval(poll);
+        stopPolling();
       }
     };
   }
@@ -114,7 +124,6 @@
     catch { toast('Copy failed. Select the link and copy it.', 'bad'); }
   }
 
-  /* Google Classroom share — the official share endpoint. */
   const classroomUrl = (url, title, body) =>
     'https://classroom.google.com/share?url=' + encodeURIComponent(url) +
     (title ? '&title=' + encodeURIComponent(title) : '') +
@@ -125,16 +134,9 @@
     const layer = el('div', { style: 'position:fixed;inset:0;pointer-events:none;z-index:500;overflow:hidden' });
     document.body.append(layer);
     for (let i = 0; i < count; i++) {
-      const bit = el('div', {
-        style: `position:absolute;top:-14px;left:${Math.random() * 100}%;width:${6 + Math.random() * 7}px;
-                height:${9 + Math.random() * 9}px;background:${colours[i % colours.length]};
-                border-radius:${Math.random() > .5 ? '50%' : '2px'};opacity:.95;`
-      });
+      const bit = el('div', { style: `position:absolute;top:-14px;left:${Math.random() * 100}%;width:${6 + Math.random() * 7}px;height:${9 + Math.random() * 9}px;background:${colours[i % colours.length]};border-radius:${Math.random() > .5 ? '50%' : '2px'};opacity:.95;` });
       layer.append(bit);
-      bit.animate([
-        { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
-        { transform: `translateY(${window.innerHeight + 70}px) rotate(${Math.random() * 900 - 450}deg)`, opacity: .85 }
-      ], { duration: 1900 + Math.random() * 1500, easing: 'cubic-bezier(.2,.6,.4,1)', delay: Math.random() * 450 });
+      bit.animate([{ transform: 'translateY(0) rotate(0deg)', opacity: 1 }, { transform: `translateY(${window.innerHeight + 70}px) rotate(${Math.random() * 900 - 450}deg)`, opacity: .85 }], { duration: 1900 + Math.random() * 1500, easing: 'cubic-bezier(.2,.6,.4,1)', delay: Math.random() * 450 });
     }
     setTimeout(() => layer.remove(), 4200);
   }
@@ -144,35 +146,33 @@
     '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><circle cx="12" cy="12" r="10"/></svg>',
     '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><rect x="2" y="2" width="20" height="20" rx="3"/></svg>',
     '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><path d="M12 1 23 12 12 23 1 12z"/></svg>',
-    '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg>',
+    '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1z"/></svg>',
     '<svg class="shape" viewBox="0 0 24 24" fill="var(--c)"><path d="M12 21s-8-5.1-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.9-8 11-8 11z"/></svg>'
   ];
 
-  const fmtTime = (ms) => {
-    const s = Math.max(0, Math.round(ms / 1000));
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  };
+  const fmtTime = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const ago = (ts) => { if (!ts) return ''; const secs = Math.round((Date.now() - ts) / 1000); if (secs < 60) return 'just now'; if (secs < 3600) return `${Math.floor(secs / 60)}m ago`; if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`; return `${Math.floor(secs / 86400)}d ago`; };
+  const clientId = (() => { let id = null; try { id = sessionStorage.getItem('nova:clientId'); } catch {} if (!id) { id = Math.random().toString(36).slice(2, 10); try { sessionStorage.setItem('nova:clientId', id); } catch {} } return id; })();
 
-  const ago = (ts) => {
-    if (!ts) return '';
-    const secs = Math.round((Date.now() - ts) / 1000);
-    if (secs < 60) return 'just now';
-    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-    return `${Math.floor(secs / 86400)}d ago`;
-  };
+  global.Nova = { $, $$, el, esc, qs, api, stream, toast, modal, copy, store, confetti, classroomUrl, SHAPES, fmtTime, ago, clientId };
 
-  /* Per-tab, not per-browser: two tabs open on the same quiz must see each other's edits. */
-  const clientId = (() => {
-    let id = null;
-    try { id = sessionStorage.getItem('nova:clientId'); } catch { /* private mode */ }
-    if (!id) {
-      id = Math.random().toString(36).slice(2, 10);
-      try { sessionStorage.setItem('nova:clientId', id); } catch { /* ignore */ }
-    }
-    return id;
-  })();
-
-  global.Nova = { $, $$, el, esc, qs, api, stream, toast, modal, copy, store, confetti,
-                  classroomUrl, SHAPES, fmtTime, ago, clientId };
+  /* The live board previously rendered an End game button but never attached a
+   * handler to it. Keep this delegated so it works on every rendered phase. */
+  global.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('click', async (event) => {
+      const button = event.target.closest('#end');
+      if (!button) return;
+      const pin = qs('pin');
+      const token = store.get('host:' + pin);
+      if (!pin || !token) return toast('Only the teacher device can end this game.', 'bad');
+      button.disabled = true;
+      try {
+        await global.Nova.api(`/games/${pin}/end`, { method: 'POST', body: { hostToken: token } });
+        toast('Game ended', 'good');
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message || 'Could not end the game.', 'bad');
+      }
+    });
+  });
 })(window);
