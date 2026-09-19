@@ -422,6 +422,7 @@
 <script src="/arena.js"></script>
 <script src="/strike.js"></script>
 <script src="/run.js"></script>
+<script src="/tower.js"></script>
 <script src="/rules.js"></script>
 <script src="/nova.js"></script>
 <script>
@@ -779,6 +780,26 @@ function render(fresh) {
   }
   runCardNode = null;
   if (arena) { arena.stop(); arena = null; }
+
+  /* A block in hand comes before anything else on the screen.
+   *
+   * It first went in the gap after answering, which meant the reveal card won
+   * the moment the teacher moved on and a child was left holding a block they
+   * could not place. Nobody should ever be sat on one: if you have earned it,
+   * the screen you are looking at is the one you drop it from. */
+  const holding = game.mode === 'tower' && (me.ready || 0) > 0
+                  && game.state !== 'over' && game.state !== 'lobby';
+  if (!holding && dropper) {
+    dropper.stop(); dropper = null; dropBusy = false; dropCardNode = null;
+  }
+  /* Kept, not rebuilt — the same trap the run card fell into. render() runs on
+     every poll; building a fresh card each time hands the engine a canvas that
+     is no longer in the page, so it carries on drawing where nobody can see it
+     and the new canvas stays black. */
+  if (holding) {
+    if (!dropCardNode) dropCardNode = dropCard();
+    return app.append(dropCardNode);
+  }
   if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state !== 'running' && runner) {
     runner.stop(); runner = null; runStarting = false; runCardNode = null;
@@ -1373,13 +1394,22 @@ function stagePanel() {
   const answered = game.players.filter(p => p.answered).length;
 
   if (game.mode === 'tower') {
-    const stack = el('div', { class: 'ministack' });
-    for (let i = 0; i < Math.min(8, me.blocks || 0); i++) {
-      stack.append(el('i', { style: `--c:${['#F4364C', '#FFC53D', '#4F6BFF', '#12BE8E'][i % 4]};animation-delay:${i * 40}ms` }));
+    /* Your team's floor, and where the gap in it is. The tower itself is on the
+       board — this is the bit you need in your hand while you answer: whose
+       side you are on, how high they are, and how many blocks you are holding. */
+    const T = (NovaTower.TEAM[me.team] || NovaTower.TEAM.red);
+    const mine = (game.towers && game.towers[me.team] && game.towers[me.team].blocks) || [];
+    const slots = game.towerSlots || 4;
+    const floors = Math.floor(mine.length / slots);
+    const row = el('div', { class: 'ministack' });
+    for (let i = 0; i < slots; i++) {
+      row.append(el('i', { style: `--c:${i < mine.length % slots ? T.face : 'rgba(255,255,255,.14)'}` }));
     }
-    box.append(el('span', { class: 'cap' }, 'Your tower'),
-               stack.children.length ? stack : el('span', { class: 'cap' }, 'Nothing built yet'),
-               el('span', { class: 'big-num' }, String(me.blocks || 0)));
+    box.append(el('span', { class: 'cap' }, `${T.name} · floor ${floors + 1}`),
+               row,
+               el('span', { class: 'big-num' }, String(me.ready || 0)),
+               el('span', { class: 'cap' },
+                  (me.ready || 0) ? 'blocks in hand' : 'answer to earn a block'));
   } else if (game.mode === 'volcano') {
     const gap = Math.round((me.height || 0) - (game.lava || 0));
     box.append(el('span', { class: 'cap' },
@@ -1421,6 +1451,70 @@ function stagePanel() {
       el('i', { style: `width:${game.players.length ? answered / game.players.length * 100 : 0}%` })),
     el('span', { class: 'cap' }, `${answered} of ${game.players.length} answered`));
   return box;
+}
+
+/* One block, dropped.
+ *
+ * It slides from one side to the other and you tap. Where it is when you tap is
+ * where it lands, and that offset is sent to the game and drawn on the board —
+ * so a hurried drop is crooked on the projector for the rest of the lesson, and
+ * a square one earns the team a second block.
+ *
+ * The swing gets faster as the tower grows, because a mechanic that never gets
+ * harder has stopped being a mechanic by question six.
+ */
+function dropCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  const team = me.team || 'red';
+  const T = (NovaTower.TEAM[team] || NovaTower.TEAM.red);
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', style: `border-color:${T.face}` }, T.name),
+    el('span', { class: 'chip live', id: 'd-left' },
+       (me.ready || 0) + ((me.ready || 0) === 1 ? ' block to place' : ' blocks to place'))));
+
+  const shell = el('div', { class: 'arena-shell' });
+  shell.append(el('canvas', { class: 'arena-canvas', id: 'drop' }));
+  card.append(shell);
+  card.append(el('button', { class: 'boostbtn', id: 'd-go', type: 'button' }, 'DROP IT'));
+  card.append(el('p', { class: 'tiny faint', style: 'text-align:center;margin-top:2px' },
+    'Land it square in the gap and your team gets two'));
+  setTimeout(startDrop, 0);
+  return card;
+}
+
+let dropper = null, dropSeq = 0, dropBusy = false, dropCardNode = null;
+
+function startDrop() {
+  const canvas = document.getElementById('drop');
+  if (!canvas || dropper) return;
+  const mine = (game.towers && game.towers[me.team]) || null;
+  const floors = mine ? Math.floor((mine.blocks || []).length / (game.towerSlots || 4)) : 0;
+  dropper = NovaTower.placer({ canvas, team: me.team || 'red',
+                               speed: 1 + Math.min(1.4, floors * 0.08) });
+  const go = document.getElementById('d-go');
+  if (!go) return;
+  go.onclick = () => {
+    if (dropBusy) return;
+    const offset = dropper.drop();
+    if (offset === null) return;
+    dropBusy = true;
+    if (navigator.vibrate) navigator.vibrate(Math.abs(offset) < 0.1 ? [20, 40, 20] : 15);
+    go.textContent = Math.abs(offset) < 0.1 ? 'SQUARE — TWO BLOCKS' : 'PLACED';
+    go.disabled = true;
+    dropSeq += 1;
+    api(`/games/${pin}/place`, { method: 'POST',
+        body: { playerId: me.id, offset, seq: dropSeq } })
+      .then(out => { if (out && out.view) apply(out.view); })
+      .catch(() => {})
+      .then(() => {
+        // the engine is torn down and rebuilt for the next block in hand
+        setTimeout(() => {
+          if (dropper) { dropper.stop(); dropper = null; }
+          dropBusy = false; dropCardNode = null;
+          render();
+        }, 620);
+      });
+  };
 }
 
 function questionCard(fresh) {

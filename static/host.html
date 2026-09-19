@@ -297,6 +297,11 @@
   border:3px solid #0b0718;box-shadow:0 22px 50px -24px rgba(0,0,0,.9)}
 .arena-board canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 .runboard{min-height:min(62vh,540px)}
+/* The towers share the screen with the question, so they take what is left
+   rather than a fixed slab — a min-height big enough for a tower is a
+   min-height that lands on top of the answers. */
+.towerboard{flex:1 1 auto;min-height:min(30vh,240px);max-height:min(48vh,420px)}
+.board .rest:has(.towerboard){overflow:hidden}
 
 /* laser arena */
 .arena{display:grid;grid-template-columns:1fr 74px 1fr;gap:14px;align-items:stretch;margin-top:18px}
@@ -375,8 +380,6 @@
 .setrow .spare{font-size:.7rem;font-weight:800;color:var(--faint)}
 
 /* tower build */
-.skyline{display:flex;gap:16px;align-items:flex-end;justify-content:center;margin-top:18px;padding:18px 12px;
-  min-height:220px;border-radius:var(--r-lg);border:2.5px solid var(--line);background:rgba(0,0,0,.28)}
 .tower{display:flex;flex-direction:column;align-items:center;gap:5px}
 .tower .stack{display:flex;flex-direction:column-reverse;gap:3px;min-height:8px}
 .tower .blk{width:46px;height:16px;border-radius:5px;border:2px solid rgba(0,0,0,.45);
@@ -562,6 +565,7 @@
 <script src="/arena.js"></script>
 <script src="/strike.js"></script>
 <script src="/run.js"></script>
+<script src="/tower.js"></script>
 <script src="/nova.js"></script>
 <script src="/qr.js"></script>
 <script>
@@ -1154,9 +1158,11 @@ function questionView(fresh) {
 
   if (revealing && q.explanation) root.append(el('p', { class: 'why' }, q.explanation));
 
-  // the arena and the table belong to the moment the scores move, not to the question
+  /* The table belongs to the moment the scores move, not to the question. The
+     towers are the exception: they are the game, and a class needs to see where
+     their own floor still has a gap while they are deciding where to drop. */
   const rest = el('div', { class: 'rest', id: 'extra' });
-  if (revealing) extraInto(rest);
+  if (revealing || game.mode === 'tower') extraInto(rest);
   root.append(rest);
 
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
@@ -1204,19 +1210,64 @@ function runTimer() {
 /* ── leaderboard / arena under the question ────── */
 function extraInto(host) {
   if (!host) return;
-  const views = { laser: arena, tower: skyline, boss: bossArena };
-  const view = views[game.mode];
-  /* The wind, announced a round before it arrives. It belongs above the towers
-   * rather than on the phones: everybody has to see it at the same moment or
-   * the decision to stop building and brace is not a decision the room makes. */
-  if (game.mode === 'tower' && game.wind) {
-    host.append(el('div', { class: 'windwarn' },
-      el('span', { class: 'mini-face', html: Sprite.icon('drop', 30, '#2BA8FF') }),
-      el('span', {}, 'The wind is getting up — anything still swaying comes down next round')));
+  const views = { laser: arena, boss: bossArena };
+  /* Tallest Tower is drawn, not tabulated. Three towers built out of the blocks
+     the teams actually placed, at the offsets they actually dropped them — a
+     hurried drop is crooked up there for the rest of the lesson. It used to be
+     a leaderboard of numbers and no tower was drawn on any screen at all. */
+  if (game.mode === 'tower') {
+    host.append(el('div', { class: 'arena-board towerboard' },
+                   el('canvas', { id: 'board-tower' })));
+    setTimeout(watchTower, 0);
+    return;
   }
+  const view = views[game.mode];
   // laser and boss carry their own standings, so a table underneath would repeat them
   if (view) host.append(view());
   if (!view || (game.mode !== 'laser' && game.mode !== 'boss')) host.append(leaderboard());
+}
+
+let boardTower = null, monsterTimer = 0;
+
+function watchTower() {
+  const canvas = document.getElementById('board-tower');
+  if (!canvas) return;
+  if (boardTower && boardTower.canvas !== canvas) { boardTower.stop(); boardTower = null; }
+  if (!boardTower) {
+    boardTower = NovaTower.board({ canvas, towers: game.towers,
+                                   players: game.players, slots: game.towerSlots || 4 });
+    boardTower.canvas = canvas;
+  }
+  feedTower();
+}
+
+/** Hand the board the towers, and notice when the monster has been. */
+function feedTower() {
+  if (!boardTower) return;
+  const before = boardTower.lastFloors || {};
+  const nowFloors = {};
+  NovaTower.TEAMS.forEach(t => {
+    const list = (game.towers && game.towers[t] && game.towers[t].blocks) || [];
+    nowFloors[t] = Math.floor(list.length / (game.towerSlots || 4));
+    // a tower that got shorter is a tower the monster has been at
+    if (before[t] !== undefined && nowFloors[t] < before[t]) boardTower.smash(t);
+  });
+  boardTower.lastFloors = nowFloors;
+  boardTower.update({ towers: game.towers, players: game.players,
+                      slots: game.towerSlots || 4 });
+
+  /* The monster comes on its own clock rather than between questions, because
+     there is no "between" — so the board asks for it, once, when it is due.
+     Only the host's page does this, and the server decides who it takes. */
+  if (hostToken && game.mode === 'tower' && game.state === 'question') {
+    const due = game.monsterAt || 0;
+    if (due && Date.now() - drift >= due && Date.now() > monsterTimer + 5000) {
+      monsterTimer = Date.now();
+      api(`/games/${pin}/monster`, { method: 'POST', body: { hostToken } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
+  }
 }
 
 
@@ -1244,22 +1295,6 @@ function standing(p, x, y, label, extra) {
 
 const KART_COLOURS = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#6C4CF1', '#2BA8FF'];
 
-function skyline() {
-  const tallest = Math.max(6, ...game.players.map(p => p.blocks || 0));
-  return stage((world) => {
-    game.players.slice(0, 10).forEach((p, i) => {
-      const x = 8 + i * (84 / Math.max(1, Math.min(10, game.players.length)));
-      const node = el('div', { class: 'figure' + (i === 0 ? ' lead' : ''), 'data-id': p.id,
-        style: `left:${x}%;bottom:14%;margin-left:-17px` });
-      const stack = el('div', { class: 'pillar',
-        style: `height:${Math.max(4, (p.blocks || 0) / tallest * 150)}px;--c:${KART_COLOURS[i % 6]}` });
-      node.append(el('div', { class: 'shadow' }), stack,
-                  el('div', { class: 'tag' }, `${p.name} · ${p.blocks || 0}`));
-      world.append(node);
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No builders yet.'));
-  });
-}
 
 const CARD_ICON = { star: 'star', moon: 'moon', leaf: 'leaf', flame: 'flame',
                     drop: 'drop', bolt: 'bolt', gem: 'gem', crown: 'crown' };
@@ -1299,10 +1334,6 @@ const WORLD_CSS = `
 .band.shoaling{background:color-mix(in srgb,#12BE8E 22%,transparent);
   border-color:color-mix(in srgb,#12BE8E 60%,transparent)}
 .band.shoaling span{font-weight:800}
-.windwarn{display:flex;align-items:center;gap:12px;margin-top:14px;padding:11px 16px;
-  border-radius:16px;font-weight:700;
-  background:color-mix(in srgb,#2BA8FF 15%,transparent);
-  border:2px solid color-mix(in srgb,#2BA8FF 45%,transparent)}
 `;
 (function () {
   const tag = document.createElement('style');

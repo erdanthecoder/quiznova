@@ -20,6 +20,13 @@ QUESTION = {"id": "q", "type": "mc", "points": 100, "time": 20,
 
 # every scorer's shape, and the moves worth checking in each
 CASES = []
+# Modes with no move of their own still have to agree, and the plain quiz is
+# the one where the number on the screen is the whole game — so it is checked
+# at both ends of the clock and on a wrong answer.
+for mode in ("normal", "tower", "boss", "robot"):
+    for ok in (True, False):
+        for speed in (1.0, 0.5, 0.0):
+            CASES.append((mode, "", ok, speed))
 for mode, spec in Q.MOVES.items():
     for m in spec["list"]:
         CASES.append((mode, m["id"], True, 0.8))
@@ -32,7 +39,7 @@ def fresh(mode, names):
             "id": n, "name": n, "avatar": i, "team": "blue" if i % 2 else "red",
             "score": 0, "hp": 100, "streak": 0, "best": 0, "answered": False,
             "correct": None, "down": False, "lastDamage": 0, "lastGain": 0,
-            "blocks": 0, "sway": 0, "boosts": 0, "ready": 0, "safe": True,
+            "blocks": 0, "ready": 0, "placed": 0, "boosts": 0, "safe": True,
             "guarding": False, "acted": "", "shielded": False, "exposed": False,
             "target": "", "move": "", "on": "", "answers": {},
         }
@@ -60,7 +67,7 @@ def py_run(mode, move, ok, speed):
     return {
         "score": g["players"]["Ana"]["score"], "hp": g["players"]["Ana"]["hp"],
         "blocks": g["players"]["Ana"]["blocks"], "boosts": g["players"]["Ana"]["boosts"],
-        "sway": g["players"]["Ana"]["sway"], "lastGain": g["players"]["Ana"]["lastGain"],
+        "ready": g["players"]["Ana"].get("ready", 0), "lastGain": g["players"]["Ana"]["lastGain"],
         "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
         "blade": g["players"]["Ana"].get("blade", ""),
         "redHp": g["teams"]["red"]["hp"], "blueHp": g["teams"]["blue"]["hp"],
@@ -90,7 +97,7 @@ for (const [mode, move, ok, speed] of cases) {
   g.players.Ana.streak = ok ? 3 : 0;
   (R.SCORERS[mode])(g, g.players.Ana, QUESTION, ok, speed);
   const a = g.players.Ana;
-  out.push({ score:a.score, hp:a.hp, blocks:a.blocks, sway:a.sway,
+  out.push({ score:a.score, hp:a.hp, blocks:a.blocks, ready:a.ready||0,
     lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp, blade:a.blade||'',
     boosts:a.boosts,
     redHp:g.teams.red.hp, blueHp:g.teams.blue.hp });
@@ -111,7 +118,7 @@ for (mode, move, ok, speed), got in zip(CASES, js):
     want = py_run(mode, move, ok, speed)
     if (mode, move) in RANDOM:
         # compare only what randomness cannot reach
-        keys = ['blocks', 'height', 'distance', 'hp', 'balloons', 'sway', 'rope']
+        keys = ['blocks', 'height', 'distance', 'hp', 'balloons', 'ready', 'rope']
     else:
         keys = list(want)
     diff = {k: (want[k], got[k]) for k in keys if want[k] != got[k]}

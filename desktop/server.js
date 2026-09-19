@@ -316,6 +316,14 @@ class Server {
       if (tail === 'boost' && method === 'POST') {
         return this.send(res, 200, this.games.boost(game, body));
       }
+      if (tail === 'monster' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        const hit = this.games.forceMonster(game);
+        return this.send(res, 200, { ok: true, hit, view: this.games.publicView(game) });
+      }
+      if (tail === 'place' && method === 'POST') {
+        return this.send(res, 200, this.games.place(game, body));
+      }
       if (tail === 'strike' && method === 'POST') {
         return this.send(res, 200, this.games.strike(game, body));
       }

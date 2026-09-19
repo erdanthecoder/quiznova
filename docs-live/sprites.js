@@ -264,6 +264,26 @@
   /* An illustration for each game, so picking one shows what happens in it
    * rather than naming it. Drawn in a 160x100 box. */
   const SCENE = {
+    /* Classic Quiz: the question on the board and four answers under it, which
+       is exactly what the mode is. No creature, no arena — the picture should
+       promise the plain thing, because a teacher picking this one is picking it
+       on purpose. */
+    normal:
+      '<rect width="160" height="100" fill="#F3F0FF"/>' +
+      '<rect x="14" y="12" width="132" height="30" rx="8" fill="#fff" stroke="#1B1330" stroke-width="3"/>' +
+      '<rect x="24" y="22" width="76" height="5" rx="2.5" fill="#1B1330" opacity=".75"/>' +
+      '<rect x="24" y="31" width="48" height="5" rx="2.5" fill="#1B1330" opacity=".35"/>' +
+      '<circle cx="128" cy="27" r="9" fill="none" stroke="#7C4DFF" stroke-width="3.4"/>' +
+      '<path d="M128 21v7l4 3" stroke="#7C4DFF" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<g stroke="#1B1330" stroke-width="3">' +
+      '<rect x="14" y="50" width="62" height="20" rx="6" fill="#F4364C"/>' +
+      '<rect x="84" y="50" width="62" height="20" rx="6" fill="#4F6BFF"/>' +
+      '<rect x="14" y="76" width="62" height="20" rx="6" fill="#FFC53D"/>' +
+      '<rect x="84" y="76" width="62" height="20" rx="6" fill="#12BE8E"/></g>' +
+      '<g fill="#fff">' +
+      '<path d="M26 66 l7-12 7 12z"/><circle cx="99" cy="60" r="6"/>' +
+      '<rect x="26" y="80" width="12" height="12" rx="2.5"/>' +
+      '<path d="M99 80 l6 6-6 6-6-6z"/></g>',
     laser:
       '<rect width="160" height="100" fill="#EDF1FF"/>' +
       '<circle cx="34" cy="50" r="17" fill="#F4364C"/><circle cx="29" cy="45" r="3.6" fill="#fff"/>' +
@@ -320,6 +340,35 @@
    * thing the map is named after large enough to read.
    */
   const MAPART = {
+    // ── Classic Quiz ──
+    classic:
+      '<rect width="160" height="100" fill="#6C4CF1"/>' +
+      '<circle cx="24" cy="18" r="26" fill="#8C6CFF" opacity=".55"/>' +
+      '<circle cx="140" cy="86" r="30" fill="#5334D8" opacity=".55"/>' +
+      '<rect x="20" y="24" width="120" height="34" rx="10" fill="#fff"/>' +
+      '<rect x="32" y="34" width="70" height="6" rx="3" fill="#1B1330" opacity=".8"/>' +
+      '<rect x="32" y="45" width="44" height="6" rx="3" fill="#1B1330" opacity=".35"/>' +
+      '<g><rect x="20" y="66" width="56" height="16" rx="5" fill="#F4364C"/>' +
+      '<rect x="84" y="66" width="56" height="16" rx="5" fill="#4F6BFF"/></g>',
+    chalk:
+      '<rect width="160" height="100" fill="#26453B"/>' +
+      '<rect x="6" y="6" width="148" height="88" rx="4" fill="#1F3A31" stroke="#C8A76A" stroke-width="5"/>' +
+      '<g stroke="#EAF3EE" stroke-width="3" stroke-linecap="round" opacity=".85">' +
+      '<path d="M24 28h60M24 40h84M24 52h44"/></g>' +
+      '<g stroke="#FFD86B" stroke-width="3" stroke-linecap="round">' +
+      '<path d="M24 70h28M78 70h28"/></g>' +
+      '<circle cx="132" cy="74" r="9" fill="none" stroke="#EAF3EE" stroke-width="3" opacity=".6"/>',
+    sunset:
+      '<defs><linearGradient id="ssky" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#3B1E6E"/><stop offset="0.55" stop-color="#FF6B6B"/>' +
+      '<stop offset="1" stop-color="#FFB86B"/></linearGradient></defs>' +
+      '<rect width="160" height="100" fill="url(#ssky)"/>' +
+      '<circle cx="80" cy="66" r="26" fill="#FFE2A0" opacity=".9"/>' +
+      '<g fill="#2A1540"><path d="M0 76l26-18 20 14 24-20 26 18 22-12 22 16v26H0z"/></g>' +
+      '<rect x="26" y="20" width="108" height="26" rx="8" fill="#fff" opacity=".95"/>' +
+      '<rect x="38" y="28" width="58" height="5" rx="2.5" fill="#1B1330" opacity=".75"/>' +
+      '<rect x="38" y="37" width="36" height="5" rx="2.5" fill="#1B1330" opacity=".35"/>',
+
     // ── Laser Tag ──
     arena:
       '<rect width="160" height="100" fill="#120A2E"/>' +

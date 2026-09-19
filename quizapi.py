@@ -867,10 +867,17 @@ MAX_PLAYER_HIT = 40          # damage cap on any one player, so nobody is out in
 # results screens work unchanged; a mode adds its own extra state on top.
 
 MODES = {
+    # The plain one. Every other mode is a game with a quiz inside it; this is
+    # the quiz, and sometimes that is what a lesson wants — a starter, a recap,
+    # five minutes before the bell.
+    "normal":   {"label": "Classic Quiz", "icon": "play", "teams": False,
+                 "blurb": "Straight questions on the board. Answer fast — the quicker "
+                          "you are, the more it is worth"},
     "laser":    {"label": "Laser Tag",   "icon": "laser", "teams": True,
                  "blurb": "Push up, take aim or take cover. One arena, two teams"},
-    "tower":    {"label": "Tower Build", "icon": "bricks", "teams": False,
-                 "blurb": "Build tall and sway, or stop and brace before the wind"},
+    "tower":    {"label": "Tallest Tower", "icon": "bricks", "teams": 3,
+                 "blurb": "Three teams, one race up. Answer to earn a block, then time "
+                          "the drop — the neater you place it, the faster you climb"},
     "boss":     {"label": "Boss Battle", "icon": "dragon", "teams": False,
                  "blurb": "Answer to arm yourself, then ten seconds to cut it down"},
     "robot":    {"label": "Robot Run", "icon": "dragon", "teams": False,
@@ -880,6 +887,7 @@ MODES = {
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
 # it changes what the board looks like, not how the scoring works.
 MAPS = {
+    "normal":   [("classic", "Classic"), ("chalk", "Chalkboard"), ("sunset", "Sunset")],
     "laser":    [("arena", "Neon Arena"), ("bunker", "Bunker"), ("moon", "Moon Base")],
     "tower":    [("site", "Building Site"), ("candy", "Candy Land"), ("castle", "Castle Walls")],
     "boss":     [("lair", "Dragon Lair"), ("volcano", "Volcano"), ("ruins", "Old Ruins")],
@@ -1116,7 +1124,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "blocks", "sway", "boosts", "ready", "safe", "lastGain",
+                                           "blocks", "ready", "placed", "boosts", "safe", "lastGain",
                                            "blade", "struck", "move", "on")}
                     for p in players],
         "teams": game["teams"],
@@ -1137,6 +1145,9 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "moveAsk": (MOVES.get(game.get("mode")) or {}).get("ask", ""),
         "startedAt": game.get("startedAt", 0),
         "music": game.get("music") is not False,
+        "towers": game.get("towers"),
+        "towerSlots": SLOTS,
+        "monsterAt": game.get("monsterAt", 0),
         "modeInfo": MODES.get(game["mode"], MODES[DEFAULT_MODE]),
         "counts": game.get("counts", {}),
         "lastEvents": game.get("lastEvents", []),
@@ -1229,14 +1240,18 @@ def join_game(pin):
         if game["state"] != "lobby" and (game.get("setup") or {}).get("lateJoin") is False:
             return jsonify({"error": "This game has already started."}), 400
         name = (body.get("name") or "Player").strip()[:16] or "Player"
-        red = sum(1 for p in game["players"].values() if p["team"] == "red")
-        blue = sum(1 for p in game["players"].values() if p["team"] == "blue")
+        # Tallest Tower splits the room three ways rather than two, because that
+        # is what it is: three towers racing. Whichever side is smallest gets the
+        # next child, so the teams stay level however late people arrive.
+        sides = TOWER_TEAMS if game["mode"] == "tower" else ["red", "blue"]
+        counts = [sum(1 for p in game["players"].values() if p["team"] == t)
+                  for t in sides]
         player = {
             "id": nid(10),
             "name": name,
             "avatar": wanted_face(body.get("avatar"),
                                   [p.get("avatar") for p in game["players"].values()]),
-            "team": "red" if red <= blue else "blue",
+            "team": sides[counts.index(min(counts))],
             "score": 0,
             "hp": 100,
             "streak": 0,
@@ -1246,7 +1261,6 @@ def join_game(pin):
             "down": False,
             "lastDamage": 0,
             "blocks": 0,        # tower build
-            "sway": 0,          # and how close it is to coming down
             "boosts": 0,        # robot run: what they have put in
             "ready": 0,
             "safe": True,
@@ -1257,7 +1271,7 @@ def join_game(pin):
             "on": "",
             "job": None,
             # per-mode workings the moves need
-            "sway": 0, "item": False, "run": 0, "rocks": False,
+            "ready": 0, "placed": 0, "item": False, "run": 0, "rocks": False,
             "tuned": 0, "stopped": False, "guarding": False, "acted": "",
             "shielded": False, "exposed": False, "offer": "",
             "answers": {},
@@ -1265,6 +1279,35 @@ def join_game(pin):
         game["players"][player["id"]] = player
     broadcast_game(game)
     return jsonify({"player": player, "game": public_game(game)}), 201
+
+
+@api.post("/games/<pin>/place")
+def game_place(pin):
+    """Tallest Tower: one block, placed.
+
+    The offset is where the tap landed and it is kept on the block, so a hurried
+    drop is visible on the board for the rest of the game. Counted by sequence
+    number so a phone that reconnects and repeats itself cannot build a floor on
+    its own. Mirrors the '/place' branch in static/live.js.
+    """
+    body = request.get_json(silent=True) or {}
+    with _lock:
+        game, err = game_or_404(pin)
+        if err:
+            return err
+        player = game["players"].get(body.get("playerId"))
+        if not player:
+            return jsonify({"error": "Not in this game."}), 404
+        if game["mode"] != "tower":
+            return jsonify({"ok": False, "why": "Not that kind of game."})
+        if player.get("ready", 0) <= 0:
+            return jsonify({"ok": False, "why": "No block to place."})
+        out = place_block(game, player, body.get("offset"), body.get("seq"))
+        if not out.get("already"):
+            player["ready"] = max(0, player.get("ready", 0) - 1)
+        game["lastEvents"] = game["lastEvents"][-6:]
+        broadcast_game(game)
+        return jsonify(out)
 
 
 @api.post("/games/<pin>/score")
@@ -1412,7 +1455,7 @@ def next_question(pin):
 # When a mode is not recognised — an old saved game naming one of the ten that
 # were removed, or a typo in a request — this is what it becomes. Tower Build,
 # because it asks least of a room: no teams, no coordination, any class size.
-DEFAULT_MODE = "tower"
+DEFAULT_MODE = "normal"
 
 
 def pick_boss_name():
@@ -1437,16 +1480,92 @@ MOVES = {
         {"id": "aim", "label": "Take aim", "note": "Normal shot at whoever you picked"},
         {"id": "push", "label": "Push up", "note": "Hit twice as hard, and take twice as much back"},
         {"id": "cover", "label": "Take cover", "note": "Half a shot, and you shield whoever is weakest"}]},
-    "tower": {"ask": "How are you building?", "list": [
-        {"id": "wide", "label": "Build wide", "note": "One block. It will never fall"},
-        {"id": "tall", "label": "Build tall", "note": "Three blocks, but the tower starts to sway"},
-        {"id": "brace", "label": "Brace it", "note": "No blocks. Steadies everything you have"}]},
+    # Tallest Tower has no move to pick either: the decision is when you drop
+    # the block, and a menu in front of that would be a menu in front of the game.
     # Monster Run has no move to pick: it is played in real time, at each
     # child's own pace, and a menu would get in the way of the next question.
 }
 
 
-SWAY_LIMIT = 4       # a tower swaying this much comes down when the wind gets up
+# ── Tallest Tower ──
+# Mirrors the block in static/rules.js. The room is split into three teams, a
+# right answer earns a block, and placing it is a timed tap: where it lands is
+# kept on the block so the tower is drawn as it was actually built.
+TOWER_TEAMS = ["red", "blue", "green"]
+TOWER_NAMES = {"red": "Crimson", "blue": "Cobalt", "green": "Clover"}
+SLOTS = 4            # blocks in one finished floor
+PERFECT = 0.09       # how square a drop has to be to count as neat
+GIFT_EVERY = 5       # a gift box waits at every fifth floor
+GIFT_BLOCKS = 3
+MONSTER_EVERY = 38000   # how often the monster comes, in milliseconds
+MONSTER_FLOOR = 3       # and the shortest tower it will bother with
+
+
+def blank_tower():
+    return {"blocks": [], "gift": 0, "crushed": 0}
+
+
+def floors_of(tower):
+    return len(tower["blocks"]) // SLOTS
+
+
+def towers_of(game):
+    game.setdefault("towers", {})
+    for t in TOWER_TEAMS:
+        game["towers"].setdefault(t, blank_tower())
+    return game["towers"]
+
+
+def place_block(game, player, offset, seq):
+    """One block, placed. Mirrors placeBlock in static/rules.js."""
+    towers = towers_of(game)
+    team = player.get("team") if player.get("team") in TOWER_TEAMS else TOWER_TEAMS[0]
+    tower = towers[team]
+    want = max(0, round(float(seq or 0)))
+    if want <= player.get("placed", 0):
+        return {"ok": True, "already": True}
+    player["placed"] = min(want, player.get("placed", 0) + 1)
+
+    o = max(-1.0, min(1.0, float(offset or 0)))
+    neat = abs(o) <= PERFECT
+    tower["blocks"].append({"o": o, "by": player["name"], "neat": neat})
+    player["blocks"] = player.get("blocks", 0) + 1
+    if neat:
+        tower["blocks"].append({"o": -o * 0.4, "by": player["name"],
+                                "neat": True, "bonus": True})
+        player["blocks"] += 1
+        game["lastEvents"].append(f"{player['name']} dropped that one square — two blocks")
+    player["score"] = player["blocks"]
+    if len(tower["blocks"]) > 400:
+        tower["blocks"] = tower["blocks"][-400:]
+
+    floors = floors_of(tower)
+    while floors >= (tower["gift"] + 1) * GIFT_EVERY:
+        tower["gift"] += 1
+        for _ in range(GIFT_BLOCKS):
+            tower["blocks"].append({"o": (random.random() - 0.5) * 0.3,
+                                    "by": "the gift box", "gift": True})
+        game["lastEvents"].append(
+            f"{TOWER_NAMES[team]} reached the gift box — three free blocks")
+    return {"ok": True, "floors": floors_of(tower),
+            "blocks": len(tower["blocks"]), "neat": neat}
+
+
+def tower_monster(game):
+    """It comes for whoever is winning, which is the only fair thing for it to
+    do: a mode where the team that got ahead first stays ahead is a mode the
+    other twenty children stop playing. Mirrors towerMonster in rules.js."""
+    towers = towers_of(game)
+    ranked = sorted(((t, floors_of(towers[t])) for t in TOWER_TEAMS),
+                    key=lambda r: -r[1])
+    if not ranked or ranked[0][1] < MONSTER_FLOOR:
+        return None
+    team = ranked[0][0]
+    tower = towers[team]
+    tower["blocks"] = tower["blocks"][:max(0, len(tower["blocks"]) - SLOTS)]
+    tower["crushed"] += 1
+    game["lastEvents"].append(f"The monster took a floor off {TOWER_NAMES[team]}")
+    return team
 
 
 def moves_for(mode):
@@ -1548,37 +1667,19 @@ def score_laser(game, player, question, ok, speed):
 
 
 def score_tower(game, player, question, ok, speed):
-    """Push your luck, with a wind that decides. How long do you keep building
-    before you stop and brace?"""
-    move = move_of(game, player)
-    if not ok:
-        if player["blocks"] > 0 and move == "tall":
-            player["blocks"] = max(0, player["blocks"] - 2)
-            player["lastGain"] = -2
-            game["lastEvents"].append(f"{player['name']} reached too far and lost two")
-        elif player["blocks"] > 0:
-            player["blocks"] -= 1
-            player["lastGain"] = -1
-            game["lastEvents"].append(f"{player['name']}'s tower wobbled and a block fell")
-        else:
-            player["lastGain"] = 0
-        player["score"] = player["blocks"]
-        return
-    if move == "brace":
-        player["sway"] = 0
-        player["lastGain"] = 0
-        game["lastEvents"].append(f"{player['name']} braced the tower — it is steady again")
-    elif move == "tall":
-        gain = 4 if speed > 0.55 else 3
-        player["blocks"] += gain
-        player["sway"] = player.get("sway", 0) + 2
-        player["lastGain"] = gain
-        game["lastEvents"].append(f"{player['name']} stacked {gain} high — and it is swaying")
-    else:
-        player["blocks"] += 1
+    """Answering earns the block. Placing it is what builds.
+
+    A wrong answer costs nothing. It used to knock blocks off your own tower,
+    which reads as a punishment for trying and is not what Kahoot does — there,
+    a wrong answer simply does not hand you a block, and the thing you lose is
+    the time. Mirrors SCORERS.tower in static/rules.js.
+    """
+    if ok:
+        player["ready"] = player.get("ready", 0) + 1
         player["lastGain"] = 1
-        game["lastEvents"].append(f"{player['name']} built wide")
-    player["score"] = player["blocks"]
+    else:
+        player["lastGain"] = 0
+    player["score"] = player.get("blocks", 0)
 
 
 def score_boss(game, player, question, ok, speed):
@@ -1610,6 +1711,33 @@ def score_robot(game, player, question, ok, speed):
     static/rules.js.
     """
     player["lastGain"] = 0
+
+
+def score_normal(game, player, question, ok, speed):
+    """Classic Quiz: the answer, and how fast it came.
+
+    `speed` is one for an instant answer and nought for one on the buzzer, so
+    half the marks are for knowing it and half for being quick. Answering at the
+    last second still scores — a child who worked it out slowly has worked it
+    out, and taking that away teaches guessing.
+
+    A streak is worth something on top, and it is capped. Uncapped, one child
+    who starts well runs away with it by the fourth question and everybody else
+    stops trying. Mirrors SCORERS.normal in static/rules.js.
+    """
+    worth = int((question or {}).get("points") or 100)
+    gain = 0
+    if ok:
+        gain = round(worth * (0.5 + 0.5 * speed))
+        streak = min(player.get("streak", 0), 5)
+        if streak >= 2:
+            gain += round(worth * 0.1 * (streak - 1))
+        if speed >= 0.8:
+            game["lastEvents"].append(f"{player['name']} answered that one in a flash")
+    player["score"] += gain
+    player["lastGain"] = gain
+
+
 def resolve(game):
     """The moves that touch somebody else, settled together.
 
@@ -1632,27 +1760,12 @@ def after_round(game):
 
     resolve(game)
 
-    if game.get("mode") == "tower":
-        # the wind is announced a round early and then it arrives; every tower
-        # that is swaying loses the top of itself
-        if game.get("wind"):
-            toppled = 0
-            for p in everyone:
-                if p.get("sway", 0) < SWAY_LIMIT:
-                    continue
-                lost = max(1, round(p["blocks"] * 0.4))
-                p["blocks"] = max(0, p["blocks"] - lost)
-                p["sway"] = 0
-                p["score"] = p["blocks"]
-                toppled += 1
-                game["lastEvents"].append(f"The wind took {lost} off {p['name']}'s tower")
-            if not toppled:
-                game["lastEvents"].append("The wind blew and every tower held")
-            game["wind"] = False
-        elif random.random() < 0.34:
-            game["wind"] = True
-            game["lastEvents"].append("The wind is getting up — brace anything that is swaying")
+    # The wind used to blow here and take the top off any tower that was
+    # swaying. Tallest Tower has no sway and no wind: what knocks a floor down
+    # is the monster, it comes on its own clock rather than between questions,
+    # and it goes for whoever is winning.
 SCORERS = {
+    "normal": score_normal,
     "laser": score_laser, "tower": score_tower,
     "boss": score_boss, "robot": score_robot,
 }

@@ -527,8 +527,8 @@ async function hostGame(q) {
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
       // a fallback for a page that could not reach the server; it has to name a
       // mode that still exists
-      if (!modes.length) modes = [{ id: 'tower', icon: 'bricks', label: 'Tower Build',
-                                    blurb: 'Build tall and sway, or stop and brace before the wind',
+      if (!modes.length) modes = [{ id: 'normal', icon: 'play', label: 'Classic Quiz',
+                                    blurb: 'Straight questions on the board. Answer fast — the quicker you are, the more it is worth',
                                     maps: [] }];
       showModes();
 

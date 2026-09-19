@@ -22,8 +22,11 @@ const listed = /PLAYER_OWNED = new Set\(\[([\s\S]*?)\]\)/.exec(src)[1]
 const pages = ['static/play.html', 'static/host.html'].map(read).join('\n');
 const called = [...new Set([...pages.matchAll(/games\/\$\{pin\}(\/[a-z]+)/g)].map(m => m[1]))];
 
-// the teacher's device is the only one that drives the game forward
-const HOST_ONLY = new Set(['/start', '/next', '/tick', '/end']);
+/* The teacher's device is the only one that drives the game forward. The
+   monster is on that list because it comes on its own clock rather than between
+   questions, so the board asks for it when it is due — the server still decides
+   which team it takes. */
+const HOST_ONLY = new Set(['/start', '/next', '/tick', '/end', '/monster']);
 
 let fails = 0;
 const missing = called.filter(p => !HOST_ONLY.has(p) && !listed.includes(p));

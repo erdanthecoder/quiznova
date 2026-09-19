@@ -12,10 +12,18 @@
   const now = () => Date.now();
 
   const MODES = {
-    
+
+    /* The plain one. Every other mode is a game with a quiz inside it; this is
+       the quiz, and sometimes that is what a lesson wants — a starter, a recap,
+       five minutes before the bell. It is not a lesser mode for being simple:
+       what it has that none of the others do is that the score is only ever
+       about the answer, so a child who knows it and is quick wins. */
+    normal:   { label: 'Classic Quiz',  icon: 'play', blurb: 'Straight questions on the board. Answer fast — the quicker you are, the more it is worth' },
+
     laser:    { label: 'Laser Tag',    icon: 'laser', blurb: 'Push up, take aim or take cover. One arena, two teams' },
     
-    tower:    { label: 'Tower Build',  icon: 'bricks', blurb: 'Build tall and sway, or stop and brace before the wind' },
+    tower:    { label: 'Tallest Tower', icon: 'bricks', teams: 3,
+                blurb: 'Three teams, one race up. Answer to earn a block, then time the drop — the neater you place it, the faster you climb' },
     
     boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'Answer to arm yourself, then ten seconds to cut it down' },
 
@@ -25,7 +33,9 @@
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
    * it changes what the board looks like, not how the scoring works. */
   const MAPS = {
-    
+
+    normal:   [['classic', 'Classic'], ['chalk', 'Chalkboard'], ['sunset', 'Sunset']],
+
     laser:    [['arena', 'Neon Arena'], ['bunker', 'Bunker'], ['moon', 'Moon Base']],
     
     tower:    [['site', 'Building Site'], ['candy', 'Candy Land'], ['castle', 'Castle Walls']],
@@ -140,7 +150,108 @@
    * that were removed, or a typo in a request — this is what it becomes. Tower
    * Build, because it is the one that asks least of a room: no teams to sort
    * out, no coordination, and it works with three children or thirty. */
-  const DEFAULT_MODE = 'tower';
+  /* The plain quiz is the default. A teacher who picks nothing should get the
+     thing the tool is for, not whichever game happened to be first. */
+  /* ── Tallest Tower ────────────────────────────────────────
+   *
+   * Rebuilt from how Kahoot's actually works, which is nothing like what was
+   * here. What was here: pick wide, tall or brace, and a number went up. No
+   * tower was ever drawn anywhere, so the mode was a quiz with the word tower
+   * written on it.
+   *
+   * Kahoot's Tallest Tower: the room is split into teams, you answer at your
+   * own pace to earn construction blocks, and then you place each one by
+   * timing a tap while it slides across — looking at the host's screen to see
+   * where your team's floor still needs filling. A floor is finished when the
+   * team has put a block in every slot in the row. There is a gift box at a
+   * height that pays out extra blocks, and a monster that turns up and crushes
+   * a floor off whoever is winning.
+   *
+   * So all of that, plus the one thing it does not have: where you drop the
+   * block is kept and drawn. Place it neatly and it sits square; snatch at it
+   * and your team's floor is visibly crooked for the rest of the game. That is
+   * the difference between a timing bar and a tower.
+   */
+  const TOWER_TEAMS = ['red', 'blue', 'green'];
+  const TOWER_NAMES = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
+  const SLOTS = 4;                     // blocks in one finished floor
+  const PERFECT = 0.09;                // how square a drop has to be to count as neat
+  const GIFT_EVERY = 5;                // a gift box waits at every fifth floor
+  const GIFT_BLOCKS = 3;
+  const MONSTER_EVERY = 38000;         // how often it comes, in milliseconds
+  const MONSTER_FLOOR = 3;             // and the shortest tower it will bother with
+
+  /** A tower, from nothing. */
+  const blankTower = () => ({ blocks: [], gift: 0, crushed: 0 });
+
+  /** How many finished floors a tower has. */
+  const floorsOf = (tower) => Math.floor((tower.blocks.length) / SLOTS);
+
+  /** Every tower in the game, made if they are not there yet. */
+  function towersOf(game) {
+    if (!game.towers) game.towers = {};
+    TOWER_TEAMS.forEach(t => { if (!game.towers[t]) game.towers[t] = blankTower(); });
+    return game.towers;
+  }
+
+  /* Placing one block.
+   *
+   * `offset` is where it landed, −1 hard left to +1 hard right, and it is kept
+   * on the block so the tower is drawn as it was actually built. A neat drop
+   * earns the team a second block, which is the whole reason to take the extra
+   * half second rather than mashing the button.
+   *
+   * `seq` counts: a phone that reconnects and repeats itself cannot build a
+   * floor on its own. */
+  function placeBlock(game, p, offset, seq) {
+    const towers = towersOf(game);
+    const team = TOWER_TEAMS.includes(p.team) ? p.team : TOWER_TEAMS[0];
+    const tower = towers[team];
+    const want = Math.max(0, Math.round(Number(seq) || 0));
+    if (want <= (p.placed || 0)) return { ok: true, already: true };
+    p.placed = Math.min(want, (p.placed || 0) + 1);
+
+    const o = Math.max(-1, Math.min(1, Number(offset) || 0));
+    const neat = Math.abs(o) <= PERFECT;
+    tower.blocks.push({ o, by: p.name, neat });
+    p.blocks = (p.blocks || 0) + 1;
+    if (neat) {
+      tower.blocks.push({ o: -o * 0.4, by: p.name, neat: true, bonus: true });
+      p.blocks += 1;
+      game.lastEvents.push(`${p.name} dropped that one square — two blocks`);
+    }
+    p.score = p.blocks;
+    if (tower.blocks.length > 400) tower.blocks = tower.blocks.slice(-400);
+
+    // the gift box, waiting at every fifth floor
+    const floors = floorsOf(tower);
+    while (floors >= (tower.gift + 1) * GIFT_EVERY) {
+      tower.gift += 1;
+      for (let i = 0; i < GIFT_BLOCKS; i++) {
+        tower.blocks.push({ o: (Math.random() - 0.5) * 0.3, by: 'the gift box', gift: true });
+      }
+      game.lastEvents.push(`${TOWER_NAMES[team]} reached the gift box — three free blocks`);
+    }
+    return { ok: true, floors: floorsOf(tower), blocks: tower.blocks.length, neat };
+  }
+
+  /* The monster. It comes for whoever is winning, which is the only fair thing
+   * for it to do: a mode where the team that got ahead first stays ahead is a
+   * mode the other twenty children stop playing. */
+  function towerMonster(game) {
+    const towers = towersOf(game);
+    const tallest = TOWER_TEAMS
+      .map(t => ({ t, n: floorsOf(towers[t]) }))
+      .sort((a, b) => b.n - a.n)[0];
+    if (!tallest || tallest.n < MONSTER_FLOOR) return null;
+    const tower = towers[tallest.t];
+    tower.blocks = tower.blocks.slice(0, Math.max(0, tower.blocks.length - SLOTS));
+    tower.crushed += 1;
+    game.lastEvents.push(`The monster took a floor off ${TOWER_NAMES[tallest.t]}`);
+    return tallest.t;
+  }
+
+  const DEFAULT_MODE = 'normal';
 
   const mapsFor = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE]).map(([id, label]) => ({ id, label }));
   const defaultMap = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE])[0][0];
@@ -204,14 +315,6 @@
       ]
     },
     
-    tower: {
-      ask: 'How are you building?', when: 'question',
-      list: [
-        { id: 'wide',  label: 'Build wide',  note: 'One block. It will never fall' },
-        { id: 'tall',  label: 'Build tall',  note: 'Three blocks, but the tower starts to sway' },
-        { id: 'brace', label: 'Brace it',    note: 'No blocks. Steadies everything you have' }
-      ]
-    },
     
     /* Boss Battle has no move to pick. Its decision is a real one, made with a
      * thumb in the ten seconds after the question: when to swing and when to
@@ -314,31 +417,21 @@
      * times as much and makes the tower sway; a swaying tower falls when the
      * wind gets up, which the board warns about a round in advance. So the game
      * is: how long do you keep building before you stop and brace? */
+    /* Answering earns the block. Placing it is what builds.
+     *
+     * A wrong answer costs nothing. It used to knock blocks off your own tower,
+     * which reads as a punishment for trying and is not what Kahoot does —
+     * there, a wrong answer simply does not hand you a block, and the thing
+     * you lose is the time. The monster is where the drama comes from now, and
+     * it goes after whoever is ahead rather than whoever is struggling. */
     tower(game, p, q, ok, speed) {
-      const move = moveOf(game, p);
-      if (!ok) {
-        if (p.blocks > 0 && move === 'tall') {
-          p.blocks = Math.max(0, p.blocks - 2); p.lastGain = -2;
-          game.lastEvents.push(`${p.name} reached too far and lost two`);
-        } else if (p.blocks > 0) {
-          p.blocks -= 1; p.lastGain = -1;
-          game.lastEvents.push(`${p.name}'s tower wobbled and a block fell`);
-        } else { p.lastGain = 0; }
-        p.score = p.blocks;
-        return;
-      }
-      if (move === 'brace') {
-        p.sway = 0; p.lastGain = 0;
-        game.lastEvents.push(`${p.name} braced the tower — it is steady again`);
-      } else if (move === 'tall') {
-        const gain = speed > 0.55 ? 4 : 3;
-        p.blocks += gain; p.sway = (p.sway || 0) + 2; p.lastGain = gain;
-        game.lastEvents.push(`${p.name} stacked ${gain} high — and it is swaying`);
+      if (ok) {
+        p.ready = (p.ready || 0) + 1;
+        p.lastGain = 1;
       } else {
-        p.blocks += 1; p.lastGain = 1;
-        game.lastEvents.push(`${p.name} built wide`);
+        p.lastGain = 0;
       }
-      p.score = p.blocks;
+      p.score = p.blocks || 0;
     },
 
     /* Boss Battle does not really score here any more.
@@ -370,6 +463,30 @@
      * the answer so the teacher's marking still works. */
     robot(game, p, q, ok, speed) {
       p.lastGain = 0;
+    },
+
+    /* Classic Quiz: the answer, and how fast it came.
+     *
+     * `speed` is one for an instant answer and nought for one on the buzzer, so
+     * half the marks are for knowing it and half for being quick. Answering at
+     * the last second still scores — a child who worked it out slowly has
+     * worked it out, and taking that away teaches guessing.
+     *
+     * A streak is worth something on top, and it is capped. Uncapped, one child
+     * who starts well runs away with it by the fourth question and everybody
+     * else stops trying, which is the failure mode of every classroom quiz
+     * anybody has ever sat through. */
+    normal(game, p, q, ok, speed) {
+      const worth = Number(q && q.points) || 100;
+      let gain = 0;
+      if (ok) {
+        gain = Math.round(worth * (0.5 + 0.5 * speed));
+        const streak = Math.min(p.streak, 5);           // capped on purpose
+        if (streak >= 2) gain += Math.round(worth * 0.1 * (streak - 1));
+        if (speed >= 0.8) game.lastEvents.push(`${p.name} answered that one in a flash`);
+      }
+      p.score += gain;
+      p.lastGain = gain;
     }
 
 
@@ -421,7 +538,7 @@
     id: row.id, name: row.name, avatar: Number(row.avatar) || 0, team: row.team || 'red',
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, lastGain: 0, target: '',
-    blocks: 0, sway: 0,                       // tower build
+    blocks: 0, ready: 0, placed: 0,           // tallest tower: earned, and put up
     boosts: 0, ready: 0, safe: true,          // robot run: what they have put in
     guarding: false, acted: '',               // boss battle
     shielded: false, exposed: false,          // laser tag
@@ -437,33 +554,13 @@
 
     resolve(game);
 
-    /* Tower Build: the wind. It is announced a round early and then it arrives,
-     * and every tower that is swaying loses the top of itself. A child who built
-     * tall three rounds running and did not stop has the tallest tower right up
-     * until they do not. */
-    if (game.mode === 'tower') {
-      if (game.wind) {
-        let toppled = 0;
-        everyone.forEach(p => {
-          if ((p.sway || 0) < SWAY_LIMIT) return;
-          const lost = Math.max(1, Math.round(p.blocks * 0.4));
-          p.blocks = Math.max(0, p.blocks - lost);
-          p.sway = 0; p.score = p.blocks;
-          toppled++;
-          game.lastEvents.push(`The wind took ${lost} off ${p.name}'s tower`);
-        });
-        if (!toppled) game.lastEvents.push('The wind blew and every tower held');
-        game.wind = false;
-      } else if (Math.random() < 0.34) {
-        game.wind = true;
-        game.lastEvents.push('The wind is getting up — brace anything that is swaying');
-      }
-    }
-
-    game.lastEvents = game.lastEvents.slice(-6);
+    /* The wind used to blow here and take the top off any tower that was
+       swaying. Tallest Tower has no sway and no wind: the thing that knocks a
+       floor down is the monster, it comes on its own clock rather than between
+       questions, and it goes for whoever is winning. */
   }
 
-  /* Two of the four end themselves before the questions run out — a boss dies,
+  /* Some modes end themselves before the questions run out — a boss dies.
    * Asked in one place so the website, the app and
    * the Flask edition cannot drift apart on it. */
   function modeFinished(game) {
@@ -475,6 +572,8 @@
 
   global.NovaRules = {
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
+    TOWER_TEAMS, TOWER_NAMES, SLOTS, PERFECT, GIFT_EVERY, MONSTER_EVERY, MONSTER_FLOOR,
+    blankTower, floorsOf, towersOf, placeBlock, towerMonster,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,

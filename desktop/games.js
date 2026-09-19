@@ -72,7 +72,11 @@ class Games {
       mode, map: maps.includes(body.map) ? body.map : maps[0],
       state: 'lobby', index: -1, questions, players: {},
       teams: { red: { hp: 0, score: 0, blocks: 0, max: 0, name: 'Crimson' },
-               blue: { hp: 0, score: 0, blocks: 0, max: 0, name: 'Cobalt' } },
+               blue: { hp: 0, score: 0, blocks: 0, max: 0, name: 'Cobalt' },
+               green: { hp: 0, score: 0, blocks: 0, max: 0, name: 'Clover' } },
+      towers: R.blankTower ? { red: R.blankTower(), blue: R.blankTower(),
+                               green: R.blankTower() } : null,
+      monsterAt: 0,
       goal: R.readGoal(body.goal), setup, music: body.music !== false, startedAt: 0,
       counts: {}, lastEvents: [], endsAt: null, createdAt: now()
     };
@@ -113,6 +117,7 @@ class Games {
       lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
       strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
+      towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
       lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
       round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: R.movesFor(game.mode), moveAsk: (R.MOVES[game.mode] || {}).ask || '',
@@ -129,12 +134,16 @@ class Games {
       throw Object.assign(new Error('This game has already started.'), { status: 400 });
     }
     const already = Object.values(game.players);
-    const red = already.filter(p => p.team === 'red').length;
-    const blue = already.filter(p => p.team === 'blue').length;
+    /* Tallest Tower splits the room three ways rather than two, because that is
+       what it is: three towers racing. Whichever side is smallest gets the next
+       child, so the teams stay level however late people arrive. */
+    const sides = game.mode === 'tower' ? R.TOWER_TEAMS : ['red', 'blue'];
+    const counts = sides.map(t => already.filter(p => p.team === t).length);
+    const team = sides[counts.indexOf(Math.min(...counts))];
     const player = R.blankPlayer({
       id: rid(10), name: String(body.name || 'Player').trim().slice(0, 16) || 'Player',
       avatar: this.wantedFace(body.avatar, already.map(p => p.avatar)),
-      team: red <= blue ? 'red' : 'blue'
+      team
     });
     game.players[player.id] = player;
     this.changed(game);
@@ -231,6 +240,43 @@ class Games {
     return { ok: true, escape: game.escape, round: game.round };
   }
 
+  /* Tallest Tower: one block, placed. The offset is where the tap landed, and
+   * it is kept, so a hurried drop is visible on the board for the rest of the
+   * game. Counted by sequence number so a phone that reconnects and repeats
+   * itself cannot build a floor on its own. */
+  place(game, body) {
+    const p = game.players[body.playerId];
+    if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
+    if (game.mode !== 'tower') return { ok: false, why: 'Not that kind of game.' };
+    if ((p.ready || 0) <= 0) return { ok: false, why: 'No block to place.' };
+    const out = R.placeBlock(game, p, body.offset, body.seq);
+    if (!out.already) p.ready = Math.max(0, (p.ready || 0) - 1);
+    game.lastEvents = game.lastEvents.slice(-6);
+    this.changed(game);
+    return out;
+  }
+
+  /* The monster, on its own clock rather than between questions — everybody is
+   * answering at their own pace, so there is no "between" any more. */
+  towerTick(game) {
+    if (game.mode !== 'tower' || game.state !== 'question') return;
+    if (!game.monsterAt) { game.monsterAt = now() + R.MONSTER_EVERY; return; }
+    if (now() < game.monsterAt) return;
+    game.monsterAt = now() + R.MONSTER_EVERY;
+    if (R.towerMonster(game)) { game.lastEvents = game.lastEvents.slice(-6); this.changed(game); }
+  }
+
+  /* The board asking for the monster, because it comes on its own clock rather
+   * than between questions and the server has no timer of its own on the web. */
+  forceMonster(game) {
+    if (game.mode !== 'tower') return null;
+    const hit = R.towerMonster(game);
+    game.monsterAt = now() + R.MONSTER_EVERY;
+    game.lastEvents = game.lastEvents.slice(-6);
+    this.changed(game);
+    return hit;
+  }
+
   /* Boss Battle: the question is followed by ten seconds of fighting. */
   strike(game, body) {
     const p = game.players[body.playerId];
@@ -299,6 +345,7 @@ class Games {
   /* The clock, called on a timer by the server: a question can run out with
    * nobody having answered, and a time limit can run out mid-question. */
   tick(game) {
+    this.towerTick(game);
     // a deck that runs out of time is the robot reaching the room
     if (game.state === 'running' && game.mode === 'robot'
         && game.roundEndsAt && now() >= game.roundEndsAt) {

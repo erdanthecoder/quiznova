@@ -155,6 +155,7 @@
       strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
+      towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
       lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
       round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
@@ -296,7 +297,7 @@
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
   const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move', '/strike',
-                                '/boost',
+                                '/boost', '/place',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -377,12 +378,15 @@
       }
       // ask the table, not the host's copy: someone may have joined a second ago
       const already = await readPlayers(pin) || [];
-      const red = already.filter(p => p.team === 'red').length;
-      const blue = already.filter(p => p.team === 'blue').length;
+      /* Tallest Tower splits the room three ways rather than two, because that
+         is what it is: three towers racing. Whichever side is smallest gets the
+         next child, so the teams stay level however late people arrive. */
+      const sides = game.mode === 'tower' ? R.TOWER_TEAMS : ['red', 'blue'];
+      const counts = sides.map(t => already.filter(p => p.team === t).length);
       const row = {
         id: rid(10), pin, name: (body.name || 'Player').slice(0, 16),
         avatar: String(wantedFace(body.avatar, already.map(p => p.avatar))),
-        team: red <= blue ? 'red' : 'blue'
+        team: sides[counts.indexOf(Math.min(...counts))]
       };
       await rest('POST', '/quiznova_live_players', row, { prefer: 'return=minimal' });
       // the reply is the first thing the new player sees, so it counts them in
@@ -483,6 +487,35 @@
       }
       await writeGame(pin, game);
       return { ok: true, escape: game.escape, round: game.round, view: publicView(game) };
+    }
+
+    /* Tallest Tower: one block, placed. The offset is where the tap landed, and
+     * it is kept on the block, so a hurried drop is visible on the board for the
+     * rest of the game. Counted by sequence number for the same reason a boost
+     * is: a phone that reconnects and repeats itself cannot build a floor on
+     * its own. */
+    if (tail === '/place') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      if (game.mode !== 'tower') return { ok: false, why: 'Not that kind of game.' };
+      if ((p.ready || 0) <= 0) return { ok: false, why: 'No block to place.' };
+      const out = R.placeBlock(game, p, body.offset, body.seq);
+      if (!out.already) p.ready = Math.max(0, (p.ready || 0) - 1);
+      game.lastEvents = game.lastEvents.slice(-6);
+      await writeGame(pin, game);
+      return Object.assign(out, { view: publicView(game) });
+    }
+
+    /* The monster, asked for by the board on its own clock rather than between
+     * questions — everybody is answering at their own pace, so there is no
+     * "between" any more. Only the host may call it. */
+    if (tail === '/monster') {
+      if (game.mode !== 'tower') return { ok: false };
+      const hit = R.towerMonster(game);
+      game.monsterAt = now() + R.MONSTER_EVERY;
+      game.lastEvents = game.lastEvents.slice(-6);
+      await writeGame(pin, game);
+      return { ok: true, hit, view: publicView(game) };
     }
 
     /* The move: which way this player is playing the round. Every mode has them

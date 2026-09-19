@@ -46,12 +46,12 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
      (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 60));
 
   const cards = await page.locator('[data-mode]').count();
-  ok('every mode is offered', cards === 4, `${cards} modes`);
+  ok('every mode is offered', cards === 5, `${cards} modes`);
 
   // every mode card has its own picture
   const modeArt = await page.evaluate(() =>
     [...document.querySelectorAll('[data-mode] .art svg')].map(s => s.innerHTML.length));
-  ok('each mode card draws something', modeArt.length === 4 && modeArt.every(n => n > 200),
+  ok('each mode card draws something', modeArt.length === 5 && modeArt.every(n => n > 200),
      `svg sizes ${modeArt.join(',')}`);
 
   // pick Laser Tag, which is the one whose maps the teacher complained about
@@ -101,7 +101,7 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   ok('the main page has a way to host', await play.count() > 0);
   if (await play.count()) { await play.click(); await hub.waitForTimeout(1400); }
   const hubModes = await hub.locator('[data-mode]').count();
-  ok('the main page offers the modes too', hubModes === 4, `${hubModes} modes`);
+  ok('the main page offers the modes too', hubModes === 5, `${hubModes} modes`);
   if (hubModes) {
     await hub.locator('[data-mode="laser"]').click();
     await hub.waitForTimeout(700);

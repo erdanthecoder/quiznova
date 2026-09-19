@@ -19,7 +19,7 @@ OUT = os.path.join(ROOT, "docs")
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
 PLAY_ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
-               "arena.js", "strike.js", "run.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+               "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
 # site of its own rather than a page inside the studio.
@@ -46,12 +46,12 @@ TEACH_HOST = "teachboard-quoldek.web.app"
 STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
 BOARD_ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
-                "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "paste.js",
+                "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -91,6 +91,7 @@ def build():
         html = html.replace('<script src="/arena.js"></script>', '')   # the bundle already adds it
         html = html.replace('<script src="/strike.js"></script>', '')   # ditto
         html = html.replace('<script src="/run.js"></script>', '')      # ditto
+        html = html.replace('<script src="/tower.js"></script>', '')    # ditto
         html = html.replace('<script src="/quizbank.js"></script>', '')  # ditto
         html = html.replace('<script src="/nova.js"></script>',
                             '<script src="nova.js"></script>\n'
@@ -99,6 +100,7 @@ def build():
                             '<script src="arena.js"></script>\n'
                             '<script src="strike.js"></script>\n'
                             '<script src="run.js"></script>\n'
+                            '<script src="tower.js"></script>\n'
                             '<script src="paste.js"></script>\n'
                             '<script src="rules.js"></script>\n'
                             '<script src="live.js"></script>\n'
