@@ -501,7 +501,10 @@ async function hostGame(q) {
       const list = box.querySelector('#mode-list');
       let modes = [];
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
-      if (!modes.length) modes = [{ id: 'normal', icon: 'target', label: 'Normal', blurb: 'Speed points and a live leaderboard' }];
+      // a fallback for a page that could not reach the server; it has to name a
+      // mode that still exists
+      if (!modes.length) modes = [{ id: 'tower', icon: 'bricks', label: 'Tower Build',
+                                    blurb: 'Build tall and sway, or stop and brace before the wind' }];
       list.innerHTML = '';
       modes.forEach(m => {
         const btn = el('button', { class: 'modecard', 'data-mode': m.id });

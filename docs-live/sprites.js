@@ -264,16 +264,6 @@
   /* An illustration for each game, so picking one shows what happens in it
    * rather than naming it. Drawn in a 160x100 box. */
   const SCENE = {
-    normal:
-      '<rect width="160" height="100" fill="#FFF3D6"/>' +
-      '<circle cx="133" cy="22" r="15" fill="#FFD86B"/>' +
-      '<rect x="22" y="58" width="30" height="34" rx="4" fill="#BFC7DA"/>' +
-      '<rect x="60" y="40" width="30" height="52" rx="4" fill="#FFC53D"/>' +
-      '<rect x="98" y="66" width="30" height="26" rx="4" fill="#E0A46B"/>' +
-      '<circle cx="75" cy="28" r="9" fill="#F4364C"/><rect x="69" y="30" width="12" height="4" rx="2" fill="#C42539"/>' +
-      '<circle cx="37" cy="47" r="7.5" fill="#4F6BFF"/><rect x="31" y="49" width="12" height="4" rx="2" fill="#3B51C9"/>' +
-      '<circle cx="113" cy="55" r="7.5" fill="#12BE8E"/><rect x="107" y="57" width="12" height="4" rx="2" fill="#0C8E6A"/>' +
-      '<rect y="92" width="160" height="8" fill="#E7D7B4"/>',
     laser:
       '<rect width="160" height="100" fill="#EDF1FF"/>' +
       '<circle cx="34" cy="50" r="17" fill="#F4364C"/><circle cx="29" cy="45" r="3.6" fill="#fff"/>' +
@@ -283,18 +273,6 @@
       '<rect x="18" y="76" width="32" height="7" rx="3.5" fill="#F4364C" opacity=".45"/>' +
       '<rect x="110" y="76" width="32" height="7" rx="3.5" fill="#4F6BFF" opacity=".45"/>' +
       '<rect y="92" width="160" height="8" fill="#D6DDF6"/>',
-    kart:
-      '<rect width="160" height="100" fill="#E8F6FF"/>' +
-      '<rect y="56" width="160" height="36" fill="#4A4560"/>' +
-      '<g fill="#FFF6D8"><rect x="8" y="72" width="16" height="4" rx="2"/><rect x="36" y="72" width="16" height="4" rx="2"/>' +
-      '<rect x="64" y="72" width="16" height="4" rx="2"/><rect x="92" y="72" width="16" height="4" rx="2"/>' +
-      '<rect x="120" y="72" width="16" height="4" rx="2"/></g>' +
-      '<path d="M44 65 h44 l-6-13 h-9 l-5-8 h-13 l-3 8 h-5z" fill="#F4364C"/>' +
-      '<circle cx="55" cy="67" r="7.5" fill="#241C38"/><circle cx="55" cy="67" r="2.8" fill="#BFC7DA"/>' +
-      '<circle cx="80" cy="67" r="7.5" fill="#241C38"/><circle cx="80" cy="67" r="2.8" fill="#BFC7DA"/>' +
-      '<circle cx="66" cy="45" r="7.5" fill="#FFC53D"/>' +
-      '<g fill="#2BA8FF" opacity=".75"><rect x="10" y="40" width="24" height="4" rx="2"/><rect x="18" y="50" width="15" height="4" rx="2"/></g>' +
-      '<rect y="92" width="160" height="8" fill="#39344D"/>',
     tower:
       '<rect width="160" height="100" fill="#EAFBF3"/>' +
       '<rect x="46" y="76" width="34" height="15" rx="3" fill="#F4364C"/>' +
@@ -306,17 +284,6 @@
       '<rect x="74" y="20" width="3" height="9" fill="#8A93A8"/>' +
       '<rect x="66" y="28" width="20" height="9" rx="2" fill="#7C4DFF"/>' +
       '<rect y="91" width="160" height="9" fill="#CFEEDF"/>',
-    treasure:
-      '<rect width="160" height="100" fill="#FFF0F5"/>' +
-      '<path d="M48 45 a32 22 0 0 1 64 0z" fill="#B4713A"/>' +
-      '<rect x="46" y="45" width="68" height="33" rx="5" fill="#D4924E"/>' +
-      '<rect x="46" y="51" width="68" height="7" fill="#8C5A2B"/>' +
-      '<rect x="74" y="45" width="12" height="20" rx="2" fill="#8C5A2B"/>' +
-      '<circle cx="80" cy="57" r="3.4" fill="#FFC53D"/>' +
-      '<g fill="#FFC53D"><circle cx="36" cy="72" r="7"/><circle cx="126" cy="70" r="7"/><circle cx="30" cy="84" r="5.5"/></g>' +
-      '<path d="M120 16 l5 11 11 5 -11 5 -5 11 -5-11 -11-5 11-5z" fill="#2BA8FF"/>' +
-      '<path d="M34 24 l3.5 8 8 3.5 -8 3.5 -3.5 8 -3.5-8 -8-3.5 8-3.5z" fill="#E8467C"/>' +
-      '<rect y="91" width="160" height="9" fill="#F3D9E3"/>',
     boss:
       '<rect width="160" height="100" fill="#F1ECFF"/>' +
       '<path d="M56 30 a28 26 0 0 1 56 0 v13 a20 20 0 0 1-20 20 h-16 a20 20 0 0 1-20-20z" fill="#7C4DFF"/>' +
@@ -327,73 +294,6 @@
       '<circle cx="26" cy="78" r="10" fill="#12BE8E"/><circle cx="50" cy="83" r="8" fill="#FFC53D"/>' +
       '<circle cx="124" cy="80" r="9" fill="#F4364C"/><circle cx="144" cy="85" r="7" fill="#2BA8FF"/>' +
       '<rect y="91" width="160" height="9" fill="#DED2FF"/>',
-    snow:
-      '<rect width="160" height="100" fill="#E9F4FF"/>' +
-      '<g fill="#fff"><circle cx="24" cy="18" r="4"/><circle cx="70" cy="12" r="3"/><circle cx="112" cy="22" r="3.5"/>' +
-      '<circle cx="140" cy="10" r="2.6"/><circle cx="48" cy="30" r="2.4"/></g>' +
-      // two forts facing each other, one already losing its top row
-      '<g fill="#F4364C"><rect x="10" y="60" width="15" height="11" rx="2"/><rect x="27" y="60" width="15" height="11" rx="2"/>' +
-      '<rect x="10" y="73" width="15" height="11" rx="2"/><rect x="27" y="73" width="15" height="11" rx="2"/>' +
-      '<rect x="18" y="47" width="15" height="11" rx="2"/></g>' +
-      '<g fill="#4F6BFF"><rect x="118" y="60" width="15" height="11" rx="2"/><rect x="135" y="60" width="15" height="11" rx="2"/>' +
-      '<rect x="118" y="73" width="15" height="11" rx="2"/><rect x="135" y="73" width="15" height="11" rx="2"/></g>' +
-      // a snowball mid-flight, with the arc it came in on
-      '<path d="M46 56 Q66 26 96 40" stroke="#C3DCF3" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-dasharray="5 6"/>' +
-      '<circle cx="96" cy="40" r="8.5" fill="#fff" stroke="#7FA8CE" stroke-width="2.5"/>' +
-      '<circle cx="93" cy="37" r="2.6" fill="#EAF4FF"/>' +
-      '<circle cx="60" cy="30" r="4" fill="#fff" stroke="#7FA8CE" stroke-width="1.8"/>' +
-      '<rect y="88" width="160" height="12" fill="#fff"/>',
-    balloon:
-      '<rect width="160" height="100" fill="#FFF6E8"/>' +
-      '<g stroke="#C9B79B" stroke-width="1.4" fill="none">' +
-      '<path d="M34 44c0 12-4 10-4 20M76 34c0 14-5 12-5 24M118 48c0 10-4 9-4 18"/></g>' +
-      '<path d="M34 16a13 13 0 0 1 13 13c0 9-9 15-13 15s-13-6-13-15a13 13 0 0 1 13-13z" fill="#F4364C"/>' +
-      '<path d="M76 6a14 14 0 0 1 14 14c0 10-9 16-14 16s-14-6-14-16a14 14 0 0 1 14-14z" fill="#FFC53D"/>' +
-      '<path d="M118 20a12 12 0 0 1 12 12c0 8-8 14-12 14s-12-6-12-14a12 12 0 0 1 12-12z" fill="#2BA8FF"/>' +
-      // one that has just burst
-      '<g fill="#E8467C"><path d="M140 58l4-7 1 6 6-2-4 6 6 3-7 1 2 6-6-4-3 6-1-7-6 2 4-5-6-3z"/></g>' +
-      '<circle cx="30" cy="76" r="7.5" fill="#7C4DFF"/><circle cx="72" cy="78" r="7.5" fill="#12BE8E"/>' +
-      '<circle cx="114" cy="77" r="7.5" fill="#FF7A45"/>' +
-      '<rect y="88" width="160" height="12" fill="#F0E2CB"/>',
-
-    // two teams either side of one rope, with the marker over the line
-    tug:
-      '<rect width="160" height="100" fill="#DFF3E1"/>' +
-      '<rect y="72" width="160" height="28" fill="#9BD6A4"/>' +
-      '<path d="M78 66h4v34h-4z" fill="#E8DCC0"/>' +          // the centre line
-      '<path d="M14 60h132" stroke="#C99A5B" stroke-width="5" stroke-linecap="round"/>' +
-      '<path d="M74 52h12v16H74z" fill="#F4364C"/>' +          // the marker, pulled left
-      '<g fill="#4F6BFF"><circle cx="112" cy="48" r="9"/><rect x="104" y="57" width="16" height="18" rx="6"/></g>' +
-      '<g fill="#4F6BFF"><circle cx="136" cy="50" r="8"/><rect x="129" y="58" width="14" height="16" rx="6"/></g>' +
-      '<g fill="#F4364C"><circle cx="44" cy="47" r="9"/><rect x="36" y="56" width="16" height="19" rx="6"/></g>' +
-      '<g fill="#F4364C"><circle cx="20" cy="50" r="8"/><rect x="13" y="58" width="14" height="16" rx="6"/></g>',
-
-    // a vault with a pile in front of it, and one bag walking away
-    heist:
-      '<rect width="160" height="100" fill="#2A2140"/>' +
-      '<rect x="20" y="14" width="70" height="62" rx="6" fill="#4A3E6B"/>' +
-      '<circle cx="55" cy="45" r="17" fill="#6C5A96"/><circle cx="55" cy="45" r="7" fill="#FFC53D"/>' +
-      '<path d="M55 28v-6M55 68v-6M38 45h-6M78 45h-6" stroke="#FFC53D" stroke-width="3" stroke-linecap="round"/>' +
-      '<g fill="#FFC53D">' +
-      '<ellipse cx="112" cy="80" rx="26" ry="9"/><ellipse cx="106" cy="72" rx="17" ry="7"/>' +
-      '<ellipse cx="118" cy="66" rx="11" ry="5"/></g>' +
-      '<path d="M128 30c6-6 16-6 22 0 5 6 4 20-11 24-15-4-16-18-11-24z" fill="#8C7BB8"/>' +
-      '<text x="139" y="49" font-size="13" font-weight="800" fill="#2A2140" text-anchor="middle">$</text>' +
-      '<rect y="88" width="160" height="12" fill="#1E1730"/>',
-
-    // a hand of cards, one of each shape, with a gap where the last one goes
-    cards:
-      '<rect width="160" height="100" fill="#F3ECFF"/>' +
-      '<g stroke="#2A2140" stroke-width="2">' +
-      '<rect x="12" y="30" width="30" height="44" rx="5" fill="#fff" transform="rotate(-9 27 52)"/>' +
-      '<rect x="46" y="26" width="30" height="44" rx="5" fill="#fff" transform="rotate(-3 61 48)"/>' +
-      '<rect x="80" y="26" width="30" height="44" rx="5" fill="#fff" transform="rotate(3 95 48)"/>' +
-      '<rect x="114" y="30" width="30" height="44" rx="5" fill="#EDE3FF" stroke-dasharray="5 4"' +
-      ' transform="rotate(9 129 52)"/></g>' +
-      '<path d="M27 41l3.4 7 7.6.8-5.7 5 1.7 7.5L27 57.6 20 61.3l1.7-7.5-5.7-5 7.6-.8z" fill="#FFC53D"/>' +
-      '<path d="M61 38c7 2 10 8 8 14s-9 8-15 5c6 1 10-3 11-8s-1-9-4-11z" fill="#4F6BFF"/>' +
-      '<path d="M95 38c7 4 9 12 4 18-4 5-11 4-13-1 4 2 8 0 9-4s0-9-1-13z" fill="#F4364C"/>' +
-      '<rect y="88" width="160" height="12" fill="#DCCFF5"/>',
     volcano:
       '<rect width="160" height="100" fill="#2B1030"/>' +
       '<path d="M0 100 L44 26 L70 60 L96 18 L160 100z" fill="#3E2033"/>' +
@@ -403,38 +303,231 @@
       '<circle cx="96" cy="14" r="5" fill="#FFD86B"/><circle cx="112" cy="24" r="3.4" fill="#FF9A3D"/>' +
       '<circle cx="82" cy="26" r="2.6" fill="#FFD86B"/>' +
       '<circle cx="52" cy="48" r="8" fill="#12BE8E"/><circle cx="49" cy="45" r="2.4" fill="#fff"/>' +
-      '<circle cx="106" cy="56" r="8" fill="#4F6BFF"/><circle cx="103" cy="53" r="2.4" fill="#fff"/>',
-    factory:
-      '<rect width="160" height="100" fill="#E7E2D2"/>' +
-      '<rect y="76" width="160" height="24" fill="#C9C2AC"/>' +
-      '<g stroke="#2A2140" stroke-width="2">' +
-      '<rect x="14" y="44" width="34" height="32" rx="3" fill="#FFC53D"/>' +
-      '<rect x="56" y="34" width="34" height="42" rx="3" fill="#FF7A45"/>' +
-      '<rect x="98" y="50" width="34" height="26" rx="3" fill="#2BA8FF"/>' +
-      '<rect x="24" y="28" width="9" height="18" rx="2" fill="#8C86A6"/>' +
-      '<rect x="66" y="16" width="9" height="20" rx="2" fill="#8C86A6"/></g>' +
-      '<circle cx="30" cy="22" r="6" fill="#fff" opacity=".75"/>' +
-      '<circle cx="40" cy="14" r="4.5" fill="#fff" opacity=".6"/>' +
-      '<circle cx="72" cy="9" r="6" fill="#fff" opacity=".7"/>' +
-      '<circle cx="115" cy="40" r="8" fill="#12BE8E"/><circle cx="112" cy="37" r="2.4" fill="#fff"/>' +
-      '<path d="M28 58h8v8h-8zM38 58h8v8h-8z" fill="#E8A400"/>',
-    fishing:
-      '<rect width="160" height="100" fill="#BFE6FF"/>' +
-      '<circle cx="132" cy="20" r="13" fill="#FFD86B"/>' +
-      '<rect y="44" width="160" height="56" fill="#2B7FBF"/>' +
-      '<path d="M0 44h160v6c-14 4-26-2-40 0s-22 6-36 4-24-6-40-4-30 4-44 0z" fill="#4FA8DE"/>' +
-      '<rect x="10" y="34" width="46" height="8" rx="2" fill="#8B5A34"/>' +
-      '<rect x="14" y="42" width="6" height="24" fill="#6E441F"/><rect x="46" y="42" width="6" height="24" fill="#6E441F"/>' +
-      '<circle cx="32" cy="24" r="9" fill="#F4364C"/><circle cx="29" cy="21" r="2.6" fill="#fff"/>' +
-      '<path d="M40 26 L96 40" stroke="#2A2140" stroke-width="1.6" fill="none"/>' +
-      '<circle cx="96" cy="42" r="3" fill="#F6F2FF" stroke="#2A2140" stroke-width="1.6"/>' +
-      '<path d="M104 66c8-6 18-6 24 0-6 6-16 6-24 0z" fill="#FFC53D"/>' +
-      '<path d="M128 66l8-5v10z" fill="#E8A400"/><circle cx="110" cy="65" r="1.6" fill="#2A2140"/>' +
-      '<path d="M62 78c6-4 13-4 18 0-5 4-12 4-18 0z" fill="#12BE8E"/><path d="M80 78l6-4v8z" fill="#0C8E6A"/>'
+      '<circle cx="106" cy="56" r="8" fill="#4F6BFF"/><circle cx="103" cy="53" r="2.4" fill="#fff"/>'
   };
 
+  /* ── the maps ─────────────────────────────────────────────
+   *
+   * A map used to be a tint. The picker drew the mode's own illustration three
+   * times and put a CSS filter over it, so a teacher choosing between the Neon
+   * Arena, a Bunker and a Moon Base was shown the same picture three times and
+   * asked to pick one. That is not a choice, it is a colour swatch.
+   *
+   * Each of the twelve is drawn here instead. Same 160x100 box as the mode
+   * scenes, same flat style, and each one has to be recognisable at the size of
+   * a button on a phone — so: one strong silhouette, one light source, and the
+   * thing the map is named after large enough to read.
+   */
+  const MAPART = {
+    // ── Laser Tag ──
+    arena:
+      '<rect width="160" height="100" fill="#120A2E"/>' +
+      '<path d="M0 62h160v38H0z" fill="#1B1046"/>' +
+      '<g stroke="#7C4DFF" stroke-width="1" opacity=".5">' +
+      '<path d="M0 70h160M0 80h160M0 90h160M20 62v38M50 62v38M80 62v38M110 62v38M140 62v38"/></g>' +
+      '<rect x="8" y="30" width="6" height="34" rx="3" fill="#E8467C"/>' +
+      '<rect x="146" y="30" width="6" height="34" rx="3" fill="#2BA8FF"/>' +
+      '<rect x="36" y="44" width="26" height="20" rx="3" fill="#2A1A5E"/>' +
+      '<rect x="36" y="44" width="26" height="4" rx="2" fill="#E8467C"/>' +
+      '<rect x="98" y="44" width="26" height="20" rx="3" fill="#2A1A5E"/>' +
+      '<rect x="98" y="44" width="26" height="4" rx="2" fill="#2BA8FF"/>' +
+      '<circle cx="80" cy="26" r="13" fill="#7C4DFF" opacity=".35"/>' +
+      '<circle cx="80" cy="26" r="6" fill="#C9A6FF"/>' +
+      '<circle cx="50" cy="38" r="7" fill="#F4364C"/><circle cx="47.6" cy="35.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="112" cy="38" r="7" fill="#4F6BFF"/><circle cx="109.6" cy="35.6" r="2.1" fill="#fff"/>' +
+      '<path d="M57 40 L96 46" stroke="#FF5A6E" stroke-width="2.2" stroke-linecap="round"/>',
+    bunker:
+      '<rect width="160" height="100" fill="#2A2620"/>' +
+      // daylight through the slit, and the wedge of light it throws inside
+      '<rect x="0" y="26" width="160" height="16" fill="#BFE6FF"/>' +
+      '<path d="M22 60h116l-30 -18H52z" fill="#FFD86B" opacity=".14"/>' +
+      '<g fill="#4A4438">' +
+      '<rect width="160" height="26"/><rect y="42" width="160" height="10"/>' +
+      '<rect x="0" y="26" width="16" height="16"/><rect x="72" y="26" width="12" height="16"/>' +
+      '<rect x="144" y="26" width="16" height="16"/></g>' +
+      '<g fill="#3A3428"><rect y="20" width="160" height="6"/><rect y="52" width="160" height="5"/></g>' +
+      '<rect y="84" width="160" height="16" fill="#4A4234"/>' +
+      '<g fill="#7D7358" stroke="#5A5240" stroke-width="1.2">' +
+      '<rect x="-2" y="70" width="34" height="14" rx="7"/><rect x="30" y="70" width="34" height="14" rx="7"/>' +
+      '<rect x="96" y="70" width="34" height="14" rx="7"/><rect x="128" y="70" width="34" height="14" rx="7"/>' +
+      '<rect x="14" y="58" width="34" height="14" rx="7"/><rect x="112" y="58" width="34" height="14" rx="7"/></g>' +
+      '<circle cx="80" cy="66" r="9" fill="#12BE8E"/><circle cx="76.6" cy="62.6" r="2.7" fill="#fff"/>' +
+      '<rect x="88" y="60" width="22" height="5" rx="2.5" fill="#5E5870"/>' +
+      '<rect x="106" y="57" width="6" height="5" rx="2" fill="#8C86A6"/>' +
+      '<g fill="#FFD86B" opacity=".55"><circle cx="34" cy="34" r="2"/><circle cx="118" cy="34" r="2"/></g>',
+    moon:
+      '<rect width="160" height="100" fill="#07060F"/>' +
+      '<g fill="#fff"><circle cx="18" cy="12" r="1.2"/><circle cx="44" cy="7" r="1"/><circle cx="70" cy="16" r="1.3"/>' +
+      '<circle cx="100" cy="9" r="1"/><circle cx="126" cy="20" r="1.2"/><circle cx="148" cy="10" r="1"/>' +
+      '<circle cx="32" cy="28" r="1"/><circle cx="88" cy="30" r="1.1"/></g>' +
+      '<circle cx="128" cy="26" r="14" fill="#2B7FBF"/>' +
+      '<path d="M118 20c5 2 8-2 13 0s8 5 9 9c-4 6-12 9-19 6s-9-11-3-15z" fill="#12BE8E" opacity=".85"/>' +
+      '<path d="M0 66c18-8 34-4 52-2s32-6 50-4 40 8 58 4v36H0z" fill="#B9B2C4"/>' +
+      '<path d="M0 74c18-6 34-2 52 0s32-5 50-3 40 7 58 3v26H0z" fill="#8F8899"/>' +
+      '<ellipse cx="34" cy="84" rx="12" ry="4" fill="#746E80"/>' +
+      '<ellipse cx="118" cy="90" rx="9" ry="3" fill="#746E80"/>' +
+      '<path d="M42 72a30 20 0 0 1 60 0z" fill="#E9ECF5"/>' +
+      '<path d="M42 72a30 20 0 0 1 60 0z" fill="none" stroke="#9AA2B8" stroke-width="1.6"/>' +
+      '<path d="M72 52v20M42 72a30 20 0 0 1 60 0" fill="none" stroke="#9AA2B8" stroke-width="1" opacity=".6"/>' +
+      '<rect x="60" y="60" width="11" height="12" rx="2" fill="#2BA8FF" opacity=".85"/>' +
+      '<rect x="75" y="60" width="11" height="12" rx="2" fill="#2BA8FF" opacity=".6"/>' +
+      '<rect x="102" y="62" width="14" height="10" rx="2" fill="#6E6880"/>' +
+      '<rect x="114" y="56" width="4" height="16" rx="2" fill="#8C86A6"/>' +
+      '<circle cx="116" cy="54" r="3" fill="#F4364C"/>' +
+      '<circle cx="40" cy="64" r="7" fill="#FFC53D"/><circle cx="37.6" cy="61.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="40" cy="64" r="9" fill="none" stroke="#E9ECF5" stroke-width="1.4" opacity=".8"/>',
+
+    // ── Tower Build ──
+    site:
+      '<rect width="160" height="100" fill="#BFE6FF"/>' +
+      '<rect y="80" width="160" height="20" fill="#C0A87E"/>' +
+      '<g stroke="#E8A400" stroke-width="3" fill="none">' +
+      '<path d="M104 80V20h34"/><path d="M104 28h26M104 40h16"/></g>' +
+      '<path d="M138 20v14" stroke="#8C86A6" stroke-width="1.6"/>' +
+      '<rect x="132" y="34" width="12" height="10" rx="2" fill="#F4364C"/>' +
+      '<g fill="#D8541F" stroke="#9C3A10" stroke-width="1.2">' +
+      '<rect x="18" y="64" width="20" height="10" rx="1.5"/><rect x="40" y="64" width="20" height="10" rx="1.5"/>' +
+      '<rect x="28" y="52" width="20" height="10" rx="1.5"/><rect x="50" y="52" width="20" height="10" rx="1.5"/>' +
+      '<rect x="38" y="40" width="20" height="10" rx="1.5"/></g>' +
+      '<g stroke="#9AA2B8" stroke-width="2" fill="none">' +
+      '<path d="M14 80V38h60M14 58h60M74 80V38"/></g>' +
+      '<circle cx="86" cy="66" r="8" fill="#12BE8E"/><circle cx="83" cy="63" r="2.4" fill="#fff"/>' +
+      '<path d="M78 60a8 8 0 0 1 16 0z" fill="#FFC53D"/>',
+    candy:
+      '<rect width="160" height="100" fill="#FFD9EC"/>' +
+      '<circle cx="132" cy="18" r="11" fill="#FFF2A8"/>' +
+      '<path d="M0 82c14-6 26 2 40 0s26-8 40-6 26 8 40 6 26-6 40-4v22H0z" fill="#F7A8D0"/>' +
+      '<path d="M0 90c14-4 26 2 40 0s26-6 40-4 26 6 40 4 26-4 40-2v12H0z" fill="#EE7FB8"/>' +
+      '<g>' +
+      '<rect x="26" y="34" width="10" height="52" rx="5" fill="#fff"/>' +
+      '<path d="M26 40h10M26 52h10M26 64h10M26 76h10" stroke="#F4364C" stroke-width="5" opacity=".9"/>' +
+      '<rect x="118" y="44" width="10" height="42" rx="5" fill="#fff"/>' +
+      '<path d="M118 50h10M118 62h10M118 74h10" stroke="#2BA8FF" stroke-width="5" opacity=".9"/></g>' +
+      '<circle cx="62" cy="72" r="10" fill="#7BC62D"/><circle cx="82" cy="66" r="8" fill="#FF9A3D"/>' +
+      '<circle cx="98" cy="74" r="7" fill="#E8467C"/>' +
+      '<circle cx="62" cy="72" r="10" fill="none" stroke="#fff" stroke-width="1.6" opacity=".7"/>' +
+      '<circle cx="76" cy="44" r="8" fill="#FFC53D"/><circle cx="73" cy="41" r="2.4" fill="#fff"/>',
+    castle:
+      '<rect width="160" height="100" fill="#7FC9F0"/>' +
+      '<path d="M0 74c22-14 44-10 66-4s50 2 94-6v36H0z" fill="#6FAE58"/>' +
+      '<g fill="#B9B2C4" stroke="#7E7788" stroke-width="1.4">' +
+      '<rect x="18" y="40" width="26" height="46"/><rect x="116" y="40" width="26" height="46"/>' +
+      '<rect x="44" y="54" width="72" height="32"/></g>' +
+      '<g fill="#B9B2C4" stroke="#7E7788" stroke-width="1.4">' +
+      '<rect x="18" y="34" width="7" height="8"/><rect x="30" y="34" width="7" height="8"/>' +
+      '<rect x="123" y="34" width="7" height="8"/><rect x="135" y="34" width="7" height="8"/>' +
+      '<rect x="48" y="48" width="7" height="8"/><rect x="66" y="48" width="7" height="8"/>' +
+      '<rect x="84" y="48" width="7" height="8"/><rect x="102" y="48" width="7" height="8"/></g>' +
+      '<path d="M70 86V68a10 10 0 0 1 20 0v18z" fill="#4A3A2E"/>' +
+      '<g stroke="#2A2140" stroke-width="1" opacity=".5"><path d="M80 68v18M70 76h20"/></g>' +
+      '<path d="M31 34V16l16 5-16 5" fill="#F4364C"/>' +
+      '<path d="M129 34V16l-16 5 16 5" fill="#4F6BFF"/>' +
+      '<circle cx="58" cy="78" r="7" fill="#FFC53D"/><circle cx="55.6" cy="75.6" r="2.1" fill="#fff"/>',
+
+    // ── Boss Battle ──
+    lair:
+      '<rect width="160" height="100" fill="#0B0716"/>' +
+      '<path d="M0 0h160v18c-12 0-14 14-26 14S118 16 106 16 92 32 80 32 66 14 54 14 40 30 28 30 14 16 0 16z" fill="#241A3C"/>' +
+      '<path d="M0 100h160V80c-14-6-26 2-40 0s-26-8-40-6-26 8-40 6-26-4-40-2z" fill="#241A3C"/>' +
+      '<ellipse cx="80" cy="88" rx="56" ry="10" fill="#7C4DFF" opacity=".18"/>' +
+      '<g fill="#FFC53D">' +
+      '<ellipse cx="80" cy="88" rx="36" ry="7"/><ellipse cx="54" cy="84" rx="14" ry="5"/>' +
+      '<ellipse cx="108" cy="84" rx="13" ry="5"/></g>' +
+      '<g fill="#E8A400"><circle cx="64" cy="84" r="3"/><circle cx="76" cy="87" r="3"/>' +
+      '<circle cx="92" cy="84" r="3"/><circle cx="100" cy="88" r="2.4"/></g>' +
+      '<path d="M46 74c6-24 22-34 34-34s28 10 34 34z" fill="#3E2680"/>' +
+      '<path d="M62 52c0-8 8-14 18-14s18 6 18 14z" fill="#5E3BB8"/>' +
+      '<circle cx="70" cy="50" r="4.5" fill="#FF5A6E"/><circle cx="90" cy="50" r="4.5" fill="#FF5A6E"/>' +
+      '<circle cx="70" cy="50" r="1.8" fill="#FFD86B"/><circle cx="90" cy="50" r="1.8" fill="#FFD86B"/>' +
+      '<path d="M66 62h28l-4 6H70z" fill="#E9ECF5" opacity=".9"/>',
+    volcano:
+      '<rect width="160" height="100" fill="#2A0F1C"/>' +
+      '<path d="M0 0h160v40c-20 6-36-6-56-2S70 48 50 44 18 34 0 38z" fill="#4E1B2C" opacity=".8"/>' +
+      '<path d="M40 100 L78 26 L86 26 L124 100z" fill="#2A1A2E"/>' +
+      '<path d="M74 30h16l10 22-18-6-16 6z" fill="#F4364C"/>' +
+      '<path d="M78 26h8l6 12-10-3-8 3z" fill="#FFD86B"/>' +
+      '<path d="M0 100h160V78c-16 4-30-4-46-2s-24 8-40 6-24-8-38-6z" fill="#F4364C"/>' +
+      '<path d="M0 100h160V88c-14 3-28-3-44-1s-22 7-38 5-24-7-38-5z" fill="#FF9A3D"/>' +
+      '<g fill="#FFD86B"><circle cx="106" cy="18" r="4"/><circle cx="120" cy="30" r="2.8"/>' +
+      '<circle cx="58" cy="22" r="3"/><circle cx="44" cy="34" r="2.2"/></g>' +
+      '<circle cx="36" cy="64" r="8" fill="#12BE8E"/><circle cx="33" cy="61" r="2.4" fill="#fff"/>' +
+      '<circle cx="126" cy="60" r="8" fill="#2BA8FF"/><circle cx="123" cy="57" r="2.4" fill="#fff"/>',
+    ruins:
+      '<rect width="160" height="100" fill="#141B2E"/>' +
+      '<circle cx="124" cy="22" r="12" fill="#E9ECF5" opacity=".9"/>' +
+      '<circle cx="119" cy="19" r="10" fill="#141B2E"/>' +
+      '<path d="M0 78c20-8 38-2 58 0s40-8 60-6 28 6 42 4v24H0z" fill="#22304A"/>' +
+      '<g fill="#8F8899">' +
+      '<rect x="18" y="38" width="13" height="44" rx="2"/><rect x="14" y="34" width="21" height="6" rx="2"/>' +
+      '<rect x="44" y="50" width="13" height="32" rx="2"/><rect x="40" y="46" width="21" height="6" rx="2"/>' +
+      '<rect x="102" y="44" width="13" height="38" rx="2"/><rect x="98" y="40" width="21" height="6" rx="2"/></g>' +
+      '<path d="M66 82l10-22 8 4-6 18z" fill="#746E80"/>' +
+      '<g stroke="#6FAE58" stroke-width="2.4" fill="none" stroke-linecap="round">' +
+      '<path d="M24 82c-4-10 2-18 0-26M50 82c4-8-2-14 0-20M108 82c-4-10 2-16 0-24"/></g>' +
+      '<g fill="#7BC62D"><circle cx="24" cy="54" r="2.6"/><circle cx="50" cy="64" r="2.6"/><circle cx="108" cy="60" r="2.6"/></g>' +
+      '<circle cx="132" cy="70" r="7" fill="#7C4DFF"/><circle cx="129.6" cy="67.6" r="2.1" fill="#fff"/>',
+
+    // ── Volcano Climb ──
+    crater:
+      '<rect width="160" height="100" fill="#1A0D18"/>' +
+      // the sky, seen through the mouth of the crater far above
+      '<path d="M58 0h44l10 18H48z" fill="#4A2B3E"/>' +
+      '<path d="M64 0h32l5 10H59z" fill="#7C4DFF" opacity=".45"/>' +
+      // the bowl: both walls lean in as they rise, so it reads as depth
+      '<path d="M0 0h58L30 52 44 100H0z" fill="#3A1E2A"/>' +
+      '<path d="M160 0h-58l28 52-14 48h44z" fill="#3A1E2A"/>' +
+      '<path d="M0 22h44L24 60l12 40H0z" fill="#54283A"/>' +
+      '<path d="M160 22h-44l20 38-12 40h36z" fill="#54283A"/>' +
+      // ledges to stand on, which is what the mode is about
+      '<g fill="#6E3448">' +
+      '<rect x="34" y="46" width="26" height="5" rx="2.5"/><rect x="100" y="38" width="26" height="5" rx="2.5"/>' +
+      '<rect x="56" y="64" width="24" height="5" rx="2.5"/><rect x="88" y="72" width="24" height="5" rx="2.5"/></g>' +
+      '<path d="M0 100h160V86c-16 3-30-4-46-2s-24 7-40 5-24-7-38-5z" fill="#F4364C"/>' +
+      '<path d="M0 100h160V93c-14 2-28-2-44-1s-22 5-38 4-24-5-38-4z" fill="#FFD86B"/>' +
+      '<g fill="#FF9A3D" opacity=".9"><circle cx="46" cy="78" r="2.4"/><circle cx="104" cy="60" r="2"/>' +
+      '<circle cx="74" cy="34" r="1.8"/></g>' +
+      '<circle cx="46" cy="42" r="7" fill="#12BE8E"/><circle cx="43.6" cy="39.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="112" cy="34" r="7" fill="#FFC53D"/><circle cx="109.6" cy="31.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="68" cy="60" r="6.4" fill="#2BA8FF"/><circle cx="65.8" cy="57.8" r="2" fill="#fff"/>',
+    ashfall:
+      '<rect width="160" height="100" fill="#3B3640"/>' +
+      '<rect width="160" height="46" fill="#4A444F"/>' +
+      '<path d="M0 46h160v10c-16 4-30-3-46-1s-24 7-40 5-24-7-38-5-22 4-36 1z" fill="#56505C" opacity=".7"/>' +
+      '<path d="M18 100 L52 34 L62 34 L96 100z" fill="#2B2730"/>' +
+      '<path d="M84 100 L118 48 L126 48 L156 100z" fill="#232028"/>' +
+      '<path d="M52 38h10l8 16-13-5-11 5z" fill="#C4442E" opacity=".85"/>' +
+      '<g fill="#D6D0DA" opacity=".75">' +
+      '<circle cx="14" cy="12" r="1.8"/><circle cx="38" cy="26" r="1.4"/><circle cx="66" cy="14" r="1.6"/>' +
+      '<circle cx="92" cy="30" r="1.5"/><circle cx="118" cy="18" r="1.7"/><circle cx="142" cy="34" r="1.4"/>' +
+      '<circle cx="26" cy="52" r="1.5"/><circle cx="76" cy="58" r="1.6"/><circle cx="132" cy="62" r="1.5"/>' +
+      '<circle cx="50" cy="76" r="1.4"/><circle cx="104" cy="82" r="1.6"/></g>' +
+      '<path d="M0 100h160V90c-16 2-30-3-46-1s-24 5-40 4-24-5-38-4z" fill="#8C3A24" opacity=".7"/>' +
+      '<circle cx="74" cy="72" r="8" fill="#FFC53D"/><circle cx="71" cy="69" r="2.4" fill="#fff"/>',
+    obsidian:
+      '<rect width="160" height="100" fill="#0D2B33"/>' +
+      '<rect width="160" height="40" fill="#124049"/>' +
+      '<path d="M0 40h160v8c-16 4-30-3-46-1s-24 6-40 4-24-6-38-4-22 3-36 0z" fill="#0D2B33" opacity=".6"/>' +
+      '<path d="M10 100 L34 30 L44 46 L58 24 L76 100z" fill="#100E1A"/>' +
+      '<path d="M34 30 L44 46 L38 100 L24 100z" fill="#1E1A2E"/>' +
+      '<path d="M86 100 L112 38 L122 54 L134 34 L152 100z" fill="#100E1A"/>' +
+      '<path d="M112 38 L122 54 L118 100 L102 100z" fill="#1E1A2E"/>' +
+      '<g stroke="#3AC0D8" stroke-width="1.6" fill="none" opacity=".85">' +
+      '<path d="M34 32 L40 60 L32 84"/><path d="M112 40 L118 66 L110 88"/>' +
+      '<path d="M58 26 L64 52"/><path d="M134 36 L140 60"/></g>' +
+      '<path d="M0 100h160V92c-14 2-28-2-44-1s-22 4-38 3-24-4-38-3z" fill="#2B7FBF" opacity=".35"/>' +
+      '<circle cx="80" cy="66" r="8" fill="#12BE8E"/><circle cx="77" cy="63" r="2.4" fill="#fff"/>' +
+      '<circle cx="80" cy="66" r="10" fill="none" stroke="#3AC0D8" stroke-width="1.2" opacity=".6"/>'
+  };
+
+  /** A map's own picture, falling back to the mode's if one is ever missing. */
+  function map(id, width = 160, mode) {
+    const body = MAPART[id] || SCENE[mode] || SCENE.laser;
+    return '<svg class="scene" viewBox="0 0 160 100" width="' + width + '" height="' + Math.round(width / 1.6) + '"' +
+           ' preserveAspectRatio="xMidYMid slice" aria-hidden="true">' + body + '</svg>';
+  }
+
   function scene(name, width = 160) {
-    const body = SCENE[name] || SCENE.normal;
+    const body = SCENE[name] || SCENE.laser;
     return '<svg class="scene" viewBox="0 0 160 100" width="' + width + '" height="' + Math.round(width / 1.6) + '"' +
            ' preserveAspectRatio="xMidYMid slice" aria-hidden="true">' + body + '</svg>';
   }
@@ -563,12 +656,13 @@
   const combine = (colour, shape, rest) => pack(Object.assign({ colour, shape }, rest || {}));
   const partsOf = unpack;
 
-  global.Sprite = { face, icon, scene, crest, logo, freeFace, looksLike,
+  global.Sprite = { face, icon, scene, map, crest, logo, freeFace, looksLike,
                     COMBINATIONS, ALL, COLOURS, SHAPES,
                     EYES: EYES_N, MOUTHS: MOUTHS_N, PATTERNS: PATTERNS_N,
                     palette: SKIN.slice(), combine, partsOf, pack, unpack,
                     HATS_N, HAT_NAMES: HAT_NAMES.slice(),
-                    names: Object.keys(ICON), scenes: Object.keys(SCENE) };
+                    names: Object.keys(ICON), scenes: Object.keys(SCENE),
+                    maps: Object.keys(MAPART) };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.Sprite;

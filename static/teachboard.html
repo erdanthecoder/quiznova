@@ -42,14 +42,6 @@ const B = NovaBoards, P = NovaProgress, R = NovaRules;
 const app = document.getElementById('app');
 
 
-const MODE_TINT = {
-  normal: '#6C4CF1', laser: '#F4364C', kart: '#2BA8FF', tower: '#FF7A45',
-  treasure: '#FFC53D', boss: '#7C4DFF', snow: '#4FC3F7', balloon: '#FF5D73',
-  tug: '#12BE8E', heist: '#E8A400', cards: '#4F6BFF'
-};
-
-let chosen = { mode: 'normal', quiz: '' };
-
 function draw() {
   const name = (NovaAccount.user && NovaAccount.user.name) || 'Teacher';
   const quizzes = Object.values(Nova.allQuizzes ? Nova.allQuizzes() : {})
@@ -65,59 +57,38 @@ function draw() {
       ? `${quizzes.length} ${quizzes.length === 1 ? 'quiz' : 'quizzes'} ready, ${questions} questions between them.`
       : 'Nothing written yet. The quickest way in is to paste something you already have.')));
 
-  /* ── start a game ─────────────────────────────────────── */
-  const modes = el('div', { class: 'modes' });
-  const all = Object.keys(R.MODES);
-  const open = window.NovaLaunch ? NovaLaunch.openModes(all) : all;
-  // a game that is coming is shown, greyed, with the hour on it — a teacher who
-  // can see what is arriving can plan a lesson round it
-  const soon = window.NovaLaunch ? NovaLaunch.next() : null;
-  Object.entries(R.MODES).forEach(([id, m]) => {
-    const locked = !open.includes(id);
-    const card = el('button', { class: 'mode' + (locked ? ' locked' : ''), type: 'button',
-      'aria-pressed': String(id === chosen.mode), disabled: locked,
-      style: `--c:${MODE_TINT[id] || '#6C4CF1'}`,
-      onclick: () => { chosen.mode = id; refreshModes(modes); } },
-      el('span', { class: 'ic', html: Sprite.icon(m.icon, 26, '#fff') }),
-      el('b', {}, m.label), el('span', {}, m.blurb));
-    if (locked) {
-      card.append(el('span', { class: 'lock' }, 'Soon'));
-      card.title = soon ? whenText(soon) : 'Not open yet';
-    }
-    modes.append(card);
-  });
-
-  const pick = el('select', { class: 'select' });
-  pick.append(el('option', { value: '' }, quizzes.length ? 'Choose a quiz…' : 'No quizzes yet'));
-  quizzes.forEach(q => pick.append(el('option', { value: q.id },
-    `${q.title || 'Untitled'} · ${(q.questions || []).length} questions`)));
-  pick.onchange = () => { chosen.quiz = pick.value; };
-
-  const go = el('button', { class: 'btn primary lg' }, 'Start the live game');
-  const said = el('div', { class: 'said' });
-  go.onclick = () => {
-    if (!chosen.quiz) { said.textContent = 'Pick a quiz first.'; said.className = 'said bad'; return; }
-    location.href = 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(chosen.quiz)
-      + '&live=1&mode=' + encodeURIComponent(chosen.mode);
-  };
-
-  deck.append(el('section', { class: 'panel' },
-    el('h2', {}, 'Put a game on the board'),
-    el('p', { class: 'sub' }, 'Pick how it plays, pick what it asks, and the room joins on their own devices.'),
-    modes,
-    el('div', { class: 'row wrap-r', style: 'margin-top:16px;gap:11px' },
-      el('div', { style: 'flex:1;min-width:220px' }, pick), go),
-    said));
+  /* The panel that used to live here is gone.
+   *
+   * "Put a game on the board" offered a mode, a quiz and a Start button, and
+   * pressing it went to the studio with live=1&mode=… on the address — two
+   * parameters the studio has never read. So it opened the quiz editor and the
+   * teacher was left looking at their own questions wondering where the game
+   * went. It had been broken the whole time it existed.
+   *
+   * Hosting a game belongs where the quiz is, because that is where the choice
+   * of map and length and everything else already lives, and keeping a second
+   * copy of it here is how the two drifted apart. The quiz cards below now go
+   * straight there with the picker open.
+   */
 
   /* ── quizzes and the rest ─────────────────────────────── */
   const things = el('div', { class: 'things' });
   if (!quizzes.length) {
     things.append(el('div', { class: 'empty' }, 'Nothing here yet. Write one, or paste a list of questions and let Quoldek sort it out.'));
   } else {
-    quizzes.slice(0, 9).forEach(q => things.append(
-      el('a', { class: 'thing', href: 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(q.id) },
+    quizzes.slice(0, 9).forEach(q => {
+      const card = el('div', { class: 'thing' },
         el('b', {}, q.title || 'Untitled'),
-        el('span', {}, `${(q.questions || []).length} questions · edited ${Nova.ago ? Nova.ago(q.updatedAt) : 'recently'}`))));
+        el('span', {}, `${(q.questions || []).length} questions · edited ${Nova.ago ? Nova.ago(q.updatedAt) : 'recently'}`));
+      const row = el('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+        el('a', { class: 'btn primary sm',
+                  href: 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(q.id) + '&host=1' },
+           'Put it on the board'),
+        el('a', { class: 'btn ghost sm',
+                  href: 'https://quoldek.web.app/studio.html?id=' + encodeURIComponent(q.id) }, 'Edit'));
+      card.append(row);
+      things.append(card);
+    });
   }
 
   const lv = P.levelFor(state.lifetime);
@@ -152,26 +123,6 @@ function draw() {
   app.replaceChildren(
     B.topbar({ name, role: 'teacher', face: Sprite.face(faceFor(name), 38) }),
     deck);
-}
-
-function refreshModes(modes) {
-  modes.querySelectorAll('.mode').forEach((n, i) => {
-    n.setAttribute('aria-pressed', String(Object.keys(NovaRules.MODES)[i] === chosen.mode));
-  });
-}
-
-/* "At 7 in the evening", rather than a date nobody can hold in their head. Read
-   off the reader's own clock, so it is right wherever they are. */
-function whenText(release) {
-  if (!release) return 'Out now';
-  const at = release.at;
-  const today = at.toDateString() === new Date().toDateString();
-  const hour = ((at.getHours() + 11) % 12) + 1;
-  const clock = at.getMinutes() ? `${hour}:${String(at.getMinutes()).padStart(2, '0')}` : String(hour);
-  const part = at.getHours() < 12 ? 'in the morning'
-             : at.getHours() < 18 ? 'in the afternoon' : 'in the evening';
-  return today ? `Opens at ${clock} ${part}`
-    : `Opens ${at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} at ${clock}`;
 }
 
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';
