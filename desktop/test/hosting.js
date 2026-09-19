@@ -117,6 +117,26 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   }
   ok('no errors on the main page', huberrs.length === 0, huberrs.slice(0, 2).join(' | '));
 
+  /* ── a board opened with no game on it ──
+   *
+   * livequoldek.web.app with no PIN asked the server for a game called nothing,
+   * failed, and sat on "Reconnecting…" for ever with six dashes where the PIN
+   * goes. There was nothing to reconnect to. A teacher watched a reconnect that
+   * could never finish, could not join it from a phone because it did not
+   * exist, and could not end it for the same reason. */
+  const bare = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const bareErrs = [];
+  bare.on('pageerror', e => bareErrs.push(e.message));
+  await bare.goto(`${base}/host.html`, { waitUntil: 'domcontentloaded' });
+  await bare.waitForTimeout(2500);
+  const text = (await bare.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ');
+  ok('a board with no PIN says so rather than reconnecting for ever',
+     /No game on this board yet/.test(text) && !/Reconnecting/.test(text),
+     text.slice(0, 80));
+  ok('and it offers a box to type a PIN into', await bare.locator('#pinbox').count() > 0);
+  ok('no errors on an empty board', bareErrs.length === 0, bareErrs.slice(0, 2).join(' | '));
+  await bare.close();
+
   ok('no errors anywhere in that flow', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await browser.close();

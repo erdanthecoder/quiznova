@@ -561,7 +561,7 @@
 <main class="stage" id="stage"></main>
 
 <script src="sprites.js?v=4399d8b0"></script>
-<script src="music.js?v=0280affb"></script>
+<script src="music.js?v=7aa3d8a6"></script>
 
 
 
@@ -585,6 +585,7 @@ window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
   : 'https://playquoldek.web.app/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : 'https://quoldek.web.app/quiz';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
   : 'https://hwquoldek.web.app/';
@@ -628,7 +629,15 @@ const joinLabel = () => joinUrl().replace(/^https?:\/\//, '').replace(/\/?\?pin=
 
 const mark = document.getElementById('brand-mark');
 if (mark) mark.innerHTML = Sprite.logo(42);
-if (!pin) location.href = 'index.html';
+/* A board with no game used to bounce to /quiz. On the board's own site —
+   livequoldek.web.app — docs-live holds the board and nothing else, and every
+   unknown path is rewritten back to index.html. So /quiz served the board
+   again, still with no PIN, which bounced to /quiz again: an endless redirect
+   showing six dashes and "Reconnecting…" between each hop. That is the loop a
+   teacher was stuck in, with no game to join and none to end.
+
+   It stays on the page now and asks which game to open. */
+const HUB = (typeof QUOLDEK_HUB === 'string' && QUOLDEK_HUB) ? QUOLDEK_HUB : '/quiz';
 if (!hostToken) toast('You are watching this game. Only the teacher device can control it.', 'bad');
 
 /* ── the music ─────────────────────────────────────
@@ -705,7 +714,7 @@ function connect() {
 
 function fail() {
   $('#stage').innerHTML = `<div class="card pad empty"><span class="em">${Sprite.icon('ghost', 48)}</span>
-    That game is no longer running.<br><a class="btn sm" style="margin-top:16px" href="index.html">Back to quizzes</a></div>`;
+    That game is no longer running.<br><a class="btn sm" style="margin-top:16px" href="${HUB}">Back to quizzes</a></div>`;
 }
 
 function apply(state) {
@@ -1597,6 +1606,7 @@ function overView() {
 $('#end').onclick = () => {
   // Same rule as Start: never a dead button. A board that cannot end the game
   // says so when asked, rather than refusing quietly.
+  if (!pin) return toast('There is no game on this board yet', 'bad');
   if (!hostToken) {
     return toast('End this game from the device that made it, or make a new one', 'bad');
   }
@@ -1618,22 +1628,78 @@ $('#end').onclick = () => {
   });
 };
 
+/* A board with no game on it.
+ *
+ * Opening the board's own address — livequoldek.web.app — with no PIN left it
+ * asking the server for a game called nothing, failing, and sitting on
+ * "Reconnecting…" for ever with six dashes where the PIN goes. There was
+ * nothing to reconnect to: no game had been named. A teacher watched a
+ * reconnect that could never finish, could not join it from a phone because it
+ * did not exist, and could not end it for the same reason.
+ *
+ * So a board with no PIN says so, and offers the two ways out: type the PIN of
+ * a game that is already running, or go and start one. */
+function noGame() {
+  $('#stage').innerHTML = `<div class="card pad empty" style="text-align:center">
+    <span class="em">${Sprite.icon('ghost', 48)}</span>
+    <h2 style="margin:10px 0 6px">No game on this board yet</h2>
+    <p class="muted" style="margin-bottom:18px">Type the PIN of a game that is already
+      running, or start one from a quiz.</p>
+    <div class="row" style="justify-content:center;gap:10px;flex-wrap:wrap">
+      <input class="input mono" id="pinbox" inputmode="numeric" maxlength="6"
+             placeholder="123456" style="width:150px;text-align:center;font-size:1.3rem">
+      <button class="btn primary" id="pingo">Open it</button>
+      <a class="btn" href="${HUB}">Start a new one</a>
+    </div></div>`;
+  const box = $('#pinbox'), go = $('#pingo');
+  const open = () => {
+    const want = String(box.value || '').replace(/\D/g, '').slice(0, 6);
+    if (want.length !== 6) return toast('A PIN is six digits', 'bad');
+    location.href = location.pathname + '?pin=' + want;
+  };
+  go.onclick = open;
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
+  box.focus();
+}
+
 /* The board must survive a dropped wifi packet: only a 404 means the game has
- * really gone, anything else is worth asking again for. */
+ * really gone, anything else is worth asking again for. But a reconnect that
+ * has failed a dozen times running is not a dropped packet, and saying
+ * "Reconnecting…" for ever is a lie — so after a while it says what it is
+ * actually doing and gives a way out. */
 let retries = 0;
 function refresh() {
+  if (!pin) return;
   return api(`/games/${pin}`).then(state => { retries = 0; apply(state); }).catch(err => {
     if (err && err.status === 404) return fail();
     retries += 1;
-    if (!game) $('#stage').innerHTML = `<div class="card pad empty"><span class="em">${Sprite.icon('ghost', 48)}</span>
-      Reconnecting…</div>`;
+    if (!game) {
+      const stuck = retries >= 6;
+      $('#stage').innerHTML = `<div class="card pad empty" style="text-align:center">
+        <span class="em">${Sprite.icon('ghost', 48)}</span>
+        ${stuck ? `<h2 style="margin:10px 0 6px">Cannot reach game ${esc(pin)}</h2>
+          <p class="muted" style="margin-bottom:16px">It may have finished, or this
+            device may be offline. Tried ${retries} times.</p>
+          <div class="row" style="justify-content:center;gap:10px">
+            <button class="btn primary" id="again">Try again now</button>
+            <a class="btn" href="${location.pathname}">Use another PIN</a>
+          </div>`
+        : 'Reconnecting…'}</div>`;
+      const again = $('#again');
+      if (again) again.onclick = () => { retries = 0; refresh(); };
+    }
     setTimeout(refresh, Math.min(8000, 600 * retries));
   });
 }
-refresh();
-connect();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
-window.addEventListener('online', refresh);
+
+if (pin) {
+  refresh();
+  connect();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('online', refresh);
+} else {
+  noGame();
+}
 </script>
 </body>
 </html>

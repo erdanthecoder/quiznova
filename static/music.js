@@ -360,10 +360,69 @@
   }
 
   /** Move to one of the pieces above, easing out of whatever is playing. */
+  /* ── the teacher's own track ──────────────────────────────
+   *
+   * Everything below this was built by the browser a note at a time, which is
+   * why the whole soundtrack worked with the wifi unplugged. That is still
+   * true and still worth keeping — but a teacher who wants their own music on
+   * the board should get their own music on the board.
+   *
+   * So: the track is tried first, and the synthesised pieces are what plays if
+   * it is not there. A school laptop with no connection, the Windows app on a
+   * hall computer, a browser that refuses to autoplay — all of them still get
+   * a soundtrack rather than silence, which is the property that was worth not
+   * losing.
+   *
+   * The clock still drives the synth's tension; a recording cannot tighten as a
+   * question runs down, so the board leans on its own countdown instead.
+   */
+  const TRACK_FILE = 'theme.mp3';
+  let audio = null, audioReady = false, audioDead = false;
+
+  function theme() {
+    if (audio || audioDead) return audio;
+    try {
+      audio = new Audio(TRACK_FILE);
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.volume = 0;
+      audio.addEventListener('canplay', () => { audioReady = true; });
+      // no file, or a browser that will not have it: fall back to the synth
+      audio.addEventListener('error', () => { audioDead = true; audio = null; });
+    } catch { audioDead = true; audio = null; }
+    return audio;
+  }
+
+  /** Bring the track up or down over a couple of seconds, like the synth does. */
+  function ride(to, secs) {
+    if (!audio) return;
+    const from = audio.volume;
+    const started = Date.now();
+    clearInterval(audio._ride);
+    audio._ride = setInterval(() => {
+      const t = Math.min(1, (Date.now() - started) / (secs * 1000));
+      try { audio.volume = Math.max(0, Math.min(1, from + (to - from) * t)); } catch {}
+      if (t >= 1) { clearInterval(audio._ride); if (to === 0) { try { audio.pause(); } catch {} } }
+    }, 60);
+  }
+
   function play(which, opts) {
     wanted = true;
     const next = TRACKS[which] || TRACKS.menu;
     const loud = (opts && typeof opts.level === 'number') ? opts.level : next.level;
+
+    /* The track, if there is one. Each piece still sets a level, so the
+       lobby is quieter than the podium exactly as it was. */
+    const file = theme();
+    if (file && !audioDead) {
+      name = which;
+      playing = true;
+      const go = file.play();
+      if (go && go.catch) go.catch(() => { /* blocked until a click; unlock() retries */ });
+      ride(Math.min(1, loud * 2.2), playing ? 0.8 : 2);
+      return;
+    }
+
     if (!build()) return;
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
@@ -390,6 +449,7 @@
   }
 
   function stop() {
+    if (audio) { ride(0, 0.5); playing = false; }
     wanted = false;
     if (!playing) return;
     playing = false;
@@ -443,6 +503,15 @@
     /** How close the question is to running out, for anything that wants to watch. */
     get pressure() { return urge; },
     /** Browsers block sound until a click; call this from one. */
-    unlock() { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); }
+    unlock() {
+      if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+      // a browser that blocked the track until somebody clicked: try it again
+      if (audio && wanted && audio.paused) {
+        const go = audio.play();
+        if (go && go.catch) go.catch(() => {});
+      }
+    },
+    /** True when the teacher's own track is what is playing. */
+    get usingTrack() { return !!audio && !audioDead; }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

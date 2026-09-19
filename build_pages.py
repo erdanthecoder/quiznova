@@ -18,13 +18,15 @@ OUT = os.path.join(ROOT, "docs")
 # so a class types playquoldek.web.app rather than a path with a filename on it.
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
-PLAY_ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
+PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
                "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
 # site of its own rather than a page inside the studio.
 LIVE_OUT = os.path.join(ROOT, "docs-live")
 LIVE_HOST = "livequoldek.web.app"
+# Where the quizzes live, for the sites that only carry a board.
+HUB_URL = "https://quoldek.web.app/quiz"
 LIVE_ASSETS = PLAY_ASSETS + ["qr.js", "music.js"]
 
 # And homework gets the shortest address of the three, because it is the one a
@@ -45,13 +47,13 @@ TEACH_OUT = os.path.join(ROOT, "docs-teach")
 TEACH_HOST = "teachboard-quoldek.web.app"
 STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
-BOARD_ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
+BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
                 "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -166,6 +168,9 @@ def build():
             "  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='\n"
             "  : 'https://" + PLAY_HOST + "/?pin=';\n"
             "window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : '" + LIVE_HOST + "';\n"
+            # The board's own site holds the board and nothing else, so a way
+            # back to the quizzes has to be an address rather than a path.
+            "window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : '" + HUB_URL + "';\n"
             "window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL\n"
             "  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='\n"
             "  : 'https://" + HOMEWORK_HOST + "/';", 1)
