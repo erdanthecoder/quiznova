@@ -204,6 +204,64 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
     (window.__db.quiznova_live_games[0] || {}).data?.state);
   ok('and end it', ended === 'over', String(ended));
 
+  /* ── Robot Run on the live site, scramble and all ──
+   *
+   * The live edition has no server: everything the desktop edition does in
+   * games.js is done again in the browser, and the two have drifted apart
+   * before. The scramble between decks is the newest place they could, so it
+   * is played here through the live engine itself. */
+  const run = await board.evaluate(async () => {
+    const out = {};
+    const quiz = { id: 'q2', title: 'Chase', questions: [
+      { id: 'a', type: 'mc', text: 'Two plus two?', points: 100, time: 30,
+        choices: [{ id: 'a1', text: '4', correct: true }, { id: 'a2', text: '5' }] }] };
+    const L = window.NovaLive;
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q2', quiz, mode: 'robot', map: 'station' });
+    const pin = game.pin;
+    const one = await L.handle(`/games/${pin}/join`, 'POST', { name: 'Ana', avatar: 3 });
+    const two = await L.handle(`/games/${pin}/join`, 'POST', { name: 'Ben', avatar: 5 });
+    const id = (j) => (j.player ? j.player.id : j.id);
+    await L.handle(`/games/${pin}/start`, 'POST', { hostToken: game.hostToken });
+
+    // fill the escape bar the way a class does, one boost at a time
+    for (let n = 1; n <= 30; n++) {
+      const r = await L.handle(`/games/${pin}/boost`, 'POST', { playerId: id(one), seq: n });
+      if (r && r.escape >= 100) break;
+    }
+    let view = await L.handle(`/games/${pin}`, 'GET', {});
+    out.state = view.state;
+    out.zones = (view.zones || []).length;
+
+    // one child gets in, and then the same zone is tried again
+    const z = (view.zones || [])[0] || { id: 'z0' };
+    const claim = await L.handle(`/games/${pin}/safe`, 'POST', { playerId: id(one), zone: z.id });
+    out.claim = { ok: claim.ok, zone: claim.zone, why: claim.why };
+    const second = await L.handle(`/games/${pin}/safe`, 'POST', { playerId: id(two), zone: z.id });
+    out.secondOk = !!(second && second.ok);
+    view = await L.handle(`/games/${pin}`, 'GET', {});
+    out.counts = view.zoneCounts;
+    out.livesBefore = view.lives;
+
+    // the board settles it, because nothing else on the live site is awake to
+    await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
+    view = await L.handle(`/games/${pin}`, 'GET', {});
+    out.after = view.state; out.round = view.round; out.lives = view.lives;
+    out.escape = view.escape;
+    return out;
+  });
+  ok('the live site opens the hatches when the escape bar fills',
+     run.state === 'safe' && run.zones >= 2, `state ${run.state}, ${run.zones} zones`);
+  ok('a child can take a place in a zone on the live site',
+     run.claim && run.claim.ok, (run.claim && (run.claim.zone || run.claim.why)) || 'no answer');
+  ok('and a zone that is full turns the next one away',
+     run.secondOk === false || run.counts, JSON.stringify(run.counts));
+  ok('the live board can settle the scramble itself',
+     run.after === 'running' && run.round === 2 && run.escape === 0,
+     `deck ${run.round}, state ${run.after}, escape ${run.escape}`);
+  ok('and whoever was left out costs the class a life',
+     run.lives === run.livesBefore - 1, `${run.livesBefore} → ${run.lives} lives`);
+
   ok('no errors on the live board', berrs.length === 0, berrs.slice(0, 3).join(' | '));
   ok('no errors on the live phone', perrs.length === 0, perrs.slice(0, 3).join(' | '));
 

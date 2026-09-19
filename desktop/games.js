@@ -108,7 +108,7 @@ class Games {
       total: questions.length, quizTitle: game.quizTitle, quizId: game.quizId,
       question, endsAt: game.endsAt, serverNow: now(), players, teams: game.teams,
       counts: game.counts, lastEvents: game.lastEvents,
-      quiz: (game.state === 'arena' || game.state === 'running'
+      quiz: (game.state === 'arena' || game.state === 'running' || game.state === 'safe'
              || game.state === 'strike') ? questions : null,
       boss: game.boss || null,
       modeInfo: R.MODES[game.mode] || R.MODES[R.DEFAULT_MODE],
@@ -120,6 +120,10 @@ class Games {
       knifeReload: R.KNIFE_RELOAD_MS,
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
+      safeEndsAt: game.safeEndsAt || 0, safeMs: R.SAFE_MS,
+      zones: game.state === 'safe'
+        ? R.safeZones(game.round || 1, Object.keys(game.players).length) : null,
+      zoneCounts: game.state === 'safe' ? R.zoneCounts(game) : null,
       lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
       round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: R.movesFor(game.mode), moveAsk: (R.MOVES[game.mode] || {}).ask || '',
@@ -241,15 +245,35 @@ class Games {
     game.escape = Math.min(ESCAPE_TARGET, (game.escape || 0) + BOOST_WORTH);
     game.lastEvents.push(`${p.name} boosted`);
     game.lastEvents = game.lastEvents.slice(-6);
+    /* The bar full is not the next deck yet: the class has to get off this one
+     * first. Kahoot puts a mini-game between rounds — everybody moves into a
+     * green safe zone, and each one holds only so many. This used to skip it
+     * and simply count the deck up, which is a lap counter rather than a game. */
     if (game.escape >= ESCAPE_TARGET) {
-      game.round = (game.round || 1) + 1;
-      game.escape = 0;
-      game.roundEndsAt = now() + ROBOT_ROUND_MS;
-      for (const x of Object.values(game.players)) x.ready = 0;
-      game.lastEvents.push(`The class got clear — deck ${game.round}`);
+      game.state = 'safe';
+      game.safeEndsAt = now() + R.SAFE_MS;
+      for (const x of Object.values(game.players)) { x.ready = 0; x.zone = ''; }
+      game.lastEvents.push('The hatch is open — get to a safe zone');
     }
     this.changed(game);
     return { ok: true, escape: game.escape, round: game.round };
+  }
+
+  /* Robot Run: one child stepping into a safe zone. Full is full — the room has
+   * to sort itself out, which is the whole point of the phase. */
+  safe(game, body) {
+    const p = game.players[body.playerId];
+    if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
+    if (game.mode !== 'robot' || game.state !== 'safe') {
+      return { ok: false, why: 'Not that kind of game.' };
+    }
+    const out = R.claimZone(game, p, body.zone);
+    if (out.ok && !out.already) {
+      game.lastEvents.push(`${p.name} is in`);
+      game.lastEvents = game.lastEvents.slice(-6);
+    }
+    this.changed(game);
+    return Object.assign(out, { counts: R.zoneCounts(game) });
   }
 
   /* Tallest Tower: one block, placed. The offset is where the tap landed, and
@@ -378,10 +402,42 @@ class Games {
     }
   }
 
+  /* The hatch shuts. Anybody still out in the open costs the class a life, and
+   * then the next deck begins. The desktop edition's own clock calls this; the
+   * live edition has no clock of its own, so its board asks for it — which is
+   * why it is a method and not three lines inside tick(). Named apart from
+   * settle(), which is the question's: one shadowed the other, and a scramble
+   * that should have lasted fifteen seconds was over in one. */
+  settleSafe(game) {
+    if (game.mode !== 'robot' || game.state !== 'safe') return { ok: false };
+    R.settleSafe(game);
+    game.safeEndsAt = 0;
+    if (!game.lives) {
+      game.lastEvents.push('The robot got them');
+      game.state = 'over'; game.endsAt = null;
+    } else {
+      game.round = (game.round || 1) + 1;
+      game.escape = 0;
+      game.state = 'running';
+      game.roundEndsAt = now() + ROBOT_ROUND_MS;
+      game.lastEvents.push(`Deck ${game.round}`);
+    }
+    game.lastEvents = game.lastEvents.slice(-6);
+    return { ok: true };
+  }
+
   /* The clock, called on a timer by the server: a question can run out with
    * nobody having answered, and a time limit can run out mid-question. */
   tick(game) {
     this.towerTick(game);
+
+    /* The safe zones have their own clock. When it runs out anybody still
+     * outside one costs the class a life, and then the hatch opens on the next
+     * deck — which is the moment the board flies them somewhere new. */
+    if (game.state === 'safe' && game.safeEndsAt && now() >= game.safeEndsAt) {
+      this.settleSafe(game);
+      return this.changed(game);
+    }
     // a deck that runs out of time is the robot reaching the room
     if (game.state === 'running' && game.mode === 'robot'
         && game.roundEndsAt && now() >= game.roundEndsAt) {

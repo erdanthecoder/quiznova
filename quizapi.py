@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import math
 import os
 import queue
 import random
@@ -1133,7 +1134,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "blocks", "ready", "placed", "boosts", "safe", "lastGain",
+                                           "blocks", "ready", "placed", "boosts", "safe", "zone", "lastGain",
                                            "loaded", "hits", "swungAt",
                                            "blade", "struck", "move", "on")}
                     for p in players],
@@ -1281,7 +1282,7 @@ def join_game(pin):
             "on": "",
             "job": None,
             # per-mode workings the moves need
-            "ready": 0, "placed": 0, "loaded": 0, "hits": 0, "swungAt": 0,
+            "ready": 0, "placed": 0, "loaded": 0, "hits": 0, "swungAt": 0, "zone": "",
             "item": False, "run": 0, "rocks": False,
             "tuned": 0, "stopped": False, "guarding": False, "acted": "",
             "shielded": False, "exposed": False, "offer": "",
@@ -1502,6 +1503,66 @@ MOVES = {
 # Mirrors the block in static/rules.js. The room is split into three teams, a
 # right answer earns a block, and placing it is a timed tap: where it lands is
 # kept on the block so the tower is drawn as it was actually built.
+# ── Robot Run: the safe zones between decks ──
+# Mirrors the block in static/rules.js. The zones come from the deck number
+# alone, so every phone and the board draw the same ones without anybody having
+# to send them; there are fewer and smaller ones each deck.
+SAFE_MS = 15000
+FIELD_W, FIELD_H = 1000, 700
+
+
+def safe_zones(round_no, heads):
+    deck = max(1, int(round_no or 1))
+    people = max(1, int(heads or 1))
+    count = max(2, 5 - (deck - 1) // 2)
+    cap = max(1, -(-people // count))       # just enough room, and no more
+    r = max(70, 140 - (deck - 1) * 12)
+    out = []
+    for i in range(count):
+        a = (i / count) * math.pi * 2 + deck * 0.7
+        out.append({"id": f"z{i}",
+                    "x": round(FIELD_W / 2 + math.cos(a) * FIELD_W * 0.31),
+                    "y": round(FIELD_H / 2 + math.sin(a) * FIELD_H * 0.31),
+                    "r": r, "cap": cap})
+    return out
+
+
+def zone_counts(game):
+    counts = {}
+    for p in game.get("players", {}).values():
+        if p.get("zone"):
+            counts[p["zone"]] = counts.get(p["zone"], 0) + 1
+    return counts
+
+
+def claim_zone(game, player, zone_id):
+    zones = safe_zones(game.get("round", 1), len(game.get("players", {})))
+    zone = next((z for z in zones if z["id"] == zone_id), None)
+    if not zone:
+        return {"ok": False, "why": "No such zone."}
+    if player.get("zone") == zone["id"]:
+        return {"ok": True, "zone": zone["id"], "already": True}
+    if zone_counts(game).get(zone["id"], 0) >= zone["cap"]:
+        return {"ok": False, "why": "That one is full.", "full": True}
+    player["zone"] = zone["id"]
+    return {"ok": True, "zone": zone["id"]}
+
+
+def settle_safe(game):
+    everyone = list(game.get("players", {}).values())
+    adrift = [p for p in everyone if not p.get("zone")]
+    if adrift:
+        game["lives"] = max(0, game.get("lives", 3) - 1)
+        game["lastEvents"].append(
+            f"{adrift[0]['name']} did not make it — a life gone" if len(adrift) == 1
+            else f"{len(adrift)} did not make it — a life gone")
+    else:
+        game["lastEvents"].append("Everybody made it")
+    for p in everyone:
+        p["zone"] = ""
+    return len(adrift)
+
+
 TOWER_TEAMS = ["red", "blue", "green"]
 TOWER_NAMES = {"red": "Crimson", "blue": "Cobalt", "green": "Clover"}
 SLOTS = 4            # blocks in one finished floor

@@ -324,6 +324,15 @@ class Server {
         const hit = this.games.forceMonster(game);
         return this.send(res, 200, { ok: true, hit, view: this.games.publicView(game) });
       }
+      if (tail === 'settle' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        this.games.settleSafe(game);
+        this.games.changed(game);
+        return this.send(res, 200, { ok: true, view: this.games.publicView(game) });
+      }
+      if (tail === 'safe' && method === 'POST') {
+        return this.send(res, 200, this.games.safe(game, body));
+      }
       if (tail === 'place' && method === 'POST') {
         return this.send(res, 200, this.games.place(game, body));
       }

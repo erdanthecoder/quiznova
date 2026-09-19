@@ -226,6 +226,29 @@
 .boostmeter i.full{background:linear-gradient(90deg,#FFC53D,#FF9A3D)}
 .boostmeter span{position:relative;z-index:1;width:100%;text-align:center;
   font-size:.76rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+/* the scramble between decks: a deck seen from above, and a finger on it */
+.deck{position:relative;flex:0 1 auto;aspect-ratio:10/7;min-height:200px;border-radius:20px;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 0%,#18314C,#080E18);
+  border:2px solid rgba(255,255,255,.10);touch-action:none;cursor:grab}
+.deck canvas{position:absolute;inset:0;width:100%;height:100%}
+.deckclock{flex:none;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;font-weight:900}
+.deckclock b{font-size:1.9rem;font-variant-numeric:tabular-nums}
+.deckclock b.low{color:#F4364C}
+.zonebar{flex:0 0 auto;display:grid;gap:8px;
+  grid-template-columns:repeat(auto-fit,minmax(88px,1fr))}
+.zonebtn{border:2px solid rgba(18,190,142,.45);background:rgba(18,190,142,.12);
+  color:#BFF6E4;border-radius:16px;padding:12px 6px;font-weight:900;font-size:.82rem;
+  display:flex;flex-direction:column;gap:2px;align-items:center;cursor:pointer}
+.zonebtn b{font-size:1.15rem}
+.zonebtn.full{border-color:rgba(244,54,76,.55);background:rgba(244,54,76,.12);color:#FFB3BC}
+.zonebtn.mine{border-color:#12BE8E;background:rgba(18,190,142,.3);color:#fff}
+.zonebtn:active{transform:scale(.97)}
+.deckstate{flex:none;text-align:center;font-weight:900;letter-spacing:.04em;
+  padding:12px;border-radius:16px;background:rgba(255,255,255,.07)}
+.deckstate.in{background:rgba(18,190,142,.22);color:#9CF0D3}
+.deckstate.out{background:rgba(255,197,61,.18);color:#FFD98A}
+
 .opt-btn.right{outline:4px solid #12BE8E}
 .opt-btn.wrong{outline:4px solid #F4364C;opacity:.75}
 
@@ -429,11 +452,11 @@
 <script src="/realtime.js?v=75e1623c"></script>
 <script src="/arena.js?v=d0a0b6df"></script>
 <script src="/strike.js?v=09b2cc87"></script>
-<script src="/run.js?v=3afa534f"></script>
+<script src="/run.js?v=01118772"></script>
 <script src="/tower.js?v=114b2bca"></script>
 <script src="/paste.js?v=3032c005"></script>
-<script src="/rules.js?v=fdd4d008"></script>
-<script src="/live.js?v=1f51dcd9"></script>
+<script src="/rules.js?v=2ac995c4"></script>
+<script src="/live.js?v=08715f00"></script>
 <script src="/nova-local.js?v=21b460e4"></script>
 <script src="/account.js?v=1f2bba77"></script>
 <script>
@@ -795,9 +818,18 @@ function render(fresh) {
    * canvas stayed black, and the question panel came back empty. The game went
    * blank the first time somebody else joined. */
   if (game.state === 'running') {
+    if (safeCardNode) { stopSafe(); }
     if (!runCardNode) runCardNode = runCard();
     return app.append(runCardNode);
   }
+  /* The scramble. Same rule as the run: kept and fed, never rebuilt, because it
+     is a canvas with a finger on it. */
+  if (game.state === 'safe') {
+    if (!safeCardNode) safeCardNode = safeCard();
+    feedSafe();
+    return app.append(safeCardNode);
+  }
+  if (safeCardNode) stopSafe();
   runCardNode = null;
   if (arena) { arena.stop(); arena = null; }
 
@@ -874,6 +906,250 @@ let arena = null, arenaQ = 0, arenaAsking = false;
  * the point — it is a race, and a race where everybody moves together is a
  * queue.
  */
+/* ── the scramble between decks ──────────────────────────
+ *
+ * The run stops and the hatches open. There are a few green circles on the
+ * deck, each one holds only so many, and whoever is not standing in one when
+ * the clock runs out costs the whole class a life. It is the part of the mode
+ * that is a decision rather than a question: the near circle is nearly full,
+ * the far one is empty, and the clock is at four seconds.
+ *
+ * Drag your blook with a finger. Step inside a circle and the phone claims it;
+ * if somebody got the last place first, you are pushed back out and told so,
+ * and there is still time to run somewhere else.
+ */
+let safeCardNode = null, safeMe = null, safeRaf = null, safeBusy = false,
+    safeNote = '', safeNoteUntil = 0;
+
+function safeCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  card.append(el('div', { class: 'deckclock' },
+    el('span', { class: 'chip', id: 's-lives' }, ''),
+    el('b', { id: 's-clock' }, '15.0')));
+  const deck = el('div', { class: 'deck', id: 's-deck' });
+  deck.append(el('canvas', { id: 's-canvas' }));
+  card.append(deck);
+  /* Buttons as well as the drag. A thumb on a small screen is not a precise
+     thing, and a child who cannot make the drag work should still be able to
+     pick a zone and have their blook run to it — the decision is which zone,
+     not how steady your hand is. */
+  card.append(el('div', { class: 'zonebar', id: 's-zones' }));
+  card.append(el('div', { class: 'deckstate out', id: 's-state' },
+                'Drag yourself into a green zone, or tap one'));
+  safeMe = { x: 500, y: 350, tx: 500, ty: 350, zone: '' };
+  setTimeout(startSafe, 0);
+  return card;
+}
+
+/** Put the finger's place on the screen into deck coordinates. */
+function safePoint(deck, e) {
+  const box = deck.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) || e;
+  const fit = Math.min(box.width / 1000, box.height / 700);
+  const ox = (box.width - 1000 * fit) / 2, oy = (box.height - 700 * fit) / 2;
+  return { x: ((t.clientX - box.left) - ox) / fit,
+           y: ((t.clientY - box.top) - oy) / fit };
+}
+
+function startSafe() {
+  const deck = document.getElementById('s-deck');
+  const canvas = document.getElementById('s-canvas');
+  if (!deck || !canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let dragging = false;
+  const move = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const p = safePoint(deck, e);
+    safeMe.tx = Math.max(30, Math.min(970, p.x));
+    safeMe.ty = Math.max(30, Math.min(670, p.y));
+  };
+  const down = (e) => { dragging = true; move(e); };
+  const up = () => { dragging = false; };
+  deck.addEventListener('touchstart', down, { passive: false });
+  deck.addEventListener('touchmove', move, { passive: false });
+  deck.addEventListener('touchend', up);
+  deck.addEventListener('touchcancel', up);
+  deck.addEventListener('mousedown', down);
+  deck.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+
+  const frame = () => {
+    if (!document.getElementById('s-canvas')) { safeRaf = null; return; }
+    /* A blook walks, it does not teleport: capped so dragging across the deck
+       still takes a moment, which is what makes the clock matter. */
+    const dx = safeMe.tx - safeMe.x, dy = safeMe.ty - safeMe.y;
+    const d = Math.hypot(dx, dy);
+    const step = Math.min(d, 13);
+    if (d > 0.5) { safeMe.x += dx / d * step; safeMe.y += dy / d * step; }
+    drawSafe(canvas, ctx);
+    checkZone();
+    /* The clock has to run here rather than on the poll: a countdown that only
+       moves when the server answers is a countdown that jumps four seconds at a
+       time, and four seconds is a quarter of the whole scramble. */
+    feedSafe();
+    safeRaf = requestAnimationFrame(frame);
+  };
+  safeRaf = requestAnimationFrame(frame);
+  feedSafe();
+}
+
+/** Standing inside a circle claims it, once, and the server decides if it fits. */
+function checkZone() {
+  if (safeBusy) return;
+  const zones = game.zones || [];
+  const here = zones.find(z => Math.hypot(safeMe.x - z.x, safeMe.y - z.y) <= z.r * 0.82);
+  if (!here || here.id === safeMe.zone) return;
+  safeBusy = true;
+  api(`/games/${pin}/safe`, { method: 'POST', body: { playerId: me.id, zone: here.id } })
+    .then(out => {
+      if (out && out.ok) {
+        safeMe.zone = here.id;
+        if (navigator.vibrate) navigator.vibrate(18);
+      } else {
+        // somebody took the last place: pushed back out, with time to run on
+        safeNote = (out && out.why) || 'That one is full';
+        safeNoteUntil = Date.now() + 1400;
+        const a = Math.atan2(safeMe.y - here.y, safeMe.x - here.x);
+        safeMe.x = here.x + Math.cos(a) * (here.r + 34);
+        safeMe.y = here.y + Math.sin(a) * (here.r + 34);
+        safeMe.tx = safeMe.x; safeMe.ty = safeMe.y;
+        if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+      }
+      if (out && out.view) apply(out.view);
+    })
+    .catch(() => {})
+    .then(() => { safeBusy = false; });
+}
+
+function drawSafe(canvas, ctx) {
+  const box = canvas.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(box.width * dpr)), h = Math.max(1, Math.round(box.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const t = performance.now();
+
+  /* The same deck the board is showing, drawn by the same code. A phone with
+     its own smaller, paler copy of a screen is how one game comes to look like
+     two, so there is one painter and both screens call it. */
+  const pad = Math.min(w, h) * 0.02;
+  const scale = Math.min((w - pad * 2) / 1000, (h - pad * 2) / 700);
+  const deck = { scale, ox: (w - 1000 * scale) / 2, oy: (h - 700 * scale) / 2 };
+  const world = NovaRun.WORLDS[game.map] || NovaRun.WORLDS.station;
+
+  ctx.clearRect(0, 0, w, h);
+  NovaRun.paintDeck(ctx, { w, h, box: deck, world, t,
+    zones: game.zones || [], counts: game.zoneCounts || {}, mine: safeMe.zone });
+
+  ctx.save();
+  ctx.translate(deck.ox, deck.oy);
+  ctx.scale(deck.scale, deck.scale);
+
+  // where the finger is pulling you, so a long run across the deck is visible
+  if (Math.hypot(safeMe.tx - safeMe.x, safeMe.ty - safeMe.y) > 20) {
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.lineWidth = 6; ctx.setLineDash([12, 12]);
+    ctx.lineDashOffset = -t / 24;
+    ctx.beginPath(); ctx.moveTo(safeMe.x, safeMe.y);
+    ctx.lineTo(safeMe.tx, safeMe.ty); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* Everybody else on the deck, faint, because a child deciding between a full
+     zone and an empty one needs to see where the rest of the class went — and
+     then themselves, bright, on top. */
+  const mates = (game.players || []).filter(p => p.id !== me.id);
+  mates.forEach((p, i) => {
+    const z = (game.zones || []).find(x => x.id === p.zone);
+    const a = (i / Math.max(1, mates.length)) * Math.PI * 2;
+    const at = z ? { x: z.x + Math.cos(a) * z.r * 0.45, y: z.y + Math.sin(a) * z.r * 0.45 }
+                 : { x: 500 + Math.cos(a) * 150, y: 350 + Math.sin(a) * 105 };
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    NovaRun.paintWalker(ctx, p, { x: at.x, y: at.y, seed: i * 1.7 }, t, world);
+    ctx.restore();
+  });
+  NovaRun.paintWalker(ctx, { id: me.id, name: me.name, avatar: me.avatar,
+                             zone: safeMe.zone, you: true },
+                      { x: safeMe.x, y: safeMe.y, seed: 0 }, t, world);
+  // a marker over your own head, so thirty blooks is still obviously you
+  ctx.fillStyle = '#FFC53D';
+  ctx.beginPath();
+  const tipY = safeMe.y - 72 + Math.sin(t / 300) * 6;
+  ctx.moveTo(safeMe.x, tipY + 26);
+  ctx.lineTo(safeMe.x - 20, tipY - 6);
+  ctx.lineTo(safeMe.x + 20, tipY - 6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  if (Date.now() < safeNoteUntil) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `900 ${Math.max(15, h * 0.055)}px ui-sans-serif,system-ui,sans-serif`;
+    ctx.fillStyle = '#FFB3BC';
+    ctx.fillText(safeNote, w / 2, h * 0.11);
+    ctx.restore();
+  }
+}
+
+/** The clock and the two words that say whether you are all right. */
+function feedSafe() {
+  if (!safeCardNode) return;
+  // the server is the truth about whether this phone got a place
+  safeMe.zone = (me && me.zone) || safeMe.zone || '';
+  const clock = document.getElementById('s-clock');
+  if (clock) {
+    const left = game.safeEndsAt ? Math.max(0, game.safeEndsAt - drift - Date.now()) : 0;
+    clock.textContent = (left / 1000).toFixed(1);
+    clock.classList.toggle('low', left < 5000);
+  }
+  const lives = document.getElementById('s-lives');
+  if (lives) {
+    const n = game.lives === undefined ? 3 : game.lives;
+    lives.textContent = '♥'.repeat(Math.max(0, n)) || 'no lives left';
+  }
+  paintZoneBar();
+  const state = document.getElementById('s-state');
+  if (state) {
+    state.textContent = safeMe.zone ? 'You are safe — hold on'
+                                    : 'Drag yourself into a green zone, or tap one';
+    state.classList.toggle('in', !!safeMe.zone);
+    state.classList.toggle('out', !safeMe.zone);
+  }
+}
+
+/** The row of zones under the deck: built once, then only the numbers move. */
+function paintZoneBar() {
+  const bar = document.getElementById('s-zones');
+  if (!bar) return;
+  const zones = game.zones || [];
+  if (bar.childElementCount !== zones.length) {
+    bar.innerHTML = '';
+    zones.forEach((z, i) => {
+      const btn = el('button', { class: 'zonebtn', type: 'button' },
+        el('b', {}, 'Zone ' + (i + 1)), el('span', { class: 'n' }, ''));
+      btn.onclick = () => { safeMe.tx = z.x; safeMe.ty = z.y; };
+      bar.append(btn);
+    });
+  }
+  const counts = game.zoneCounts || {};
+  zones.forEach((z, i) => {
+    const btn = bar.children[i];
+    if (!btn) return;
+    const inside = counts[z.id] || 0;
+    const mine = safeMe.zone === z.id;
+    btn.querySelector('.n').textContent = inside + ' of ' + z.cap;
+    btn.classList.toggle('mine', mine);
+    btn.classList.toggle('full', !mine && inside >= z.cap);
+  });
+}
+
+function stopSafe() {
+  if (safeRaf) cancelAnimationFrame(safeRaf);
+  safeRaf = null; safeCardNode = null; safeBusy = false; safeMe = null;
+}
+
 function runCard() {
   const card = el('div', { class: 'play arena-wrap' });
   card.append(el('div', { class: 'qhead' },

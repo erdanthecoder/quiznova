@@ -571,11 +571,11 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=d0a0b6df"></script>
 <script src="strike.js?v=09b2cc87"></script>
-<script src="run.js?v=3afa534f"></script>
+<script src="run.js?v=01118772"></script>
 <script src="tower.js?v=114b2bca"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=fdd4d008"></script>
-<script src="live.js?v=1f51dcd9"></script>
+<script src="rules.js?v=2ac995c4"></script>
+<script src="live.js?v=08715f00"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -876,11 +876,11 @@ function render(fresh) {
     if (paint(stage, strikeView, fresh)) watchStrike(); else feedStrike();
     return;
   }
-  if (game.state === 'running') {
+  if (game.state === 'running' || game.state === 'safe') {
     /* The canvas is mounted once and then fed. Repainting the whole view on
        every poll would tear the chase down and build it again several times a
        second, which is how you get a robot that stutters in place. */
-    if (paint(stage, runView, fresh)) watchRun(); else feedRun();
+    if (paint(stage, runView, fresh)) watchRun(); else { watchRun(); feedRun(); }
     return;
   }
   if (boardArena) { boardArena.stop(); boardArena = null; }
@@ -1076,33 +1076,78 @@ let boardRun = null;
 
 function watchRun() {
   const canvas = document.getElementById('board-run');
-  if (!canvas || boardRun) return;
+  if (!canvas) return;
+  /* A repaint builds a new canvas and throws the old one away. If the chase is
+     still drawing on the one that left the page, the board goes black — which
+     is what happened the first time the class reached a safe zone, because that
+     is a change of state and a change of state repaints. So: the engine is kept
+     only while it still owns the canvas that is on the screen. */
+  if (boardRun) {
+    if (boardRun.canvas === canvas) return;
+    boardRun.stop();
+    boardRun = null;
+  }
   boardRun = NovaRun.start({ canvas, world: game.map || 'station' });
+  boardRun.canvas = canvas;
   feedRun();
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
     .catch(e => toast(e.message, 'bad'));
 }
 
+let settleTimer = 0;   // the safe phase is only ever settled once per deck
+/* Kept out here rather than on the engine. A change of state repaints, a
+   repaint builds a new canvas and a new engine, and anything remembered on the
+   old one goes with it — which is exactly the moment the deck number changes,
+   so the ride to the next deck was never played. */
+let lastDeck = 0, lastEscape = 0;
+
 /** Hand the board the room and the class, every time the game changes. */
 function feedRun() {
   if (!boardRun) return;
   const target = game.escapeTarget || 100;
-  const before = boardRun.lastEscape || 0;
+  const before = lastEscape;
   boardRun.setRoom({
     escape: game.escape || 0, target,
     lives: game.lives === undefined ? 3 : game.lives,
     round: game.round || 1,
+    phase: game.state === 'safe' ? 'safe' : 'running',
+    zones: game.zones || [],
+    zoneCounts: game.zoneCounts || {},
+    safeEndsAt: game.safeEndsAt ? game.safeEndsAt - drift : 0,
+    safeMs: game.safeMs || 15000,
     endsAt: game.roundEndsAt ? game.roundEndsAt - drift : 0,
     roundMs: game.robotRoundMs || 75000
   });
   boardRun.setPlayers((game.players || []).map(p => ({
-    id: p.id, name: p.name, avatar: p.avatar, boosts: p.boosts || p.score || 0
+    id: p.id, name: p.name, avatar: p.avatar, boosts: p.boosts || p.score || 0,
+    zone: p.zone || ''
   })));
   // somebody put a boost in since the last update: shake the deck
   if ((game.escape || 0) > before) boardRun.cheer();
-  boardRun.lastEscape = game.escape || 0;
+  lastEscape = game.escape || 0;
+
+  /* The class made it off a deck: the scramble ended and the round went up, so
+     play the ride to the next one. Watched here rather than announced by the
+     server because the board is the only thing that can show it. */
+  const deck = game.round || 1;
+  if (lastDeck && deck > lastDeck && game.state === 'running') boardRun.liftOff(deck);
+  lastDeck = deck;
+
+  /* The safe phase has its own clock, and on the live edition there is no
+     server to notice it running out — so the board asks for the settle, once,
+     the same way it asks for the tower's monster. */
+  if (hostToken && game.state === 'safe') {
+    const due = game.safeEndsAt || 0;
+    if (due && Date.now() - drift >= due && Date.now() > settleTimer + 4000) {
+      settleTimer = Date.now();
+      api(`/games/${pin}/settle`, { method: 'POST', body: { hostToken } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
+  }
 }
+
 
 /* The fight, on the projector. This is the half of Boss Battle that belongs on
  * the big screen rather than in thirty pockets: everyone can see who is still

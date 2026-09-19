@@ -153,6 +153,84 @@
    * out, no coordination, and it works with three children or thirty. */
   /* The plain quiz is the default. A teacher who picks nothing should get the
      thing the tool is for, not whichever game happened to be first. */
+  /* ── Robot Run: the safe zones between decks ──────────────
+   *
+   * Kahoot's Robot Run puts a mini-game between rounds: the players move their
+   * characters with a joystick into green safe zones, each of which holds only
+   * so many, and it gets harder as the game goes on. It is the one documented
+   * piece of that mode this never had — the deck number simply went up and the
+   * class carried on running, which is a lap counter rather than a game.
+   *
+   * The zones are worked out from the deck number alone, so every phone and the
+   * board draw the same ones without anybody having to send them. There are
+   * fewer of them and they are smaller each deck, and between them they hold
+   * just enough of the room — which is the tension: somewhere in the class,
+   * somebody is going to be left outside a full one.
+   */
+  const SAFE_MS = 15000;               // how long the class has to get in
+  const FIELD_W = 1000, FIELD_H = 700; // the deck they are running about on
+
+  function safeZones(round, heads) {
+    const deck = Math.max(1, Number(round) || 1);
+    const people = Math.max(1, Number(heads) || 1);
+    const count = Math.max(2, 5 - Math.floor((deck - 1) / 2));
+    // just enough room for everybody, and no more: one zone short of comfort
+    const cap = Math.max(1, Math.ceil(people / count));
+    const r = Math.max(70, 140 - (deck - 1) * 12);
+    const zones = [];
+    for (let i = 0; i < count; i++) {
+      // laid out on a ring, turned a little each deck so it is never the same twice
+      const a = (i / count) * Math.PI * 2 + deck * 0.7;
+      zones.push({
+        id: 'z' + i,
+        x: Math.round(FIELD_W / 2 + Math.cos(a) * FIELD_W * 0.31),
+        y: Math.round(FIELD_H / 2 + Math.sin(a) * FIELD_H * 0.31),
+        r, cap
+      });
+    }
+    return zones;
+  }
+
+  /** How many are standing in each zone right now. */
+  function zoneCounts(game) {
+    const counts = {};
+    Object.values(game.players || {}).forEach(p => {
+      if (p.zone) counts[p.zone] = (counts[p.zone] || 0) + 1;
+    });
+    return counts;
+  }
+
+  /* One child stepping into a zone. Full is full: the room has to sort itself
+     out, which is the whole point of the phase. */
+  function claimZone(game, p, zoneId) {
+    const zones = safeZones(game.round || 1, Object.keys(game.players || {}).length);
+    const zone = zones.find(z => z.id === zoneId);
+    if (!zone) return { ok: false, why: 'No such zone.' };
+    if (p.zone === zone.id) return { ok: true, zone: zone.id, already: true };
+    const counts = zoneCounts(game);
+    if ((counts[zone.id] || 0) >= zone.cap) return { ok: false, why: 'That one is full.', full: true };
+    p.zone = zone.id;
+    return { ok: true, zone: zone.id };
+  }
+
+  /* The phase ending. Anybody still outside a zone costs the class a life —
+     shared, like everything else in this mode, so the room is shouting at each
+     other to make space rather than racing. */
+  function settleSafe(game) {
+    const everyone = Object.values(game.players || {});
+    const adrift = everyone.filter(p => !p.zone);
+    if (adrift.length) {
+      game.lives = Math.max(0, (game.lives === undefined ? 3 : game.lives) - 1);
+      game.lastEvents.push(adrift.length === 1
+        ? `${adrift[0].name} did not make it — a life gone`
+        : `${adrift.length} did not make it — a life gone`);
+    } else {
+      game.lastEvents.push('Everybody made it');
+    }
+    everyone.forEach(p => { p.zone = ''; });
+    return adrift.length;
+  }
+
   /* ── Tallest Tower ────────────────────────────────────────
    *
    * Rebuilt from how Kahoot's actually works, which is nothing like what was
@@ -572,7 +650,7 @@
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, lastGain: 0, target: '',
     blocks: 0, ready: 0, placed: 0,           // tallest tower: earned, and put up
-    boosts: 0, ready: 0, safe: true,          // robot run: what they have put in
+    boosts: 0, ready: 0, safe: true, zone: '',  // robot run: boosts in, and the zone
     loaded: 0, hits: 0, swungAt: 0,           // boss battle: knives loaded, and used
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
@@ -605,6 +683,7 @@
 
   global.NovaRules = {
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
+    SAFE_MS, FIELD_W, FIELD_H, safeZones, zoneCounts, claimZone, settleSafe,
     TOWER_TEAMS, TOWER_NAMES, SLOTS, PERFECT, GIFT_EVERY, MONSTER_EVERY, MONSTER_FLOOR,
     blankTower, floorsOf, towersOf, placeBlock, towerMonster,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,

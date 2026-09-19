@@ -245,6 +245,129 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   ok('and the question is still there to answer', stillThere.answers > 0,
      `${stillThere.answers} answers on screen`);
 
+  /* ── the scramble between decks ──────────────────────────
+   *
+   * Filling the escape bar does not hand the class the next deck: the hatches
+   * open and everybody has fifteen seconds to get inside a green circle, and
+   * each circle only holds so many. Anybody left out in the open costs the
+   * whole class a life. It is the one part of the mode that is a decision
+   * rather than a question, so it gets played here rather than asserted at. */
+  const boost = (who, n) => post(`/api/games/${pin}/boost`, { playerId: who, seq: n });
+  const ben = view.players.find(p => p.name === 'Ben');
+  let filled = null;
+  for (let n = 1; n <= 20 && !filled; n++) {
+    const out = await boost(ana.player ? ana.player.id : ana.id, n);
+    if (out && out.escape >= 100) filled = out;
+  }
+  const scramble = await (await fetch(`${base}/api/games/${pin}`)).json();
+  ok('a full escape bar opens the hatches rather than skipping to the next deck',
+     scramble.state === 'safe', `state ${scramble.state}`);
+  ok('and the deck has zones on it, fewer than there are children',
+     Array.isArray(scramble.zones) && scramble.zones.length >= 2,
+     `${scramble.zones && scramble.zones.length} zones`);
+  ok('every zone says how many it holds',
+     (scramble.zones || []).every(z => z.cap >= 1 && z.r > 0),
+     JSON.stringify((scramble.zones || [])[0]));
+
+  await phone.waitForFunction(() => !!document.getElementById('s-deck'), null, { timeout: 8000 })
+    .catch(() => {});
+  ok('the phone swaps the question for the deck', await phone.locator('#s-deck').count() > 0);
+  ok('and it shows the clock, because fifteen seconds is the whole point',
+     await phone.locator('#s-clock').count() > 0);
+
+  // drag the blook onto the first zone, the way a thumb does
+  const zone = scramble.zones[0];
+  await phone.evaluate((z) => {
+    const box = document.getElementById('s-deck').getBoundingClientRect();
+    const fit = Math.min(box.width / 1000, box.height / 700);
+    const ox = box.left + (box.width - 1000 * fit) / 2;
+    const oy = box.top + (box.height - 700 * fit) / 2;
+    const x = ox + z.x * fit, y = oy + z.y * fit;
+    const deck = document.getElementById('s-deck');
+    deck.dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: y, bubbles: true }));
+    deck.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true }));
+  }, zone);
+  await phone.waitForTimeout(2500);
+  const claimed = await (await fetch(`${base}/api/games/${pin}`)).json();
+  const calNow = claimed.players.find(p => p.name === 'Cal');
+  ok('dragging yourself into a zone claims it', calNow && calNow.zone === zone.id,
+     `Cal is in ${calNow && calNow.zone || 'the open'}`);
+  ok('and the board can see how full each zone is',
+     claimed.zoneCounts && claimed.zoneCounts[zone.id] >= 1,
+     JSON.stringify(claimed.zoneCounts));
+  ok('the phone says so in words a child can read at a glance',
+     (await phone.locator('#s-state').innerText()).toLowerCase().includes('safe'),
+     await phone.locator('#s-state').innerText());
+
+  /* Full is full. That is the whole decision — a child standing at a packed
+     circle has to turn round and run, and the clock does not stop for it. */
+  const room = await (await fetch(`${base}/api/games/${pin}`)).json();
+  const others = room.players.filter(p => p.name !== 'Cal');
+  let refused = null;
+  for (const p of others) {
+    const out = await post(`/api/games/${pin}/safe`, { playerId: p.id, zone: zone.id });
+    if (!out.ok) refused = out;
+  }
+  ok('a zone that is full turns the next child away', !!refused,
+     refused ? refused.why : 'everybody fitted, so nothing was refused');
+  await phone.screenshot({ path: path.join(__dirname, 'shots', 'robot-safe-phone.png') }).catch(() => {});
+
+  // the board is drawing the deck, not the chase
+  await board.waitForTimeout(900);
+  const deckDrawn = await board.evaluate(() => {
+    const c = document.getElementById('board-run');
+    if (!c) return { ok: false };
+    const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let green = 0, n = 0;
+    for (let i = 0; i < g.length; i += 4 * 17) {
+      n++;
+      if (g[i + 1] > 90 && g[i + 1] > g[i] + 25 && g[i + 1] > g[i + 2] + 15) green++;
+    }
+    return { ok: true, green: green / n, text: document.body.innerText };
+  });
+  ok('the board shows the deck from above with the zones lit green',
+     deckDrawn.ok && deckDrawn.green > 0.004,
+     deckDrawn.ok ? `${(deckDrawn.green * 100).toFixed(2)}% green` : 'no board canvas');
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'robot-safe.png') }).catch(() => {});
+
+  /* And the clock runs out. Whoever is still in the open costs the class a
+     life; then the hatch shuts and the next deck begins. The board is watched
+     from here rather than after the fact, because the ride to the next deck is
+     two seconds long and it is easy to arrive after it. */
+  const before = await (await fetch(`${base}/api/games/${pin}`)).json();
+  const adrift = before.players.filter(p => !p.zone).length;
+  const liftWatch = board.waitForFunction(() => boardRun && boardRun.lifting,
+                                          null, { timeout: 25000 })
+    .then(() => true).catch(() => false);
+
+  // the board settles it on its own clock; this only covers a board that is shut
+  let after = before;
+  for (let i = 0; i < 50 && after.state === 'safe'; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (i === 40) await post(`/api/games/${pin}/settle`, { hostToken: made.hostToken });
+    after = await (await fetch(`${base}/api/games/${pin}`)).json();
+  }
+  ok('anybody left in the open costs the class a life',
+     adrift ? after.lives === before.lives - 1 : after.lives === before.lives,
+     `${adrift} adrift, ${before.lives} → ${after.lives} lives`);
+  ok('and then the class is on the next deck, running again',
+     after.state === 'running' && after.round === before.round + 1,
+     `deck ${before.round} → ${after.round}, state ${after.state}`);
+  ok('with the escape bar back at nothing to earn all over again',
+     after.escape === 0, `escape ${after.escape}`);
+
+  const lifted = await liftWatch;
+  ok('the board flies the class up to the next deck', lifted,
+     lifted ? 'the ride played' : 'the board went straight back to the chase');
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'robot-lift.png') }).catch(() => {});
+  await board.waitForTimeout(2200);
+  ok('and then it puts the chase back on',
+     !(await board.evaluate(() => boardRun && boardRun.lifting)),
+     'the ride is over and the robot is back');
+
+  ok('no errors through the scramble', perrs.length === 0 && berrs.length === 0,
+     perrs.concat(berrs).slice(0, 2).join(' | '));
+
   await phone.screenshot({ path: path.join(__dirname, 'shots', 'monster-run.png') }).catch(() => {});
   await browser.close();
   console.log(`\n${checks - fails}/${checks} passed`);

@@ -26,7 +26,7 @@ const called = [...new Set([...pages.matchAll(/games\/\$\{pin\}(\/[a-z]+)/g)].ma
    monster is on that list because it comes on its own clock rather than between
    questions, so the board asks for it when it is due — the server still decides
    which team it takes. */
-const HOST_ONLY = new Set(['/start', '/next', '/tick', '/end', '/monster']);
+const HOST_ONLY = new Set(['/start', '/next', '/tick', '/end', '/monster', '/settle']);
 
 let fails = 0;
 const missing = called.filter(p => !HOST_ONLY.has(p) && !listed.includes(p));

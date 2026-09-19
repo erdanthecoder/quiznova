@@ -146,7 +146,7 @@
       // phones need the questions rather than being fed one at a time. A child
       // who digs into the page can read the answers; that is true of every game
       // of this shape and always has been.
-      quiz: (game.state === 'arena' || game.state === 'running'
+      quiz: (game.state === 'arena' || game.state === 'running' || game.state === 'safe'
              || game.state === 'strike') ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
       // the world's own state: without these the wind and the shoal are things
@@ -158,6 +158,10 @@
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
+      safeEndsAt: game.safeEndsAt || 0, safeMs: R.SAFE_MS,
+      zones: game.state === 'safe'
+        ? R.safeZones(game.round || 1, Object.keys(game.players).length) : null,
+      zoneCounts: game.state === 'safe' ? R.zoneCounts(game) : null,
       lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
       round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
@@ -305,7 +309,7 @@
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
   const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move', '/strike',
-                                '/boost', '/place',
+                                '/boost', '/place', '/safe',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -514,16 +518,56 @@
       game.escape = Math.min(ESCAPE_TARGET, (game.escape || 0) + BOOST_WORTH);
       game.lastEvents.push(`${p.name} boosted`);
       game.lastEvents = game.lastEvents.slice(-6);
+      /* The bar full is not the next deck yet: the class has to get off this
+         one first. Kahoot puts a mini-game between rounds — everybody moves into
+         a green safe zone, and each one holds only so many. This used to skip it
+         and simply count the deck up, which is a lap counter rather than a game. */
       if (game.escape >= ESCAPE_TARGET) {
-        // the deck is cleared: everybody moves on together
-        game.round = (game.round || 1) + 1;
-        game.escape = 0;
-        game.roundEndsAt = now() + ROBOT_ROUND_MS;
-        for (const x of Object.values(game.players)) x.ready = 0;
-        game.lastEvents.push(`The class got clear — deck ${game.round}`);
+        game.state = 'safe';
+        game.safeEndsAt = now() + R.SAFE_MS;
+        for (const x of Object.values(game.players)) { x.ready = 0; x.zone = ''; }
+        game.lastEvents.push('The hatch is open — get to a safe zone');
       }
       await writeGame(pin, game);
       return { ok: true, escape: game.escape, round: game.round, view: publicView(game) };
+    }
+
+    /* Robot Run: one child stepping into a safe zone. Full is full — the room
+     * has to sort itself out, which is the whole point of the phase. */
+    if (tail === '/safe') {
+      const p = game.players[body && body.playerId];
+      if (!p) return { error: 'Not in this game.' };
+      if (game.mode !== 'robot' || game.state !== 'safe') {
+        return { ok: false, why: 'Not that kind of game.' };
+      }
+      const out = R.claimZone(game, p, body.zone);
+      if (out.ok && !out.already) {
+        game.lastEvents.push(`${p.name} is in`);
+        game.lastEvents = game.lastEvents.slice(-6);
+      }
+      await writeGame(pin, game);
+      return Object.assign(out, { counts: R.zoneCounts(game), view: publicView(game) });
+    }
+
+    /* The safe phase has its own clock, and the board runs it — the same way it
+     * runs the monster in Tallest Tower, because nothing else is awake to. */
+    if (tail === '/settle') {
+      if (game.mode !== 'robot' || game.state !== 'safe') return { ok: false };
+      R.settleSafe(game);
+      game.safeEndsAt = 0;
+      if (!game.lives) {
+        game.lastEvents.push('The robot got them');
+        game.state = 'over'; game.endsAt = null;
+      } else {
+        game.round = (game.round || 1) + 1;
+        game.escape = 0;
+        game.state = 'running';
+        game.roundEndsAt = now() + ROBOT_ROUND_MS;
+        game.lastEvents.push(`Deck ${game.round}`);
+      }
+      game.lastEvents = game.lastEvents.slice(-6);
+      await writeGame(pin, game);
+      return { ok: true, view: publicView(game) };
     }
 
     /* Tallest Tower: one block, placed. The offset is where the tap landed, and

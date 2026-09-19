@@ -81,6 +81,274 @@
    *   onLevel  (level) => void   a stretch is finished
    *   onState  ({ gap, distance, boosts, level, caught }) => void
    */
+  /* ── the deck, painted ─────────────────────────────────
+   *
+   * One floor, drawn the same on the board and in a hand: the hull, the steel
+   * plate, and the lit hatches with how many fit in each. The phone used to
+   * have its own smaller copy of this, and a mode looks like two different
+   * games the moment the two drift apart — so there is one of it, and both
+   * screens call it.
+   *
+   * o: { w, h, box, world, zones, counts, t, mine }
+   */
+  function paintDeck(ctx, o) {
+    const w = o.w, h = o.h, box = o.box, world = o.world, t = o.t || 0;
+    const zones = o.zones || [], counts = o.counts || {};
+    // the deck floor
+    const floor = ctx.createLinearGradient(0, 0, 0, h);
+    floor.addColorStop(0, world.sky[1]);
+    floor.addColorStop(1, world.sky[0]);
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, 0, w, h);
+
+    /* The hull either side of the plate. The deck is 1000 by 700 and a board
+       is wider than that, so without this the floor floated in the middle of
+       a dark rectangle. */
+    [[0, box.ox], [box.ox + 1000 * box.scale, w - (box.ox + 1000 * box.scale)]]
+      .forEach(([hx, hw]) => {
+        if (hw < 8) return;
+        const hull = ctx.createLinearGradient(hx, 0, hx + hw, 0);
+        hull.addColorStop(0, 'rgba(0,0,0,.45)');
+        hull.addColorStop(1, 'rgba(0,0,0,.05)');
+        ctx.fillStyle = hull;
+        ctx.fillRect(hx, box.oy, hw, 700 * box.scale);
+        // strip lights down the wall: narrow and lit, not grey boxes
+        ctx.save();
+        ctx.shadowColor = world.tint;
+        ctx.shadowBlur = 26;
+        ctx.fillStyle = world.tint;
+        ctx.globalAlpha = 0.42;
+        for (let ly = box.oy + 34; ly < box.oy + 700 * box.scale - 34; ly += 92) {
+          ctx.beginPath();
+          ctx.roundRect(hx + hw * 0.46, ly, Math.max(3, hw * 0.07), 58, 4);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+
+    ctx.save();
+    ctx.translate(box.ox, box.oy);
+    ctx.scale(box.scale, box.scale);
+
+    /* The plate: riveted steel panels rather than a flat rectangle with a
+       grid drawn over it. Light falls from the top left, so every panel is
+       lit down one edge and shadowed down the other, and the whole thing
+       reads as a floor somebody is standing on. */
+    const deep = ctx.createLinearGradient(0, 0, 400, 700);
+    deep.addColorStop(0, world.road[0]);
+    deep.addColorStop(1, world.road[1]);
+    ctx.fillStyle = deep;
+    ctx.beginPath(); ctx.roundRect(0, 0, 1000, 700, 30); ctx.fill();
+
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(0, 0, 1000, 700, 30); ctx.clip();
+    for (let px = 0; px < 1000; px += 125) {
+      for (let py = 0; py < 700; py += 125) {
+        ctx.fillStyle = ((px + py) / 125) % 2 ? 'rgba(255,255,255,.022)'
+                                              : 'rgba(0,0,0,.10)';
+        ctx.fillRect(px, py, 125, 125);
+        ctx.strokeStyle = 'rgba(255,255,255,.07)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(px + 2, py + 2); ctx.lineTo(px + 123, py + 2);
+        ctx.moveTo(px + 2, py + 2); ctx.lineTo(px + 2, py + 123); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,.28)';
+        ctx.beginPath(); ctx.moveTo(px + 123, py + 3); ctx.lineTo(px + 123, py + 123);
+        ctx.lineTo(px + 3, py + 123); ctx.stroke();
+        // rivets in the corners of every panel
+        ctx.fillStyle = 'rgba(255,255,255,.10)';
+        [[px + 12, py + 12], [px + 113, py + 12], [px + 12, py + 113],
+         [px + 113, py + 113]].forEach(([rx, ry]) => {
+          ctx.beginPath(); ctx.arc(rx, ry, 3.4, 0, TAU); ctx.fill();
+        });
+      }
+    }
+    // a hazard stripe down the near edge, the way a real deck is painted
+    ctx.globalAlpha = 0.22;
+    for (let sx = -700; sx < 1100; sx += 54) {
+      ctx.fillStyle = (sx / 54) % 2 ? '#FFC53D' : '#1A1A1A';
+      ctx.beginPath();
+      ctx.moveTo(sx, 700); ctx.lineTo(sx + 27, 700);
+      ctx.lineTo(sx + 27 + 26, 660); ctx.lineTo(sx + 26, 660);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.strokeStyle = world.tint;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.roundRect(3, 3, 994, 694, 30); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    /* The zones. A circle with a dashed ring round it was a diagram; this is
+       a lit hatch in a steel floor — a painted hazard ring, chevrons pointing
+       in, the shaft glowing underneath, and the count on a badge so it never
+       lands on top of somebody's name. */
+    zones.forEach((z, i) => {
+      const inside = counts[z.id] || 0;
+      const full = inside >= z.cap;
+      const beat = Math.sin(t / 340 + i) * 0.5 + 0.5;
+      const hot = full ? '#F4364C' : '#12BE8E';
+      ctx.save();
+      ctx.translate(z.x, z.y);
+
+      // the light the open shaft throws up onto the deck
+      const glow = ctx.createRadialGradient(0, 0, z.r * 0.15, 0, 0, z.r * 1.25);
+      glow.addColorStop(0, full ? 'rgba(244,54,76,.40)' : 'rgba(18,190,142,.46)');
+      glow.addColorStop(0.62, full ? 'rgba(244,54,76,.14)' : 'rgba(18,190,142,.16)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 1.25, 0, TAU); ctx.fill();
+
+      // painted floor inside the ring, worn and slightly darker than the deck
+      ctx.fillStyle = full ? 'rgba(96,22,32,.55)' : 'rgba(10,74,58,.55)';
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 0.92, 0, TAU); ctx.fill();
+
+      // hazard chevrons around the rim, pointing in
+      ctx.save();
+      ctx.rotate(t / 4200);
+      for (let k = 0; k < 14; k++) {
+        ctx.save();
+        ctx.rotate((k / 14) * TAU);
+        ctx.globalAlpha = k % 2 ? 0.75 : 0.28;
+        ctx.fillStyle = hot;
+        ctx.beginPath();
+        ctx.moveTo(-z.r * 0.10, -z.r * 0.95);
+        ctx.lineTo(z.r * 0.10, -z.r * 0.95);
+        ctx.lineTo(0, -z.r * 0.78);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // the painted ring itself, and a brighter one turning inside it
+      ctx.lineWidth = 9;
+      ctx.strokeStyle = hot;
+      ctx.globalAlpha = 0.55 + beat * 0.30;
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 0.92, 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([26, 20]);
+      ctx.lineDashOffset = -t / 22;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = full ? '#FF8A96' : '#7BF3CE';
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 0.70, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // the shaft, with a rim and a light at the bottom of it
+      const shaft = ctx.createRadialGradient(0, 0, 2, 0, 0, z.r * 0.34);
+      shaft.addColorStop(0, full ? 'rgba(255,120,130,.55)' : 'rgba(150,255,220,.55)');
+      shaft.addColorStop(1, 'rgba(0,0,0,.88)');
+      ctx.fillStyle = shaft;
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 0.34, 0, TAU); ctx.fill();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(255,255,255,.28)';
+      ctx.beginPath(); ctx.arc(0, 0, z.r * 0.34, 0, TAU); ctx.stroke();
+
+      /* The zone's number, painted on the floor. The phone lists the zones as
+         buttons, and a button called Zone 3 means nothing unless the room can
+         see which circle that is. */
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,.72)';
+      ctx.font = `900 ${Math.round(z.r * 0.42)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillText(String(i + 1), 0, 2);
+      ctx.textBaseline = 'alphabetic';
+
+      /* How many are in and how many fit, on a badge. This is the whole
+         decision — a child at a full zone has to turn round and run — so it
+         is the one number that must be readable from the back of the room. */
+      const bw = 108, bh = 52, by = z.r * 0.92 - bh * 0.34;
+      ctx.fillStyle = 'rgba(8,12,18,.88)';
+      ctx.beginPath(); ctx.roundRect(-bw / 2, by, bw, bh, bh / 2); ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = hot;
+      ctx.beginPath(); ctx.roundRect(-bw / 2, by, bw, bh, bh / 2); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = full ? '#FFB3BC' : '#BFF6E4';
+      ctx.font = '900 34px ui-sans-serif,system-ui,sans-serif';
+      ctx.fillText(inside + '/' + z.cap, 0, by + bh / 2 + 2);
+      ctx.textBaseline = 'alphabetic';
+
+      if (full) {
+        ctx.fillStyle = '#FF8A96';
+        ctx.font = '900 26px ui-sans-serif,system-ui,sans-serif';
+        ctx.fillText('FULL', 0, -z.r * 0.92 - 18);
+      }
+      ctx.restore();
+    });
+
+    ctx.restore();
+    return box;
+  }
+
+  /** One child on the deck: their own blook, with their name on a chip under
+      it so thirty of them can stand close together and still be read. */
+  function paintWalker(ctx, p, wk, t, world) {
+    const size = 104;   // a blook on a deck this size, seen from the back row
+    const bob = Math.sin(t / 220 + wk.seed) * 4;
+    const lean = Math.sin(t / 150 + wk.seed) * 0.06;
+    ctx.save();
+
+    ctx.fillStyle = 'rgba(0,0,0,.42)';
+    ctx.beginPath();
+    ctx.ellipse(wk.x, wk.y + size * 0.44, size * 0.36, size * 0.13, 0, 0, TAU);
+    ctx.fill();
+
+    if (!p.zone) {
+      /* Anybody still in the open wears a ring, because the number in the
+         corner is the class's problem and this is how the room finds them. */
+      ctx.save();
+      ctx.strokeStyle = '#FFC53D';
+      ctx.globalAlpha = 0.55 + Math.sin(t / 190) * 0.35;
+      ctx.lineWidth = 5;
+      ctx.setLineDash([9, 8]);
+      ctx.lineDashOffset = -t / 30;
+      ctx.beginPath(); ctx.arc(wk.x, wk.y + bob, size * 0.64, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(wk.x, wk.y + bob);
+    ctx.rotate(lean);
+    const face = blookFace(p.avatar);
+    if (face && face.ready) {
+      ctx.drawImage(face.canvas, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = world.tint;
+      ctx.beginPath(); ctx.arc(0, 0, size * 0.42, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+
+    if (p.zone) {
+      // a tick on anybody who is in, so being safe looks like something
+      ctx.save();
+      ctx.translate(wk.x + size * 0.34, wk.y - size * 0.34 + bob);
+      ctx.fillStyle = '#12BE8E';
+      ctx.beginPath(); ctx.arc(0, 0, 15, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-6, 0); ctx.lineTo(-1, 5); ctx.lineTo(7, -6);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // the name, on a chip
+    const name = String(p.name || '').slice(0, 10);
+    ctx.font = '800 26px ui-sans-serif,system-ui,sans-serif';
+    const cw = ctx.measureText(name).width + 22;
+    const cy = wk.y + size * 0.52;
+    ctx.fillStyle = 'rgba(8,12,18,.78)';
+    ctx.beginPath(); ctx.roundRect(wk.x - cw / 2, cy, cw, 34, 17); ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = p.zone ? '#9CF0D3' : '#FFD98A';
+    ctx.fillText(name, wk.x, cy + 18);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+
   function start(opts) {
     /* The board draws; a phone does not. The chase used to run on the phone,
        where it fought the question for a screen the size of a hand, and the
@@ -563,6 +831,351 @@
       ctx.restore();
     }
 
+    /* ── the safe zones, top down ──────────────────────────
+     *
+     * Between decks the chase stops and the deck is seen from above: the hatch
+     * is open, a handful of green circles are the way out, and each one holds
+     * only so many. Kahoot's is the same shape — the run is the pressure, the
+     * scramble is the decision. Everybody who is not standing in a circle when
+     * the clock runs out costs the class a life, so this is the part the room
+     * shouts at each other over.
+     *
+     * The board never sees where a child is standing, only which zone they have
+     * claimed, so each blook is simulated here: it eases towards its slot in its
+     * zone, or mills about in the middle while its owner is still deciding.
+     */
+    const walkers = new Map();          // id -> { x, y, tx, ty, seed }
+
+    /** Deck coordinates (the rules' 1000x700) mapped onto the canvas. */
+    function deckBox() {
+      const w = canvas.width, h = canvas.height;
+      /* The plate takes the room it can get. It used to sit inside a sixteen
+         per cent margin on every side, which on a projector left a postage
+         stamp in the middle of a wall: the deck is the thing the class is
+         looking at, so the header keeps its band at the top and the plate has
+         everything under it. */
+      /* A lane is left along the bottom for the robot to prowl. Without it the
+         thing walked over the middle of the deck and stood on the children it
+         was supposed to be hunting. */
+      const top = h * 0.20, lane = h * 0.15, pad = h * 0.03;
+      const scale = Math.min((w - pad * 2) / 1000, (h - top - lane) / 700);
+      return { scale, ox: (w - 1000 * scale) / 2, oy: top + (h - top - lane - 700 * scale) / 2 };
+    }
+
+    /** Where one child is heading: their slot in their zone, or the middle. */
+    function walkerTarget(p, i, n, zones, box) {
+      const zone = zones.find(z => z.id === p.zone);
+      if (zone) {
+        // ringed inside the circle so a full zone looks full rather than stacked
+        const mates = players.filter(x => x.zone === zone.id);
+        const k = Math.max(0, mates.findIndex(x => x.id === p.id));
+        const a = (k / Math.max(1, mates.length)) * TAU - Math.PI / 2;
+        const r = mates.length > 1 ? zone.r * 0.52 : 0;
+        return { x: box.ox + (zone.x + Math.cos(a) * r) * box.scale,
+                 y: box.oy + (zone.y + Math.sin(a) * r) * box.scale };
+      }
+      // still adrift: wander the middle of the deck, which is where the robot is
+      const a = (i / Math.max(1, n)) * TAU;
+      return { x: box.ox + (500 + Math.cos(a) * 130) * box.scale,
+               y: box.oy + (350 + Math.sin(a) * 90) * box.scale };
+    }
+
+    function drawDeck(t) {
+      const w = canvas.width, h = canvas.height;
+      const box = deckBox();
+      const zones = room.zones || [];
+      const counts = room.zoneCounts || {};
+      const left = room.safeEndsAt
+        ? Math.max(0, room.safeEndsAt - Date.now()) : (room.safeMs || 15000);
+      const urgency = 1 - Math.min(1, left / Math.max(1, room.safeMs || 15000));
+
+      paintDeck(ctx, { w, h, box, world, zones, counts, t, mine: room.mine });
+
+      ctx.save();
+      ctx.translate(box.ox, box.oy);
+      ctx.scale(box.scale, box.scale);
+
+      // the class, easing towards wherever they have chosen
+      const n = players.length;
+      players.forEach((p, i) => {
+        let wk = walkers.get(p.id);
+        if (!wk) {
+          wk = { x: 500, y: 350, seed: i * 1.7 };
+          walkers.set(p.id, wk);
+        }
+        const aim = walkerTarget(p, i, n, zones, box);
+        // back into deck coordinates: the canvas is already scaled
+        const tx = (aim.x - box.ox) / box.scale, ty = (aim.y - box.oy) / box.scale;
+        wk.x += (tx - wk.x) * 0.10;
+        wk.y += (ty - wk.y) * 0.10;
+        drawWalker(p, wk, t);
+      });
+
+      ctx.restore();
+
+      // the robot, closing in from the edge as the clock runs down
+      drawStalker(t, urgency);
+
+      // the clock, big, in the middle of the top
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = urgency > 0.7 ? '#F4364C' : '#fff';
+      ctx.font = `900 ${Math.max(30, h * 0.13)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillText((left / 1000).toFixed(1), w / 2, h * 0.125);
+      ctx.font = `800 ${Math.max(12, h * 0.036)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.fillText('Get inside a green zone — each one only holds so many',
+                   w / 2, h * 0.175);
+
+      // who is still adrift, which is the number the room needs to hear
+      const adrift = players.filter(p => !p.zone).length;
+      ctx.textAlign = 'left';
+      ctx.font = `900 ${Math.max(14, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillStyle = adrift ? '#FFC53D' : '#12BE8E';
+      ctx.fillText(adrift ? adrift + ' still out in the open' : 'Everybody is in',
+                   w * 0.03, h * 0.10);
+
+      ctx.textAlign = 'right';
+      const lives = Math.max(0, room.lives || 0);
+      ctx.fillStyle = lives > 1 ? '#FF5A6E' : '#FFC53D';
+      ctx.fillText('♥'.repeat(lives) || '—', w * 0.97, h * 0.10);
+      ctx.restore();
+    }
+
+    const drawWalker = (p, wk, t) => paintWalker(ctx, p, wk, t, world);
+
+    /** The robot, prowling the edge of the deck while the clock runs down: seen
+        from above like everything else here, with its lamp sweeping the floor.
+        It comes closer the less time is left, which is the only warning the
+        room gets other than the number. */
+    function drawStalker(t, urgency) {
+      const w = canvas.width, h = canvas.height;
+      const S = h * 0.0005 * (1 + urgency * 0.18);   // one unit of robot
+      const x = w * (0.10 + (Math.sin(t / 1400) * 0.5 + 0.5) * 0.80);
+      const y = h * (0.925 - urgency * 0.02);
+      const face = Math.cos(t / 1400) > 0 ? 1 : -1;  // which way it is pacing
+
+      ctx.save();
+      /* The lamp is kept off the header. Left to run the height of the canvas
+         it put a hard red wedge across the clock, which read as a fault rather
+         than as a searchlight. */
+      ctx.beginPath(); ctx.rect(0, h * 0.20, w, h * 0.80); ctx.clip();
+      ctx.translate(x, y);
+      ctx.scale(S * face, S);
+
+      // the lamp it sweeps across the deck, which is what the class sees first
+      const sweep = Math.sin(t / 700) * 0.5;
+      ctx.save();
+      ctx.rotate(sweep);
+      const beam = ctx.createLinearGradient(0, 0, 0, -760);
+      beam.addColorStop(0, `rgba(255,59,47,${0.24 + urgency * 0.26})`);
+      beam.addColorStop(0.55, `rgba(255,59,47,${0.08 + urgency * 0.10})`);
+      beam.addColorStop(1, 'rgba(255,59,47,0)');
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(-300, -760); ctx.lineTo(300, -760);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      // shadow under it
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
+      ctx.beginPath(); ctx.ellipse(0, 20, 150, 60, 0, 0, TAU); ctx.fill();
+
+      const plate = (px, py, pw, ph, fill, r) => {
+        ctx.fillStyle = fill;
+        ctx.beginPath(); ctx.roundRect(px, py, pw, ph, r || 10); ctx.fill();
+      };
+
+      // arms, swinging as it paces
+      const swing = Math.sin(t / 240) * 26;
+      plate(-176, -40 + swing, 54, 150, '#3C4552', 22);
+      plate(122, -40 - swing, 54, 150, '#5A6678', 22);
+
+      // shoulders and back
+      plate(-124, -96, 248, 208, '#46505F', 40);
+      plate(-98, -74, 196, 60, '#2A313C', 22);        // the spine plate
+      ctx.fillStyle = 'rgba(255,255,255,.10)';
+      ctx.beginPath(); ctx.roundRect(-118, -90, 236, 60, 34); ctx.fill();
+
+      // exhaust stacks, and the smoke off them
+      plate(-84, -140, 40, 54, '#262D38', 12);
+      plate(44, -140, 40, 54, '#262D38', 12);
+      for (let i = 0; i < 4; i++) {
+        const a = ((t / 800) + i * 0.25) % 1;
+        ctx.globalAlpha = (1 - a) * 0.30;
+        ctx.fillStyle = '#7B8494';
+        ctx.beginPath(); ctx.arc(-64 + i * 6, -150 - a * 150, 22 + a * 34, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(64 - i * 6, -150 - a * 150, 22 + a * 34, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // the head, and the one eye in it
+      plate(-72, -40, 144, 104, '#59647A', 34);
+      plate(-58, -26, 116, 62, '#161B22', 24);
+      ctx.save();
+      ctx.shadowColor = '#FF3B2F'; ctx.shadowBlur = 40;
+      ctx.fillStyle = '#FF3B2F';
+      ctx.beginPath();
+      ctx.ellipse(Math.sin(t / 700) * 26, 6, 26 + urgency * 6, 17, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      // horns, so it is the same thing the class was running from
+      ctx.fillStyle = '#C9D2DE';
+      [[-72, -34], [50, -34]].forEach(([hx, hy]) => {
+        ctx.beginPath();
+        ctx.moveTo(hx, hy); ctx.lineTo(hx + 14, hy - 46); ctx.lineTo(hx + 24, hy);
+        ctx.closePath(); ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    /* ── the lift to the next deck ─────────────────────────
+     *
+     * The moment the class earns: the hatch closes under them and the whole
+     * deck drops away while the next one slides up. Short, because it sits
+     * between a scramble and a question.
+     */
+    const LIFT_MS = 1900;
+    let liftFrom = 0, liftTo = 2;
+    function liftOff(nextRound) {
+      liftFrom = now();
+      liftTo = Number(nextRound) || (room.round || 1) + 1;
+      shakeUntil = now() + 700;
+    }
+
+    function drawLift(t) {
+      const w = canvas.width, h = canvas.height;
+      const a = Math.min(1, (t - liftFrom) / LIFT_MS);
+      const ease = 1 - Math.pow(1 - a, 3);
+      ctx.save();
+
+      // the shaft: dark at the edges, lit by whatever is above
+      const shaft = ctx.createLinearGradient(0, 0, 0, h);
+      shaft.addColorStop(0, world.sky[1]);
+      shaft.addColorStop(0.55, world.sky[0]);
+      shaft.addColorStop(1, '#05080D');
+      ctx.fillStyle = shaft;
+      ctx.fillRect(0, 0, w, h);
+
+      /* Girders rushing down past the lift. Streaks alone read as rain; a
+         girder has a top edge that catches the light, so the eye takes it as
+         something the platform is passing rather than something falling. */
+      for (let i = 0; i < 9; i++) {
+        const gy = ((i / 9 + a * 1.35 + (i % 3) * 0.07) % 1) * (h + 200) - 100;
+        const dep = 0.35 + (i % 3) * 0.22;
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = world.road[1];
+        ctx.fillRect(0, gy, w, h * 0.055 * dep);
+        ctx.fillStyle = 'rgba(255,255,255,.10)';
+        ctx.fillRect(0, gy, w, Math.max(2, h * 0.006));
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = world.tint;
+        for (let lx = w * 0.06; lx < w; lx += w * 0.17) {
+          ctx.fillRect(lx, gy + h * 0.014 * dep, w * 0.035, Math.max(2, h * 0.008));
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // speed lines, close to the camera and going the other way fast
+      for (let i = 0; i < 40; i++) {
+        const sx = ((i * 137) % 100) / 100 * w;
+        const sy = ((((i * 61) % 100) / 100 + a * (1.6 + (i % 5) * 0.4)) % 1) * h;
+        ctx.globalAlpha = 0.10 + (i % 5) * 0.06;
+        ctx.fillStyle = i % 4 ? '#CFE6FF' : world.tint;
+        ctx.fillRect(sx, sy, 2.5, h * (0.05 + (i % 5) * 0.03));
+      }
+      ctx.globalAlpha = 1;
+
+      const rise = h * (0.70 - ease * 0.14);
+      const rw = w * 0.24, rh = h * 0.045;
+
+      // the flame, under the platform: a wide soft glow and a bright core
+      const flick = 1 + Math.sin(t / 55) * 0.10 + Math.sin(t / 23) * 0.05;
+      const glow = ctx.createRadialGradient(w / 2, rise + rh, rw * 0.1, w / 2, rise + rh, rw * 1.5);
+      glow.addColorStop(0, 'rgba(255,190,80,.55)');
+      glow.addColorStop(1, 'rgba(255,90,0,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(w / 2, rise + rh, rw * 1.5, 0, TAU); ctx.fill();
+      const jet = ctx.createLinearGradient(0, rise + rh, 0, h);
+      jet.addColorStop(0, 'rgba(255,240,190,.95)');
+      jet.addColorStop(0.35, 'rgba(255,160,40,.75)');
+      jet.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = jet;
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - rw * 0.42 * flick, rise + rh);
+      ctx.lineTo(w / 2 + rw * 0.42 * flick, rise + rh);
+      ctx.lineTo(w / 2 + rw * 0.13 * flick, h);
+      ctx.lineTo(w / 2 - rw * 0.13 * flick, h);
+      ctx.closePath(); ctx.fill();
+
+      // the platform: a disc with a wall under it, so it is a thing and not a line
+      ctx.fillStyle = world.road[1];
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - rw, rise);
+      ctx.lineTo(w / 2 + rw, rise);
+      ctx.lineTo(w / 2 + rw, rise + rh);
+      ctx.lineTo(w / 2 - rw, rise + rh);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(w / 2, rise + rh, rw, rh * 0.9, 0, 0, TAU);
+      ctx.fill();
+      const top = ctx.createLinearGradient(w / 2 - rw, 0, w / 2 + rw, 0);
+      top.addColorStop(0, world.road[0]);
+      top.addColorStop(0.5, '#6C7A8C');
+      top.addColorStop(1, world.road[1]);
+      ctx.fillStyle = top;
+      ctx.beginPath(); ctx.ellipse(w / 2, rise, rw, rh * 0.9, 0, 0, TAU); ctx.fill();
+      // lights round the rim
+      ctx.fillStyle = world.tint;
+      for (let k = 0; k < 16; k++) {
+        const ang = (k / 16) * TAU + t / 1400;
+        ctx.globalAlpha = 0.35 + 0.5 * (Math.sin(ang * 2 + t / 200) * 0.5 + 0.5);
+        ctx.beginPath();
+        ctx.ellipse(w / 2 + Math.cos(ang) * rw * 0.93,
+                    rise + Math.sin(ang) * rh * 0.84, w * 0.006, h * 0.006, 0, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // the class standing on it, in a row, bobbing with the climb
+      const crowd = players.slice(0, 12);
+      crowd.forEach((p, i) => {
+        const size = h * 0.15;
+        const x = w / 2 + (i - (crowd.length - 1) / 2) * size * 0.78;
+        const bob = Math.sin(t / 130 + i) * h * 0.006;
+        ctx.fillStyle = 'rgba(0,0,0,.35)';
+        ctx.beginPath();
+        ctx.ellipse(x, rise + h * 0.004, size * 0.3, size * 0.07, 0, 0, TAU);
+        ctx.fill();
+        const face = blookFace(p.avatar);
+        if (face && face.ready) {
+          ctx.drawImage(face.canvas, x - size / 2, rise - size * 0.92 + bob, size, size);
+        }
+      });
+
+      /* The words, over a band, above the platform rather than behind the
+         children — the first pass put the deck number through their heads. */
+      ctx.globalAlpha = Math.min(1, a * 2.4);
+      const band = ctx.createLinearGradient(0, h * 0.08, 0, h * 0.34);
+      band.addColorStop(0, 'rgba(5,8,13,0)');
+      band.addColorStop(0.3, 'rgba(5,8,13,.86)');
+      band.addColorStop(0.75, 'rgba(5,8,13,.86)');
+      band.addColorStop(1, 'rgba(5,8,13,0)');
+      ctx.fillStyle = band;
+      ctx.fillRect(0, h * 0.08, w, h * 0.26);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 26;
+      ctx.font = `900 ${Math.max(28, h * 0.155)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillText('DECK ' + liftTo, w / 2, h * 0.245);
+      ctx.shadowBlur = 0;
+      ctx.font = `800 ${Math.max(12, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillStyle = world.tint;
+      ctx.fillText('You made it off in one piece', w / 2, h * 0.305);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
     function frame() {
       if (stopped) return;
       const t = now();
@@ -574,6 +1187,21 @@
       if (t < shakeUntil) {
         const n = 12 * ((shakeUntil - t) / 600);
         ctx.translate((Math.random() - 0.5) * n, (Math.random() - 0.5) * n);
+      }
+      /* Three things the board can be showing: the lift between decks, which
+         wins because it is the reward and it is over in two seconds; the
+         scramble for a safe zone; or the chase itself. */
+      if (liftFrom && t - liftFrom < LIFT_MS) {
+        drawLift(t);
+        ctx.restore();
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      if (room.phase === 'safe') {
+        drawDeck(t);
+        ctx.restore();
+        raf = requestAnimationFrame(frame);
+        return;
       }
       drawScene(t);
       drawRobot(t);
@@ -597,12 +1225,19 @@
       cheer(at) { boosts.push(at || now()); shakeUntil = now() + 420;
                   if (boosts.length > 24) boosts.shift(); },
       say,
+      /** The hatch shut and the deck fell away: play the ride to the next one. */
+      liftOff,
+      /** Whether the ride is playing, which is the board's business and the
+          one thing a test can ask without reading pixels. */
+      get lifting() { return !!liftFrom && now() - liftFrom < LIFT_MS; },
       get state() { return { charged: me.charged, spent: me.spent, streak: me.streak }; },
       stop() { stopped = true; if (raf) cancelAnimationFrame(raf); }
     };
   }
 
-  global.NovaRun = { start, WORLDS, SPRINT_STREAK, HOLD_MS };
+  global.NovaRun = { start, WORLDS, SPRINT_STREAK, HOLD_MS,
+    /* The deck, for the phone as well as the board: one floor, drawn once. */
+    paintDeck, paintWalker, blookFace };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.NovaRun;
