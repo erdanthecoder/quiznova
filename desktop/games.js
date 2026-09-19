@@ -120,6 +120,7 @@ class Games {
       knifeReload: R.KNIFE_RELOAD_MS,
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
+      gorillaMs: R.GORILLA_MS,
       safeEndsAt: game.safeEndsAt || 0, safeMs: R.SAFE_MS,
       zones: game.state === 'safe'
         ? R.safeZones(game.round || 1, Object.keys(game.players).length) : null,
@@ -294,8 +295,19 @@ class Games {
 
   /* The monster, on its own clock rather than between questions — everybody is
    * answering at their own pace, so there is no "between" any more. */
+  /* The gorilla climbing down. Its own method because the board asks for it on
+     the live edition, where no timer of ours is running. */
+  settleGorilla(game) {
+    if (game.mode !== 'tower') return { ok: false };
+    const moved = R.towerSettle(game);
+    if (moved) this.changed(game);
+    return { ok: true, moved };
+  }
+
   towerTick(game) {
     if (game.mode !== 'tower' || game.state !== 'question') return;
+    // he climbs down on his own, and the green columns go with him
+    this.settleGorilla(game);
     if (!game.monsterAt) { game.monsterAt = now() + R.MONSTER_EVERY; return; }
     if (now() < game.monsterAt) return;
     game.monsterAt = now() + R.MONSTER_EVERY;
@@ -306,6 +318,7 @@ class Games {
    * than between questions and the server has no timer of its own on the web. */
   forceMonster(game) {
     if (game.mode !== 'tower') return null;
+    R.towerSettle(game);
     const hit = R.towerMonster(game);
     game.monsterAt = now() + R.MONSTER_EVERY;
     game.lastEvents = game.lastEvents.slice(-6);

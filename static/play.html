@@ -1819,8 +1819,17 @@ function dropCard() {
   shell.append(el('canvas', { class: 'arena-canvas', id: 'drop' }));
   card.append(shell);
   card.append(el('button', { class: 'boostbtn', id: 'd-go', type: 'button' }, 'DROP IT'));
-  card.append(el('p', { class: 'tiny faint', style: 'text-align:center;margin-top:2px' },
-    'Land it square in the gap and your team gets two'));
+  /* Whichever of the three things is true right now: the gorilla has your
+     tower and nothing you drop will land, there is a green column to build to,
+     or it is an ordinary block and a square drop is worth two. */
+  const mine = (game.towers && game.towers[team]) || {};
+  const held = mine.apeUntil && (mine.apeUntil - drift) > Date.now();
+  card.append(el('p', {
+    class: held ? 'deckstate out' : 'tiny faint',
+    style: held ? 'margin-top:6px' : 'text-align:center;margin-top:2px'
+  }, held ? 'The gorilla is on your tower — nothing lands until he goes'
+     : mine.mark ? `Build to the green column — floor ${mine.mark} — for a shield`
+     : 'Land it square in the gap and your team gets two'));
   setTimeout(startDrop, 0);
   return card;
 }
@@ -1847,7 +1856,18 @@ function startDrop() {
     dropSeq += 1;
     api(`/games/${pin}/place`, { method: 'POST',
         body: { playerId: me.id, offset, seq: dropSeq } })
-      .then(out => { if (out && out.view) apply(out.view); })
+      .then(out => {
+        /* The gorilla is on the team's tower: the block left your hand and
+           went nowhere, which is Kahoot's rule and the honest thing to show —
+           a button that silently does nothing reads as a broken phone. */
+        if (out && out.ape) {
+          go.textContent = 'THE GORILLA TOOK IT';
+          if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+        } else if (out && out.won) {
+          go.textContent = 'GREEN COLUMN — SHIELDED';
+        }
+        if (out && out.view) apply(out.view);
+      })
       .catch(() => {})
       .then(() => {
         // the engine is torn down and rebuilt for the next block in hand

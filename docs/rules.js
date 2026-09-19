@@ -259,9 +259,14 @@
   const GIFT_BLOCKS = 3;
   const MONSTER_EVERY = 38000;         // how often it comes, in milliseconds
   const MONSTER_FLOOR = 3;             // and the shortest tower it will bother with
+  const GORILLA_MS = 9000;             // how long the gorilla sits on a tower
+  const MARK_AHEAD = 2;                // floors above a tower the green column sits
 
   /** A tower, from nothing. */
-  const blankTower = () => ({ blocks: [], gift: 0, crushed: 0 });
+  const blankTower = () => ({ blocks: [], gift: 0, crushed: 0,
+    /* the gorilla, and the green column the other two teams are climbing for
+       while he is up there */
+    apeUntil: 0, mark: 0, shield: 0 });
 
   /** How many finished floors a tower has. */
   const floorsOf = (tower) => Math.floor((tower.blocks.length) / SLOTS);
@@ -290,6 +295,15 @@
     if (want <= (p.placed || 0)) return { ok: true, already: true };
     p.placed = Math.min(want, (p.placed || 0) + 1);
 
+    /* The gorilla is on this tower. Kahoot's rule, and it is a good one: the
+       block still leaves your hand, it simply never lands — so the team can see
+       what he is costing them rather than being told their button is broken.
+       The drop is counted against the sequence above, so the phone moves on. */
+    if (tower.apeUntil && now() < tower.apeUntil) {
+      return { ok: true, dropped: true, ape: true,
+               why: 'The gorilla is on your tower', floors: floorsOf(tower) };
+    }
+
     const o = Math.max(-1, Math.min(1, Number(offset) || 0));
     const neat = Math.abs(o) <= PERFECT;
     tower.blocks.push({ o, by: p.name, neat });
@@ -311,12 +325,32 @@
       }
       game.lastEvents.push(`${TOWER_NAMES[team]} reached the gift box — three free blocks`);
     }
-    return { ok: true, floors: floorsOf(tower), blocks: tower.blocks.length, neat };
+
+    /* The green column. It appears on the two towers the gorilla is not on, a
+       couple of floors up: build to it before he comes down and the team earns
+       a shield, which is what they have to chase him off with next time. */
+    let won = false;
+    if (tower.mark && floorsOf(tower) >= tower.mark) {
+      tower.mark = 0;
+      tower.shield = 1;
+      won = true;
+      game.lastEvents.push(`${TOWER_NAMES[team]} made it to the green column — shielded`);
+    }
+    return { ok: true, floors: floorsOf(tower), blocks: tower.blocks.length,
+             neat, mark: tower.mark, shield: tower.shield, won };
   }
 
-  /* The monster. It comes for whoever is winning, which is the only fair thing
-   * for it to do: a mode where the team that got ahead first stays ahead is a
-   * mode the other twenty children stop playing. */
+  /* The gorilla. He comes for whoever is winning, which is the only fair thing
+   * for him to do: a mode where the team that got ahead first stays ahead is a
+   * mode the other twenty children stop playing.
+   *
+   * He takes a floor and then sits on the tower, and while he is up there that
+   * team can drop blocks but nothing lands. The other two teams get a green
+   * column to climb to — reach it and the team is shielded, and a shielded
+   * tower chases him off instead of losing anything. That is the whole shape of
+   * Kahoot's: the team in front loses time, everybody else gets something to do
+   * with it, and a team that keeps building is never punished for it.
+   */
   function towerMonster(game) {
     const towers = towersOf(game);
     const tallest = TOWER_TEAMS
@@ -324,10 +358,42 @@
       .sort((a, b) => b.n - a.n)[0];
     if (!tallest || tallest.n < MONSTER_FLOOR) return null;
     const tower = towers[tallest.t];
+
+    if (tower.shield) {
+      tower.shield = 0;
+      game.lastEvents.push(`${TOWER_NAMES[tallest.t]} chased the gorilla off`);
+      return null;
+    }
+
     tower.blocks = tower.blocks.slice(0, Math.max(0, tower.blocks.length - SLOTS));
     tower.crushed += 1;
-    game.lastEvents.push(`The monster took a floor off ${TOWER_NAMES[tallest.t]}`);
+    tower.apeUntil = now() + GORILLA_MS;
+    tower.mark = 0;
+    // the column goes up on the towers he is not on
+    TOWER_TEAMS.filter(t => t !== tallest.t).forEach(t => {
+      towers[t].mark = floorsOf(towers[t]) + MARK_AHEAD;
+    });
+    game.lastEvents.push(`The gorilla is on ${TOWER_NAMES[tallest.t]} — build to the green column`);
     return tallest.t;
+  }
+
+  /** He climbs down on his own. The marks go with him, so a green column is
+      always something to do now rather than a line left on the wall. */
+  function towerSettle(game) {
+    if (!game.towers) return false;
+    let moved = false;
+    for (const t of TOWER_TEAMS) {
+      const tower = game.towers[t];
+      if (!tower) continue;
+      if (tower.apeUntil && now() >= tower.apeUntil) {
+        tower.apeUntil = 0;
+        moved = true;
+        game.lastEvents.push(`The gorilla climbed down off ${TOWER_NAMES[t]}`);
+        TOWER_TEAMS.forEach(o => { if (game.towers[o]) game.towers[o].mark = 0; });
+      }
+    }
+    if (moved) game.lastEvents = game.lastEvents.slice(-6);
+    return moved;
   }
 
   const DEFAULT_MODE = 'normal';
@@ -685,7 +751,8 @@
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
     SAFE_MS, FIELD_W, FIELD_H, safeZones, zoneCounts, claimZone, settleSafe,
     TOWER_TEAMS, TOWER_NAMES, SLOTS, PERFECT, GIFT_EVERY, MONSTER_EVERY, MONSTER_FLOOR,
-    blankTower, floorsOf, towersOf, placeBlock, towerMonster,
+    GORILLA_MS, MARK_AHEAD,
+    blankTower, floorsOf, towersOf, placeBlock, towerMonster, towerSettle,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,

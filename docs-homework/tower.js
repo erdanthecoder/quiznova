@@ -86,6 +86,7 @@
     let players = opts.players || [];
     let slots = opts.slots || SLOTS;
     let monster = 0, monsterTeam = '', shake = 0, gift = {};
+    let drift = 0;                    // the board's clock against the game's
     let raf = null, stopped = false;
     const faces = new Map();
 
@@ -201,6 +202,47 @@
           drawGift(cx + blockW * slots * 0.72, giftY + bob, Math.max(14, floorH * 1.1));
         }
 
+        /* The green column. When the gorilla takes a tower the other two are
+           given a height to climb to; reaching it earns a shield, which is the
+           only thing that gets rid of him. Kahoot draws it as a column, and a
+           column is right: it is a distance, not a line. */
+        const mark = (towers[team] && towers[team].mark) || 0;
+        if (mark) {
+          const from = ground - floorsOf(team) * floorH;
+          const to = ground - mark * floorH;
+          const colW = blockW * slots * 1.04;
+          ctx.save();
+          const col = ctx.createLinearGradient(0, from, 0, to);
+          col.addColorStop(0, 'rgba(18,190,142,.06)');
+          col.addColorStop(1, 'rgba(18,190,142,.34)');
+          ctx.fillStyle = col;
+          ctx.fillRect(cx - colW / 2, to, colW, from - to);
+          ctx.setLineDash([10, 8]);
+          ctx.lineDashOffset = -t / 26;
+          ctx.strokeStyle = '#12BE8E';
+          ctx.lineWidth = Math.max(2, floorH * 0.10);
+          ctx.beginPath();
+          ctx.moveTo(cx - colW / 2, to); ctx.lineTo(cx + colW / 2, to);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const fs2 = Math.max(10, h * 0.026);
+          ctx.font = `900 ${fs2}px ui-sans-serif,system-ui,sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#9CF0D3';
+          ctx.fillText('BUILD TO HERE', cx, to - fs2 * 0.6);
+          ctx.restore();
+        }
+        // a tower that is shielded says so, because it changes what happens next
+        if (towers[team] && towers[team].shield) {
+          const fs3 = Math.max(10, h * 0.026);
+          ctx.save();
+          ctx.font = `900 ${fs3}px ui-sans-serif,system-ui,sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#9CF0D3';
+          ctx.fillText('SHIELDED', cx, ground - floorsOf(team) * floorH - floorH * 2.4);
+          ctx.restore();
+        }
+
         // the team's own blooks, stood on top of what they have built
         const mine = players.filter(p => p.team === team).slice(0, slots);
         mine.forEach((p, n) => {
@@ -251,7 +293,11 @@
         }
       });
 
-      if (t < monster) drawMonster(t, ground, floorH);
+      /* He arrives with the smash and then stays, because the tower he is
+         sitting on cannot build while he is there — a cameo would leave the
+         team frozen with nothing on screen to explain why. */
+      const sitting = apeOn();
+      if (t < monster || sitting) drawGorilla(t, ground, floorH, sitting || monsterTeam);
       ctx.restore();
       raf = requestAnimationFrame(draw);
     }
@@ -274,41 +320,111 @@
       ctx.restore();
     }
 
-    /* The monster. It comes for whoever is winning, which is the only fair
-       thing for it to do — a mode where the team that got ahead first stays
-       ahead is a mode the other twenty children stop playing. */
-    function drawMonster(t, ground, floorH) {
-      const i = Math.max(0, TEAMS.indexOf(monsterTeam));
+    /* The gorilla. He comes for whoever is winning, which is the only fair
+       thing for him to do — a mode where the team that got ahead first stays
+       ahead is a mode the other twenty children stop playing. He takes a floor
+       and then sits on the tower, arms over the front of it, and while he is
+       there that team can drop blocks but nothing lands.
+
+       Drawn rather than borrowed: heavy shoulders, a low brow, long arms down
+       the front of the tower, and a chest beat every second or so. */
+    function drawGorilla(t, ground, floorH, team) {
+      const i = Math.max(0, TEAMS.indexOf(team));
       const cx = (canvas.width / 3) * (i + 0.5);
-      const a = 1 - (monster - t) / 1800;                 // nought to one
-      const size = Math.max(40, floorH * 4.2);
-      const y = ground - floorsOf(monsterTeam) * floorH - size * 0.2
-              - Math.max(0, 1 - a * 2.2) * canvas.height * 0.4;
+      const size = Math.max(46, floorH * 4.6);
+      const climbing = Math.max(0, 1 - (t - (monster - 1800)) / 1400);
+      const y = ground - floorsOf(team) * floorH - size * 0.12
+              - climbing * canvas.height * 0.45;
+      const thump = Math.pow(Math.max(0, Math.sin(t / 620)), 8);   // the chest beat
+
       ctx.save();
       ctx.translate(cx, y);
-      // a fist of a thing: one big paw, two eyes, a mouthful of teeth
-      ctx.fillStyle = '#6B3FA0';
       ctx.strokeStyle = INK;
-      ctx.lineWidth = Math.max(2, size * 0.055);
+      ctx.lineWidth = Math.max(2, size * 0.05);
+
+      const fur = (px, py, pw, ph, fill, r) => {
+        ctx.fillStyle = fill;
+        ctx.beginPath(); ctx.roundRect(px, py, pw, ph, r); ctx.fill(); ctx.stroke();
+      };
+
+      // arms, out at the sides and down the front, gripping the top floor
+      [-1, 1].forEach(sx => {
+        ctx.save();
+        ctx.translate(sx * size * 0.50, -size * 0.66);
+        ctx.rotate(sx * (0.16 + thump * 0.55));
+        fur(-size * 0.17, 0, size * 0.34, size * 0.80, '#3A2C33', size * 0.16);
+        fur(-size * 0.20, size * 0.66, size * 0.40, size * 0.26, '#6B5560', size * 0.13);
+        ctx.restore();
+      });
+
+      // the body: shoulders wider than the hips, the way an ape is built
+      fur(-size * 0.44, -size * 0.80, size * 0.88, size * 0.80, '#40313A', size * 0.26);
+      ctx.fillStyle = '#5B4854';
       ctx.beginPath();
-      ctx.roundRect(-size / 2, -size * 0.8, size, size * 0.8, size * 0.22);
+      ctx.ellipse(0, -size * 0.32, size * 0.26 + thump * size * 0.03,
+                  size * 0.21, 0, 0, TAU);
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#4A2A72';
-      [-0.26, 0.02, 0.3].forEach(dx => {
+
+      /* The head. Big enough to read from the back of a classroom, with the
+         face laid out the way a gorilla's is: ears on the sides, a heavy brow,
+         eyes close together under it and a broad flat muzzle below. The first
+         pass had a head the size of a fist and two dots on it. */
+      ctx.save();
+      ctx.translate(0, -size * 0.92);
+      ctx.rotate(Math.sin(t / 900) * 0.05);
+      // ears first, so the skull sits over them
+      [-1, 1].forEach(sx => {
+        ctx.fillStyle = '#5B4854';
         ctx.beginPath();
-        ctx.roundRect(size * dx - size * 0.1, -size * 0.06, size * 0.2, size * 0.22, size * 0.07);
+        ctx.arc(sx * size * 0.34, -size * 0.06, size * 0.10, 0, TAU);
+        ctx.fill(); ctx.stroke();
+      });
+      fur(-size * 0.33, -size * 0.44, size * 0.66, size * 0.58, '#40313A', size * 0.24);
+      // the crest down the top of the skull, which is what says gorilla
+      ctx.fillStyle = '#2C2127';
+      ctx.beginPath();
+      ctx.ellipse(0, -size * 0.42, size * 0.15, size * 0.08, 0, 0, TAU);
+      ctx.fill();
+      // the face: a lighter plate holding the muzzle and the eyes
+      ctx.fillStyle = '#6B5560';
+      ctx.beginPath();
+      ctx.ellipse(0, -size * 0.06, size * 0.26, size * 0.21, 0, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      // the brow, heavy, right over the eyes
+      ctx.fillStyle = '#2C2127';
+      ctx.beginPath();
+      ctx.roundRect(-size * 0.28, -size * 0.26, size * 0.56, size * 0.09, size * 0.045);
+      ctx.fill();
+      // eyes under it, close together
+      [-1, 1].forEach(sx => {
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.ellipse(sx * size * 0.10, -size * 0.13, size * 0.065, size * 0.055, 0, 0, TAU);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = INK;
+        ctx.beginPath();
+        ctx.arc(sx * size * 0.10 + thump * size * 0.012, -size * 0.13, size * 0.030, 0, TAU);
         ctx.fill();
       });
-      ctx.fillStyle = '#FFF';
+      // the muzzle: nostrils and a wide mouth, open a little on the beat
+      ctx.fillStyle = '#8A7280';
       ctx.beginPath();
-      ctx.arc(-size * 0.16, -size * 0.5, size * 0.11, 0, TAU);
-      ctx.arc(size * 0.16, -size * 0.5, size * 0.11, 0, TAU);
-      ctx.fill();
+      ctx.ellipse(0, size * 0.02, size * 0.17, size * 0.11, 0, 0, TAU);
+      ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK;
+      [-1, 1].forEach(sx => {
+        ctx.beginPath();
+        ctx.ellipse(sx * size * 0.055, size * 0.0, size * 0.022, size * 0.028, 0, 0, TAU);
+        ctx.fill();
+      });
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = Math.max(2, size * 0.035);
       ctx.beginPath();
-      ctx.arc(-size * 0.16, -size * 0.48, size * 0.05, 0, TAU);
-      ctx.arc(size * 0.16, -size * 0.48, size * 0.05, 0, TAU);
-      ctx.fill();
+      ctx.moveTo(-size * 0.10, size * 0.065);
+      ctx.quadraticCurveTo(0, size * 0.065 + thump * size * 0.06, size * 0.10, size * 0.065);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(2, size * 0.05);
+      ctx.restore();
       ctx.restore();
     }
 
@@ -317,6 +433,13 @@
       if (next.towers) towers = next.towers;
       if (next.players) players = next.players;
       if (next.slots) slots = next.slots;
+      if (typeof next.drift === 'number') drift = next.drift;
+    }
+
+    /** Whose tower the gorilla is sitting on, if he is on one at all. */
+    function apeOn() {
+      const at = Date.now() - drift;
+      return TEAMS.find(t => towers[t] && towers[t].apeUntil > at) || '';
     }
 
     /** The monster is coming for this team: play it. */
@@ -327,7 +450,7 @@
     }
 
     raf = requestAnimationFrame(draw);
-    return { update, smash, stop() { stopped = true; if (raf) cancelAnimationFrame(raf); } };
+    return { update, smash, apeOn, stop() { stopped = true; if (raf) cancelAnimationFrame(raf); } };
   }
 
   /* ── the drop, on the phone ───────────────────────────────

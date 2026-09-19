@@ -572,10 +572,10 @@
 <script src="arena.js?v=d0a0b6df"></script>
 <script src="strike.js?v=09b2cc87"></script>
 <script src="run.js?v=01118772"></script>
-<script src="tower.js?v=114b2bca"></script>
+<script src="tower.js?v=9100799d"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2ac995c4"></script>
-<script src="live.js?v=08715f00"></script>
+<script src="rules.js?v=e89a987d"></script>
+<script src="live.js?v=9002971e"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -1362,7 +1362,20 @@ function feedTower() {
   });
   boardTower.lastFloors = nowFloors;
   boardTower.update({ towers: game.towers, players: game.players,
-                      slots: game.towerSlots || 4 });
+                      slots: game.towerSlots || 4, drift });
+
+  /* The gorilla climbs down on a clock, and on the live edition there is no
+     clock but this one — so the board tidies him away, the same way it settles
+     Robot Run's safe phase. Harmless on the desktop edition, whose own timer
+     will usually have done it first. */
+  const ape = Object.entries(game.towers || {})
+    .find(([, v]) => v && v.apeUntil && Date.now() - drift >= v.apeUntil);
+  if (hostToken && ape && Date.now() > settleTimer + 3000) {
+    settleTimer = Date.now();
+    api(`/games/${pin}/settle`, { method: 'POST', body: { hostToken } })
+      .then(out => { if (out && out.view) apply(out.view); })
+      .catch(() => {});
+  }
 
   /* The monster comes on its own clock rather than between questions, because
      there is no "between" — so the board asks for it, once, when it is due.

@@ -158,6 +158,7 @@
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
+      gorillaMs: R.GORILLA_MS,
       safeEndsAt: game.safeEndsAt || 0, safeMs: R.SAFE_MS,
       zones: game.state === 'safe'
         ? R.safeZones(game.round || 1, Object.keys(game.players).length) : null,
@@ -552,6 +553,15 @@
     /* The safe phase has its own clock, and the board runs it — the same way it
      * runs the monster in Tallest Tower, because nothing else is awake to. */
     if (tail === '/settle') {
+      /* Tallest Tower's gorilla climbs down on a clock too. On the desktop
+         edition the server's own timer does both; here nothing is awake but
+         the board, so the board asks — and it asks on this one route rather
+         than growing a second one that does the same job. */
+      if (game.mode === 'tower') {
+        if (!R.towerSettle(game)) return { ok: true, nothing: true };
+        await writeGame(pin, game);
+        return { ok: true, view: publicView(game) };
+      }
       if (game.mode !== 'robot' || game.state !== 'safe') return { ok: false };
       R.settleSafe(game);
       game.safeEndsAt = 0;
@@ -592,6 +602,7 @@
      * "between" any more. Only the host may call it. */
     if (tail === '/monster') {
       if (game.mode !== 'tower') return { ok: false };
+      R.towerSettle(game);
       const hit = R.towerMonster(game);
       game.monsterAt = now() + R.MONSTER_EVERY;
       game.lastEvents = game.lastEvents.slice(-6);

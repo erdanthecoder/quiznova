@@ -229,7 +229,7 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
       const r = await L.handle(`/games/${pin}/boost`, 'POST', { playerId: id(one), seq: n });
       if (r && r.escape >= 100) break;
     }
-    let view = await L.handle(`/games/${pin}`, 'GET', {});
+    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     out.state = view.state;
     out.zones = (view.zones || []).length;
 
@@ -239,13 +239,13 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
     out.claim = { ok: claim.ok, zone: claim.zone, why: claim.why };
     const second = await L.handle(`/games/${pin}/safe`, 'POST', { playerId: id(two), zone: z.id });
     out.secondOk = !!(second && second.ok);
-    view = await L.handle(`/games/${pin}`, 'GET', {});
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     out.counts = view.zoneCounts;
     out.livesBefore = view.lives;
 
     // the board settles it, because nothing else on the live site is awake to
     await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
-    view = await L.handle(`/games/${pin}`, 'GET', {});
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     out.after = view.state; out.round = view.round; out.lives = view.lives;
     out.escape = view.escape;
     return out;
@@ -261,6 +261,99 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
      `deck ${run.round}, state ${run.after}, escape ${run.escape}`);
   ok('and whoever was left out costs the class a life',
      run.lives === run.livesBefore - 1, `${run.livesBefore} → ${run.lives} lives`);
+
+  /* ── and Tallest Tower's gorilla on the live site ──
+   *
+   * He takes a floor, sits on the tower, freezes it, puts a green column on
+   * the other two and then climbs down when the board asks. Every one of those
+   * steps is a place the browser engine could have drifted from the server's. */
+  const ape = await board.evaluate(async () => {
+    const L = window.NovaLive;
+    // several questions, because a block is earned one question at a time
+    const quiz = { id: 'q3', title: 'Build', questions: [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+      id: 'q' + n, type: 'mc', text: 'Question ' + n, points: 100, time: 60,
+      choices: [{ id: 'r' + n, text: 'right', correct: true },
+                { id: 'w' + n, text: 'wrong' }] })) };
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q3', quiz, mode: 'tower', map: 'site' });
+    const pin = game.pin;
+    const ids = [];
+    for (const name of ['Ana', 'Ben', 'Cal']) {
+      const j = await L.handle(`/games/${pin}/join`, 'POST', { name, avatar: ids.length * 7 });
+      ids.push(j.player ? j.player.id : j.id);
+    }
+    await L.handle(`/games/${pin}/start`, 'POST', { hostToken: game.hostToken });
+
+    /* Blocks are earned by answering, so the tower is built the long way —
+       through the same two calls a phone makes. */
+    const out = {};
+    const seq = {};
+    const rightOf = (v) => (v.question.choices.find(c => /right/.test(c.text))
+                            || v.question.choices[0]).id;
+    for (let round = 0; round < 6; round++) {
+      let v = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      if (v.state !== 'question') {
+        await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
+        v = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      }
+      if (v.state !== 'question' || !v.question) break;
+      const answer = rightOf(v);
+      /* Answer first, all of them, and only then read as the host. On the live
+         site a phone's answer is a row in a table and the host is the referee:
+         nobody has a block in hand until the host has next looked. Placing
+         straight after answering simply found an empty hand. */
+      for (const id of ids) {
+        await L.handle(`/games/${pin}/answer`, 'POST',
+                       { playerId: id, answer, speed: 0.9 });
+      }
+      await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      for (const id of ids) {
+        seq[id] = (seq[id] || 0) + 1;
+        await L.handle(`/games/${pin}/place`, 'POST',
+                       { playerId: id, offset: 0, seq: seq[id] });
+      }
+      await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
+    }
+    const pre = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.built = Object.fromEntries(Object.entries(pre.towers || {})
+      .map(([t, v]) => [t, (v.blocks || []).length]));
+    out.state = pre.state;
+    const hit = await L.handle(`/games/${pin}/monster`, 'POST', { hostToken: game.hostToken });
+    out.hit = hit && hit.hit;
+    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.sitting = out.hit ? view.towers[out.hit].apeUntil > Date.now() : false;
+    out.marks = Object.fromEntries(Object.entries(view.towers).map(([t, v]) => [t, v.mark]));
+
+    // a block dropped on his tower goes nowhere
+    const stuck = view.players.find(p => p.team === out.hit);
+    if (stuck) {
+      let asking = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      if (asking.state !== 'question') {
+        await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
+        asking = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      }
+      if (asking.question) {
+        await L.handle(`/games/${pin}/answer`, 'POST',
+                       { playerId: stuck.id, answer: rightOf(asking), speed: 0.9 });
+        await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+      }
+      seq[stuck.id] = (seq[stuck.id] || 0) + 1;
+      const drop = await L.handle(`/games/${pin}/place`, 'POST',
+                                  { playerId: stuck.id, offset: 0, seq: seq[stuck.id] });
+      out.ape = !!drop.ape;
+    }
+
+    // and the board climbs him down
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    if (out.hit) view.towers[out.hit].apeUntil = 1;
+    await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
+    return out;
+  });
+  ok('the gorilla climbs the winning tower on the live site too', !!ape.hit,
+     `${ape.hit} — the three towers were at ${JSON.stringify(ape.built)} blocks`);
+  ok('and he sits on it there as well', ape.sitting === true, JSON.stringify(ape.marks));
+  ok('a block dropped under him lands nowhere on the live site', ape.ape === true,
+     ape.ape === undefined ? 'nobody was on his tower' : String(ape.ape));
 
   ok('no errors on the live board', berrs.length === 0, berrs.slice(0, 3).join(' | '));
   ok('no errors on the live phone', perrs.length === 0, perrs.slice(0, 3).join(' | '));

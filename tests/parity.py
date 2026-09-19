@@ -127,4 +127,86 @@ for (mode, move, ok, speed), got in zip(CASES, js):
         print(f"FAIL  {mode}/{move} ok={ok}: {diff}")
 
 print(f"\n{len(CASES) - fails}/{len(CASES)} scorer cases agree between JavaScript and Python")
+
+# ── the gorilla, in both languages ──
+#
+# The scorers are not the only rules the two editions both carry. Tallest
+# Tower's gorilla decides who he climbs, what a block does while he is up
+# there and what the green column is worth, and a mirror that drifts here is
+# a mode that plays differently depending on which edition a class opened.
+GORILLA_JS = """
+const R = require(process.env.ROOT + '/static/rules.js');
+const mk = () => {
+  const players = {
+    D: R.blankPlayer({ id: 'D', name: 'D', avatar: 0, team: 'red' }),
+    E: R.blankPlayer({ id: 'E', name: 'E', avatar: 1, team: 'blue' }) };
+  return { mode: 'tower', players, questions: [], index: 0, state: 'question',
+           lastEvents: [], setup: R.readSetup({}), goal: { kind: 'questions' },
+           teams: {}, towers: null };
+};
+const g = mk();
+let seq = 0;
+for (let i = 0; i < R.SLOTS * 4; i++) R.placeBlock(g, g.players.D, 0.5, ++seq);
+let seqE = 0;
+for (let i = 0; i < R.SLOTS; i++) R.placeBlock(g, g.players.E, 0.5, ++seqE);
+const hit = R.towerMonster(g);
+const T = R.towersOf(g);
+const blocked = R.placeBlock(g, g.players.D, 0, ++seq);
+const marks = { blue: T.blue.mark, green: T.green.mark, red: T.red.mark };
+for (let i = 0; i < R.SLOTS * R.MARK_AHEAD; i++) R.placeBlock(g, g.players.E, 0.5, ++seqE);
+const shielded = T.blue.shield;
+T.red.apeUntil = Date.now() - 1;
+const down = R.towerSettle(g);
+console.log(JSON.stringify({ hit, redFloors: R.floorsOf(T.red), ape: !!blocked.ape,
+  marks, shielded, down, markAfter: T.green.mark, sitting: !!T.red.apeUntil }));
+"""
+
+gor_js = json.loads(subprocess.run(
+    ['node', '-e', GORILLA_JS], capture_output=True, text=True, check=True,
+    env={**os.environ, 'ROOT': ROOT}).stdout)
+
+
+def gorilla_py():
+    """The same play, through quizapi.py's mirror of the same rules."""
+    g = fresh("tower", ["D", "E"])
+    players = g["players"]
+    players["D"]["team"] = "red"
+    players["E"]["team"] = "blue"
+    g["towers"] = None
+    seq = 0
+    for _ in range(Q.SLOTS * 4):
+        seq += 1
+        Q.place_block(g, players["D"], 0.5, seq)
+    seq_e = 0
+    for _ in range(Q.SLOTS):
+        seq_e += 1
+        Q.place_block(g, players["E"], 0.5, seq_e)
+    hit = Q.tower_monster(g)
+    towers = Q.towers_of(g)
+    seq += 1
+    blocked = Q.place_block(g, players["D"], 0, seq)
+    marks = {"blue": towers["blue"]["mark"], "green": towers["green"]["mark"],
+             "red": towers["red"]["mark"]}
+    for _ in range(Q.SLOTS * Q.MARK_AHEAD):
+        seq_e += 1
+        Q.place_block(g, players["E"], 0.5, seq_e)
+    shielded = towers["blue"]["shield"]
+    towers["red"]["apeUntil"] = Q.now_ms() - 1
+    down = Q.tower_settle(g)
+    return {"hit": hit, "redFloors": Q.floors_of(towers["red"]),
+            "ape": bool(blocked.get("ape")), "marks": marks, "shielded": shielded,
+            "down": down, "markAfter": towers["green"]["mark"],
+            "sitting": bool(towers["red"]["apeUntil"])}
+
+
+gor_py = gorilla_py()
+gaps = {k: (gor_py[k], gor_js[k]) for k in gor_py if gor_py[k] != gor_js[k]}
+if gaps:
+    fails += 1
+    print(f"FAIL  the gorilla plays differently in the two editions: {gaps}")
+else:
+    print("the gorilla behaves the same in JavaScript and Python"
+          f" — he took {gor_py['hit']}, the green column went up at"
+          f" {gor_py['marks']['blue']}, and the shield held")
+
 sys.exit(1 if fails else 0)

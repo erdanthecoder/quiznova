@@ -326,7 +326,9 @@ class Server {
       }
       if (tail === 'settle' && method === 'POST') {
         if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
-        this.games.settleSafe(game);
+        // whatever clock has run out: the gorilla climbing down, or the hatch shutting
+        if (game.mode === 'tower') this.games.settleGorilla(game);
+        else this.games.settleSafe(game);
         this.games.changed(game);
         return this.send(res, 200, { ok: true, view: this.games.publicView(game) });
       }

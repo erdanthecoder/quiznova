@@ -1569,12 +1569,16 @@ SLOTS = 4            # blocks in one finished floor
 PERFECT = 0.09       # how square a drop has to be to count as neat
 GIFT_EVERY = 5       # a gift box waits at every fifth floor
 GIFT_BLOCKS = 3
-MONSTER_EVERY = 38000   # how often the monster comes, in milliseconds
-MONSTER_FLOOR = 3       # and the shortest tower it will bother with
+MONSTER_EVERY = 38000   # how often the gorilla comes, in milliseconds
+MONSTER_FLOOR = 3       # and the shortest tower he will bother with
+GORILLA_MS = 9000       # how long he sits on a tower once he is up there
+MARK_AHEAD = 2          # floors above a tower the green column sits
 
 
 def blank_tower():
-    return {"blocks": [], "gift": 0, "crushed": 0}
+    # apeUntil, mark and shield are the gorilla and the green column
+    return {"blocks": [], "gift": 0, "crushed": 0,
+            "apeUntil": 0, "mark": 0, "shield": 0}
 
 
 def floors_of(tower):
@@ -1582,7 +1586,11 @@ def floors_of(tower):
 
 
 def towers_of(game):
-    game.setdefault("towers", {})
+    # a stored game carries "towers": null until the first block is placed, and
+    # setdefault leaves that None in place — the JavaScript has always tested
+    # the value rather than the key, so this one crashed where that one did not
+    if not game.get("towers"):
+        game["towers"] = {}
     for t in TOWER_TEAMS:
         game["towers"].setdefault(t, blank_tower())
     return game["towers"]
@@ -1597,6 +1605,11 @@ def place_block(game, player, offset, seq):
     if want <= player.get("placed", 0):
         return {"ok": True, "already": True}
     player["placed"] = min(want, player.get("placed", 0) + 1)
+
+    # the gorilla is on this tower: the block leaves your hand and lands nowhere
+    if tower.get("apeUntil") and now_ms() < tower["apeUntil"]:
+        return {"ok": True, "dropped": True, "ape": True,
+                "why": "The gorilla is on your tower", "floors": floors_of(tower)}
 
     o = max(-1.0, min(1.0, float(offset or 0)))
     neat = abs(o) <= PERFECT
@@ -1619,8 +1632,18 @@ def place_block(game, player, offset, seq):
                                     "by": "the gift box", "gift": True})
         game["lastEvents"].append(
             f"{TOWER_NAMES[team]} reached the gift box — three free blocks")
+
+    # the green column: build to it while the gorilla is up and the team is shielded
+    won = False
+    if tower.get("mark") and floors_of(tower) >= tower["mark"]:
+        tower["mark"] = 0
+        tower["shield"] = 1
+        won = True
+        game["lastEvents"].append(
+            f"{TOWER_NAMES[team]} made it to the green column — shielded")
     return {"ok": True, "floors": floors_of(tower),
-            "blocks": len(tower["blocks"]), "neat": neat}
+            "blocks": len(tower["blocks"]), "neat": neat,
+            "mark": tower.get("mark", 0), "shield": tower.get("shield", 0), "won": won}
 
 
 def tower_monster(game):
@@ -1634,10 +1657,44 @@ def tower_monster(game):
         return None
     team = ranked[0][0]
     tower = towers[team]
+
+    if tower.get("shield"):
+        tower["shield"] = 0
+        game["lastEvents"].append(f"{TOWER_NAMES[team]} chased the gorilla off")
+        return None
+
     tower["blocks"] = tower["blocks"][:max(0, len(tower["blocks"]) - SLOTS)]
     tower["crushed"] += 1
-    game["lastEvents"].append(f"The monster took a floor off {TOWER_NAMES[team]}")
+    tower["apeUntil"] = now_ms() + GORILLA_MS
+    tower["mark"] = 0
+    for other in TOWER_TEAMS:
+        if other != team:
+            towers[other]["mark"] = floors_of(towers[other]) + MARK_AHEAD
+    game["lastEvents"].append(
+        f"The gorilla is on {TOWER_NAMES[team]} — build to the green column")
     return team
+
+
+def tower_settle(game):
+    """He climbs down on his own, and the green columns go with him.
+    Mirrors towerSettle in static/rules.js."""
+    if not game.get("towers"):
+        return False
+    moved = False
+    for t in TOWER_TEAMS:
+        tower = game["towers"].get(t)
+        if not tower:
+            continue
+        if tower.get("apeUntil") and now_ms() >= tower["apeUntil"]:
+            tower["apeUntil"] = 0
+            moved = True
+            game["lastEvents"].append(f"The gorilla climbed down off {TOWER_NAMES[t]}")
+            for other in TOWER_TEAMS:
+                if game["towers"].get(other):
+                    game["towers"][other]["mark"] = 0
+    if moved:
+        game["lastEvents"] = game["lastEvents"][-6:]
+    return moved
 
 
 def moves_for(mode):

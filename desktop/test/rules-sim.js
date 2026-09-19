@@ -128,6 +128,57 @@ console.log('\n— the choice changes the game —');
      `${tallBefore} -> ${R.floorsOf(R.towersOf(m).red)}`);
   ok('tower: it leaves the team that is behind alone',
      R.floorsOf(R.towersOf(m).blue) === 1);
+
+  /* The gorilla, which is the half of Kahoot's that was missing: he does not
+     hit and run, he sits on the tower, and while he is there that team drops
+     blocks that never land. The other two are given a green column to climb
+     to, and reaching it is the only way anybody gets rid of him. */
+  ok('tower: he sits on the tower he took', R.towersOf(m).red.apeUntil > Date.now(),
+     `${Math.round((R.towersOf(m).red.apeUntil - Date.now()) / 1000)}s to go`);
+  const frozen = R.floorsOf(R.towersOf(m).red);
+  const placedBefore = m.players.D.placed;
+  const blocked = R.placeBlock(m, m.players.D, 0, placedBefore + 1);
+  ok('tower: a block dropped while he is up there lands nowhere',
+     blocked.ape === true && R.floorsOf(R.towersOf(m).red) === frozen,
+     `${frozen} floors before and after`);
+  ok('tower: and the drop still counts against the phone, so it moves on',
+     m.players.D.placed === placedBefore + 1, `placed ${m.players.D.placed}`);
+
+  ok('tower: the teams he is not on get a green column to climb to',
+     R.towersOf(m).blue.mark === R.floorsOf(R.towersOf(m).blue) + R.MARK_AHEAD
+     && R.towersOf(m).green.mark > 0,
+     `blue must reach floor ${R.towersOf(m).blue.mark}`);
+
+  // blue builds up to it and earns the shield
+  let seq = R.SLOTS;
+  let won = null;
+  for (let i = 0; i < R.SLOTS * R.MARK_AHEAD; i++) {
+    won = R.placeBlock(m, m.players.E, 0.5, ++seq);
+  }
+  ok('tower: reaching the green column shields the team',
+     R.towersOf(m).blue.shield === 1 && won && won.won === true,
+     `shield ${R.towersOf(m).blue.shield}`);
+
+  /* And a shielded tower chases him off instead of losing a floor. Blue is put
+     clearly in front first, because he always goes for whoever is winning. */
+  for (let i = 0; i < R.SLOTS * 2; i++) R.placeBlock(m, m.players.E, 0.5, ++seq);
+  const blueFloors = R.floorsOf(R.towersOf(m).blue);
+  const again = R.towerMonster(m);
+  ok('tower: a shielded tower chases him off rather than losing a floor',
+     again === null && R.floorsOf(R.towersOf(m).blue) === blueFloors
+     && R.towersOf(m).blue.shield === 0,
+     `he went for ${again}, blue still ${R.floorsOf(R.towersOf(m).blue)} floors`);
+
+  // he climbs down on his own, and the columns go with him
+  R.towersOf(m).red.apeUntil = Date.now() - 1;
+  const down = R.towerSettle(m);
+  ok('tower: he climbs down on his own and the columns go with him',
+     down && !R.towersOf(m).red.apeUntil && !R.towersOf(m).green.mark,
+     `green column at ${R.towersOf(m).green.mark}`);
+  const after = R.placeBlock(m, m.players.D, 0, m.players.D.placed + 1);
+  ok('tower: and then the team can build again',
+     !after.ape && R.floorsOf(R.towersOf(m).red) >= frozen,
+     `${R.floorsOf(R.towersOf(m).red)} floors`);
 }
 
 // robot: the escape is played, not scored — the scorer must stay out of it

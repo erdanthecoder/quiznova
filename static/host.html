@@ -1342,7 +1342,20 @@ function feedTower() {
   });
   boardTower.lastFloors = nowFloors;
   boardTower.update({ towers: game.towers, players: game.players,
-                      slots: game.towerSlots || 4 });
+                      slots: game.towerSlots || 4, drift });
+
+  /* The gorilla climbs down on a clock, and on the live edition there is no
+     clock but this one — so the board tidies him away, the same way it settles
+     Robot Run's safe phase. Harmless on the desktop edition, whose own timer
+     will usually have done it first. */
+  const ape = Object.entries(game.towers || {})
+    .find(([, v]) => v && v.apeUntil && Date.now() - drift >= v.apeUntil);
+  if (hostToken && ape && Date.now() > settleTimer + 3000) {
+    settleTimer = Date.now();
+    api(`/games/${pin}/settle`, { method: 'POST', body: { hostToken } })
+      .then(out => { if (out && out.view) apply(out.view); })
+      .catch(() => {});
+  }
 
   /* The monster comes on its own clock rather than between questions, because
      there is no "between" — so the board asks for it, once, when it is due.
