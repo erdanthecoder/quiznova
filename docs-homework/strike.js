@@ -1118,6 +1118,11 @@
       swing, dodge, heard,
       setBoss(next) { Object.assign(boss, next || {}); },
       add(p) { if (p && p.id !== meId) folk.set(p.id, Object.assign({ angle: Math.random() * TAU, combo: 0, damage: 0 }, p)); },
+      /** The board's boss, refreshed from the game as the class cuts it down. */
+      setBoss(next) { if (next) { boss.hp = next.hp; boss.max = next.max || boss.max;
+                                  boss.name = next.name || boss.name; } },
+      /** Somebody put a knife in: flash the boss and shake the room. */
+      struck() { staggerUntil = now() + 260; shakeUntil = now() + 220; shakeAmt = 10; },
       stop() { finished = true; if (raf) cancelAnimationFrame(raf); }
     };
   }

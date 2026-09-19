@@ -850,7 +850,12 @@ function render(fresh) {
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
   if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
-  if (game.state === 'strike') { if (paint(stage, strikeView, fresh)) watchStrike(); return; }
+  if (game.state === 'strike') {
+    /* Mounted once and then fed. Repainting the whole view on every poll would
+       tear the fight down and build it again several times a second. */
+    if (paint(stage, strikeView, fresh)) watchStrike(); else feedStrike();
+    return;
+  }
   if (game.state === 'running') {
     /* The canvas is mounted once and then fed. Repainting the whole view on
        every poll would tear the chase down and build it again several times a
@@ -1083,18 +1088,25 @@ function feedRun() {
  * the big screen rather than in thirty pockets: everyone can see who is still
  * standing, who is on the floor, and the red arc closing on half the ring. */
 function strikeView() {
-  const boss = game.boss || { name: 'The boss', hp: 1, max: 1 };
+  /* The fight, on the projector. Three minutes, thirty health, and the whole
+     class working at its own pace — so the board is the one thing everybody is
+     looking at together: the boss, the clock, what is left of it, and who is
+     putting the most in. */
+  const boss = game.boss || { name: 'The boss', hp: 0, max: 30 };
   const root = el('div', { class: 'board' });
   const panel = el('div', { class: 'ask' });
-  const up = game.players.filter(p => (p.blade || 'stick') !== 'stick').length;
   panel.innerHTML = `<h1>${esc(boss.name)}</h1>
-    <div class="tally"><b>${boss.hp}</b><span>health left</span></div>
-    <p class="tiny faint" style="margin-top:8px">${up} of ${game.players.length} armed with a real blade</p>`;
+    <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
+    <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>`;
   root.append(panel);
   root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 6, title: 'Knives in' }));
+  root.append(rest);
   return root;
 }
 
+/* Tear the chase down when the board moves off Robot Run. */
 function stopRun() { if (boardRun) { boardRun.stop(); boardRun = null; } }
 
 function watchStrike() {
@@ -1107,6 +1119,29 @@ function watchStrike() {
   (game.players || []).forEach(p => boardStrike.add(
     { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
   if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => boardStrike && boardStrike.heard(e, p));
+  feedStrike();
+}
+
+/** The boss's health and the clock, handed to the board as the class cuts it
+    down. A knife going in shakes the room, so the hit is felt and not only
+    counted. */
+function feedStrike() {
+  if (!boardStrike || !game.boss) return;
+  const was = boardStrike.lastHp;
+  boardStrike.setBoss(game.boss);
+  if (was !== undefined && game.boss.hp < was) boardStrike.struck();
+  boardStrike.lastHp = game.boss.hp;
+  // anybody who joined mid-fight, and anybody whose knife changed
+  (game.players || []).forEach(p => boardStrike.add(
+    { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
+  const hp = $('#bosshp');
+  if (hp) hp.textContent = game.boss.hp;
+  const clock = $('#bossclock');
+  if (clock) {
+    const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));
+    const secs = Math.round(left / 1000);
+    clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  }
 }
 
 function watchArena() {
@@ -1396,6 +1431,7 @@ function bossArena() {
 let lastBossHp = null;
 
 const unitFor = (p) => game.mode === 'tower' ? `${p.blocks || 0} blocks`
+  : game.mode === 'boss' ? `${p.hits || 0} in`
   : game.mode === 'robot' ? `${p.boosts || 0} boost${(p.boosts || 0) === 1 ? '' : 's'}`
   : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
   : String(p.score);

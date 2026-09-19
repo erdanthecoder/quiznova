@@ -25,7 +25,8 @@
     tower:    { label: 'Tallest Tower', icon: 'bricks', teams: 3,
                 blurb: 'Three teams, one race up. Answer to earn a block, then time the drop — the neater you place it, the faster you climb' },
     
-    boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'Answer to arm yourself, then ten seconds to cut it down' },
+    boss:     { label: 'Boss Battle',  icon: 'dragon',
+                blurb: 'Three minutes, thirty health, one class. Answer to load your knife, then put it in' },
 
     robot:    { label: 'Robot Run',     icon: 'dragon', blurb: 'The whole class outruns the robot together. Answer, earn a boost, hold to use it' },
     
@@ -256,7 +257,30 @@
   const mapsFor = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE]).map(([id, label]) => ({ id, label }));
   const defaultMap = (mode) => (MAPS[mode] || MAPS[DEFAULT_MODE])[0][0];
 
-  const BOSS_HP_PER_QUESTION = 55;
+  /* ── Boss Battle ──────────────────────────────────────────
+   *
+   * It used to run in step: everybody answered the same question at the same
+   * moment, then everybody fought for ten seconds, then everybody waited. The
+   * waiting is the problem — a child who reads quickly spent most of the mode
+   * watching, and a child who reads slowly was hurried by a clock that was not
+   * theirs.
+   *
+   * So it is one three-minute fight now and nobody is in step. You answer at
+   * your own pace out of the whole quiz; a right answer loads your knife; the
+   * knife takes one health off the boss and then needs two seconds before it
+   * can be used again. Thirty health, one class, one clock. The board carries
+   * the boss, the clock and the standings, which is what a room should be
+   * looking up at.
+   *
+   * Every knife does exactly one. The six shapes come from the blook and are
+   * yours all game, so the ring is thirty different weapons — and all of them
+   * kill it the same way, which is what was asked for. */
+  const BOSS_HP = 30;                  // the whole class against thirty
+  const BOSS_MS = 3 * 60 * 1000;       // three minutes on the clock
+  const KNIFE_RELOAD_MS = 2000;        // between one swing and the next
+  const KNIFE_DAMAGE = 1;              // every knife, the same
+
+  const BOSS_HP_PER_QUESTION = 55;     // kept: older saved games still hold it
   const MAX_PLAYER_HIT = 40;       // the most one shot can take off a player
 
   /* ── marking, shared with the rest of the app ─────────── */
@@ -445,13 +469,22 @@
      * Right and quick is a greatsword. Right is a sword. Wrong is a stick, which
      * is weak and is still a thing to hold: nobody sits a round out watching
      * other people play. */
+    /* Answering loads the knife. Putting it in is what hurts the boss.
+     *
+     * The tier still comes from how fast the answer was, because a greatsword
+     * is worth seeing and worth earning — but it decides what the weapon looks
+     * like, not what it does. Every knife takes exactly one health off, which
+     * is the whole point of everyone carrying a different one. */
     boss(game, p, q, ok, speed) {
       p.blade = !ok ? 'stick' : speed >= 0.5 ? 'great' : 'sword';
-      p.struck = 0;
-      const gain = ok ? Math.round(10 + 10 * speed) : 0;   // a little for knowing it
-      p.score += gain;
-      p.lastGain = gain;
-      if (ok && speed >= 0.5) game.lastEvents.push(`${p.name} picked up a greatsword`);
+      if (ok) {
+        p.loaded = (p.loaded || 0) + 1;
+        p.lastGain = 1;
+        if (speed >= 0.5) game.lastEvents.push(`${p.name} picked up a greatsword`);
+      } else {
+        p.lastGain = 0;
+      }
+      p.score = p.hits || 0;
     },
 
     /* Robot Run scores nothing here.
@@ -540,7 +573,7 @@
     lastDamage: 0, lastGain: 0, target: '',
     blocks: 0, ready: 0, placed: 0,           // tallest tower: earned, and put up
     boosts: 0, ready: 0, safe: true,          // robot run: what they have put in
-    guarding: false, acted: '',               // boss battle
+    loaded: 0, hits: 0, swungAt: 0,           // boss battle: knives loaded, and used
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
     move: '', on: ''
@@ -577,7 +610,8 @@
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
-    BOSS_HP_PER_QUESTION, MAX_PLAYER_HIT, SWAY_LIMIT
+    BOSS_HP_PER_QUESTION, BOSS_HP, BOSS_MS, KNIFE_RELOAD_MS, KNIFE_DAMAGE,
+    MAX_PLAYER_HIT, SWAY_LIMIT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

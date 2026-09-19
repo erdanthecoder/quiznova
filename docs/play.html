@@ -428,12 +428,12 @@
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=d0a0b6df"></script>
-<script src="strike.js?v=5edcbcd0"></script>
+<script src="strike.js?v=09b2cc87"></script>
 <script src="run.js?v=3afa534f"></script>
 <script src="tower.js?v=114b2bca"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=80703672"></script>
-<script src="live.js?v=375c7fa0"></script>
+<script src="rules.js?v=fdd4d008"></script>
+<script src="live.js?v=1f51dcd9"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script>
@@ -452,7 +452,7 @@ const drawFace = (p, size) => Sprite.face(p && p.avatar, size);
 const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
-let strike = null, strikeTotal = 0;
+
 let runner = null, runQ = 0, runStarting = false, runCardNode = null;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
@@ -767,7 +767,7 @@ function hud() {
     node.append(el('div', { class: 'stat' }, el('b', {}, me.down ? 'DOWN' : me.hp + ' HP'), el('span', {}, 'shield')));
   } else {
     const unit = { tower: ['blocks', String(me.blocks || 0)],
-                   boss: ['damage', String(me.score)],
+                   boss: ['knives in', String(me.hits || 0)],
                    volcano: ['up the wall', String(me.height || 0)] }[game.mode]
                  || ['points', String(me.score)];
     node.append(el('div', { class: 'stat' }, el('b', {}, unit[1]), el('span', {}, unit[0])));
@@ -820,7 +820,6 @@ function render(fresh) {
     if (!dropCardNode) dropCardNode = dropCard();
     return app.append(dropCardNode);
   }
-  if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state !== 'running' && runner) {
     runner.stop(); runner = null; runStarting = false; runCardNode = null;
   }
@@ -1018,40 +1017,87 @@ function askRunQuestion() {
  * the boss and the only questions are when to swing and when to roll. Both
  * buttons are enormous on purpose: a child is looking at the boss, not at their
  * own hands, and should not have to aim at a control. */
+/* Boss Battle: three minutes, thirty health, and nobody is in step.
+ *
+ * It used to run question by question with a ten-second fight between each, so
+ * a child who read quickly spent most of the mode watching and a child who read
+ * slowly was hurried by a clock that was not theirs. Now the whole quiz is on
+ * the phone and everybody works through it at their own pace: a right answer
+ * loads your knife, the knife takes one health off the boss, and then it needs
+ * two seconds before it can be used again.
+ *
+ * The boss itself is on the board, where a room can look up at it together —
+ * this screen is the question and the knife.
+ */
 function strikeCard() {
   const card = el('div', { class: 'play arena-wrap' });
-  const blade = (NovaStrike.BLADES[me.blade] || NovaStrike.BLADES.stick);
   card.append(el('div', { class: 'qhead' },
-    el('span', { class: 'chip', id: 's-dmg' }, '0 damage'),
-    el('span', { class: 'chip live', style: `border-color:${blade.colour}` }, blade.label)));
-
-  const shell = el('div', { class: 'arena-shell' });
-  shell.append(el('canvas', { class: 'arena-canvas', id: 'strike' }));
-  card.append(shell);
+    el('span', { class: 'chip', id: 's-hp' }, '30 left'),
+    el('span', { class: 'chip', id: 's-clock' }, '3:00'),
+    el('span', { class: 'chip', id: 's-hits' }, '0 in')));
 
   card.append(bladeCard());
-
-  const pad = el('div', { class: 'swordpad' });
-  pad.innerHTML = `<button class="dodge" id="dodge">DODGE</button>
-                   <button class="swing" id="swing">SWING</button>`;
-  card.append(pad);
+  card.append(el('button', { class: 'boostbtn', id: 's-go', type: 'button', disabled: true },
+                'ANSWER TO LOAD'));
+  card.append(el('div', { class: 'runq', id: 'strikeq' }));
   setTimeout(startStrike, 0);
   return card;
 }
 
-/* Your weapon, drawn by the same code that draws it in your hand out in the
-   ring — so the thing on the card and the thing you are swinging are the same
-   object, not a picture of one. */
+let strikeQ = 0, strikeAsking = false, strikeReload = 0;
+
+/** One question at this child's own pace, out of the whole quiz. */
+function askStrikeQuestion() {
+  const host = document.getElementById('strikeq');
+  if (!host || strikeAsking) return;
+  const set = (game.quiz && game.quiz.length) ? game.quiz : [];
+  if (!set.length) { host.innerHTML = '<p class="tiny faint">Waiting for the quiz…</p>'; return; }
+  strikeAsking = true;
+  const q = set[strikeQ % set.length];
+  strikeQ += 1;
+  const asked = Date.now();
+
+  host.innerHTML = '';
+  host.append(el('div', { class: 'runq-text' }, q.text || 'Question'));
+  const opts = el('div', { class: 'opts' });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: `opt-btn a${i % 6}`, onclick: () => {
+      if (btn.classList.contains('right') || btn.classList.contains('wrong')) return;
+      /* Graded by the game, not here: a phone should not be able to load a
+         knife by claiming it got one right. */
+      const seconds = Math.max(1, Number(q.time) || 20);
+      const speed = Math.max(0, 1 - (Date.now() - asked) / (seconds * 1000));
+      api(`/games/${pin}/answer`, { method: 'POST',
+          body: { playerId: me.id, questionId: q.id, answer: c.id, speed } })
+        .then(out => {
+          btn.classList.add(out && out.right ? 'right' : 'wrong');
+          if (navigator.vibrate) navigator.vibrate(out && out.right ? [18, 40, 18] : 80);
+          if (out && out.view) apply(out.view);
+          setTimeout(() => { strikeAsking = false; askStrikeQuestion(); }, 620);
+        })
+        .catch(() => { strikeAsking = false; });
+    } });
+    const text = c.text || '';
+    btn.innerHTML = `${SHAPES[i % 6]}<span class="lbl${text.length > 16 ? ' long' : ''}">${esc(text)}</span>`;
+    opts.append(btn);
+  });
+  host.append(opts);
+}
+
+/* Your weapon, drawn by the same code that draws it in the ring on the board —
+   so the thing on the card and the thing you are putting in are one object
+   rather than a picture of one. Six shapes, from your blook, yours all game;
+   three metals, from how fast you answered. Every one of them takes exactly one
+   health off, which is the whole point of everybody carrying a different one. */
 function bladeCard() {
   const tier = me.blade || 'stick';
   const box = el('div', { class: 'blade-card' });
   const canvas = el('canvas', { width: 264, height: 92 });
   const shape = NovaStrike.shapeFor(me.avatar);
   const name = NovaStrike.weaponName(me.avatar, tier);
-  const tierName = (NovaStrike.BLADES[tier] || NovaStrike.BLADES.stick).label;
   box.append(canvas, el('span', { class: 'who' },
     el('b', {}, name),
-    el('span', {}, tierName + ' · ' + (NovaStrike.BLADES[tier] || {}).damage + ' a hit')));
+    el('span', {}, 'one health a hit')));
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 264, 92);
   ctx.save();
@@ -1063,49 +1109,70 @@ function bladeCard() {
 }
 
 function startStrike() {
-  const canvas = document.getElementById('strike');
-  if (!canvas || strike) return;
-  const others = (game.players || []).filter(p => p.id !== me.id)
-    .map(p => ({ id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
-  strike = NovaStrike.start({
-    canvas, me: { id: me.id, name: me.name, avatar: me.avatar },
-    blade: me.blade || 'stick',
-    boss: game.boss || null,
-    seed: game.strikeSeed || 1,
-    send: (event, payload) => Nova.arenaSend && Nova.arenaSend(pin, event, payload),
-    onHit: (dealt) => {
-      strikeTotal += dealt;
-      const n = document.getElementById('s-dmg');
-      if (n) n.textContent = strikeTotal + ' damage';
-    },
-    onDone: (out) => {
-      // one report at the end rather than one per swing: a phone on school wifi
-      // should not be sending thirty messages in ten seconds
-      api(`/games/${pin}/strike`, { method: 'POST',
-        body: { playerId: me.id, damage: out.damage, hits: out.hits } }).catch(() => {});
-    }
-  });
-  others.forEach(p => strike.add(p));
-  if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => strike && strike.heard(e, p));
-  wireSword();
+  askStrikeQuestion();
+  const go = document.getElementById('s-go');
+  if (go) {
+    go.onclick = () => {
+      if (go.disabled) return;
+      go.disabled = true;
+      api(`/games/${pin}/strike`, { method: 'POST', body: { playerId: me.id } })
+        .then(out => {
+          if (out && out.view) apply(out.view);
+          if (out && out.ok) {
+            strikeReload = Date.now() + (game.knifeReload || 2000);
+            if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
+          }
+        })
+        .catch(() => {});
+    };
+  }
+  paintStrikeHud();
 }
 
-function wireSword() {
-  const swing = document.getElementById('swing');
-  const dodge = document.getElementById('dodge');
-  if (!swing || !dodge) return;
-  const hit = (fn) => (e) => { e.preventDefault(); if (strike) fn(); if (navigator.vibrate) navigator.vibrate(12); };
-  swing.addEventListener('touchstart', hit(() => strike.swing()), { passive: false });
-  swing.addEventListener('mousedown', hit(() => strike.swing()));
-  dodge.addEventListener('touchstart', hit(() => strike.dodge()), { passive: false });
-  dodge.addEventListener('mousedown', hit(() => strike.dodge()));
-  // a keyboard, for anybody on a laptop
-  document.addEventListener('keydown', (e) => {
-    if (!strike) return;
-    if (e.code === 'Space' || e.key === 'j') { e.preventDefault(); strike.swing(); }
-    if (e.key === 'k' || e.key === 'Shift') strike.dodge();
-  });
+/* The knife, the clock and the boss's health, three times a second. The button
+   says which of the three things it is doing — waiting for an answer, ready, or
+   reloading — because "disabled" on its own tells a child nothing. */
+function paintStrikeHud() {
+  if (!game || game.state !== 'strike') return;
+  const hp = document.getElementById('s-hp');
+  if (!hp) return;
+  const boss = game.boss || { hp: 0, max: 30 };
+  hp.textContent = boss.hp + ' left';
+  hp.classList.toggle('warn', boss.hp <= 5);
+
+  const clock = document.getElementById('s-clock');
+  if (clock) {
+    const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));
+    const secs = Math.round(left / 1000);
+    clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    clock.classList.toggle('warn', secs <= 30);
+  }
+
+  const hits = document.getElementById('s-hits');
+  if (hits) hits.textContent = (me.hits || 0) + ' in';
+
+  const go = document.getElementById('s-go');
+  if (go) {
+    const waiting = Math.max(0, strikeReload - Date.now());
+    const loaded = me.loaded || 0;
+    if (waiting > 0) {
+      go.disabled = true;
+      go.textContent = 'RELOADING ' + (waiting / 1000).toFixed(1) + 's';
+    } else if (loaded > 0) {
+      go.disabled = false;
+      go.textContent = loaded > 1 ? `PUT IT IN (${loaded})` : 'PUT IT IN';
+    } else {
+      go.disabled = true;
+      go.textContent = 'ANSWER TO LOAD';
+    }
+  }
+  requestAnimationFrame(paintStrikeHud);
 }
+
+/* wireSword is gone with the ten-second round. The fight is three minutes long
+   and self-paced now, and the only control is the knife button — there is
+   nothing to dodge, because the boss no longer sweeps a ring everybody is
+   standing in at the same moment. */
 
 function arenaCard() {
   const card = el('div', { class: 'play arena-wrap' });

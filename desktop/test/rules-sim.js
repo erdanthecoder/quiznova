@@ -155,9 +155,18 @@ console.log('\n— the choice changes the game —');
      g.players.Wrong.blade === 'stick', g.players.Wrong.blade);
   ok('boss: the boss takes no damage from the question itself',
      g.boss.hp === 800, `hp ${g.boss.hp}`);
-  ok('boss: knowing the answer is still worth a little',
-     g.players.Fast.score > g.players.Slow.score && g.players.Wrong.score === 0,
-     `${g.players.Fast.score} / ${g.players.Slow.score} / ${g.players.Wrong.score}`);
+  /* The score is knives put in, not answers given — so answering alone scores
+     nothing at all. It loads the knife; the fight is what counts. */
+  ok('boss: a right answer loads a knife, and does not score by itself',
+     g.players.Fast.loaded === 1 && g.players.Slow.loaded === 1
+     && !g.players.Wrong.loaded && g.players.Fast.score === 0,
+     `loaded ${g.players.Fast.loaded}/${g.players.Slow.loaded}/${g.players.Wrong.loaded || 0},`
+     + ` scores ${g.players.Fast.score}/${g.players.Slow.score}/${g.players.Wrong.score}`);
+  ok('boss: every knife is worth exactly one, whatever it looks like',
+     R.KNIFE_DAMAGE === 1 && R.BOSS_HP === 30 && R.BOSS_MS === 180000
+     && R.KNIFE_RELOAD_MS === 2000,
+     `${R.BOSS_HP} health, ${R.KNIFE_DAMAGE} a knife, ${R.KNIFE_RELOAD_MS}ms reload,`
+     + ` ${R.BOSS_MS / 1000}s on the clock`);
   ok('boss: and there is no move to pick, because the fight is the decision',
      R.movesFor('boss').length === 0, `${R.movesFor('boss').length} moves`);
 }

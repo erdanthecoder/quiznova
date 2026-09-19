@@ -1,241 +1,188 @@
-/* Does the sword fight actually happen?
+/* Boss Battle: three minutes, thirty health, and nobody in step.
  *
- * A canvas game is the easiest kind of code to ship broken: it compiles, it
- * runs, it draws nothing, and nobody finds out until a class is watching. So
- * this runs the real engine in a real browser and checks the pixels, the
- * damage, and that the two thumbs do different things.
+ * It used to run question by question with a ten-second fight between each, so
+ * a child who read quickly spent most of the mode watching and a child who read
+ * slowly was hurried by a clock that was not theirs. Now the whole quiz is on
+ * the phone, everybody works through it at their own pace, a right answer loads
+ * a knife, and the knife takes one health off and then needs two seconds.
+ *
+ * This drives it through the real server and the real pages.
  */
 const path = require('path');
 const { chromium } = require('playwright');
+const { Server } = require('../server.js');
 
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const ROOT = path.join(__dirname, '..', '..');
-
+const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 let fails = 0, checks = 0;
 const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${d ? '  — ' + d : ''}`); }
                           else console.log(`ok    ${n}${d ? '  — ' + d : ''}`); };
-
-const PAGE = `<!doctype html><body style="margin:0;background:#000">
-<canvas id="c" style="width:900px;height:600px;display:block"></canvas>
-<canvas id="t" style="width:500px;height:340px;display:block"></canvas>
-<canvas id="b1" style="width:400px;height:300px;display:block"></canvas>
-<canvas id="b2" style="width:400px;height:300px;display:block"></canvas>
-<canvas id="b3" style="width:400px;height:300px;display:block"></canvas></body>`;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 (async () => {
+  const srv = new Server({ root: path.join(ROOT, 'static'),
+                           dataDir: '/tmp/claude-0/bosstest', port: 0 });
+  const started = await srv.listen();
+  const port = started && started.port ? started.port : started;
+  const base = `http://127.0.0.1:${port}`;
+  const post = async (p, b) => (await fetch(base + p, { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify(b || {}) })).json();
+  const look = async () => (await fetch(`${base}/api/games/${pin}`)).json();
+
+  const quiz = await post('/api/quizzes', { title: 'Lesson', questions: [] });
+  const qid = quiz.quiz ? quiz.quiz.id : quiz.id;
+  await post(`/api/quizzes/${qid}/ops`, { ops: [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+    op: 'add_question', question: { type: 'mc', text: `Question ${n}`, points: 100, time: 30,
+      choices: [{ text: 'right', correct: true }, { text: 'wrong' }] } })) });
+  await post(`/api/quizzes/${qid}/ops`, { ops: [{ op: 'delete_question', at: 0 }] });
+
+  const made = await post('/api/games', { quizId: qid, mode: 'boss', map: '' });
+  var pin = made.pin; const ht = made.hostToken;
+  const ana = await post(`/api/games/${pin}/join`, { name: 'Ana', avatar: 3 });
+  const ben = await post(`/api/games/${pin}/join`, { name: 'Ben', avatar: 12 });
+  const anaId = (ana.player || ana).id, benId = (ben.player || ben).id;
+
+  await post(`/api/games/${pin}/start`, { hostToken: ht });
+  let view = await look();
+
+  // ── one long fight, not a question at a time ──
+  ok('starting drops the class straight into the fight', view.state === 'strike', view.state);
+  ok('the boss has thirty health', view.boss && view.boss.hp === 30 && view.boss.max === 30,
+     JSON.stringify(view.boss));
+  const left = (view.endsAt || 0) - view.serverNow;
+  ok('and three minutes on the clock', left > 178000 && left <= 180000, `${Math.round(left / 1000)}s`);
+  ok('every phone holds the whole quiz, because nobody is in step',
+     Array.isArray(view.quiz) && view.quiz.length === 8, `${view.quiz && view.quiz.length} questions`);
+
+  const qs = view.quiz;
+  const right = (q) => (q.choices.find(c => c.correct) || q.choices[0]).id;
+  const wrong = (q) => (q.choices.find(c => !c.correct) || q.choices[0]).id;
+
+  // ── answering loads the knife; it does not hurt the boss ──
+  let out = await post(`/api/games/${pin}/answer`,
+    { playerId: anaId, questionId: qs[0].id, answer: right(qs[0]), speed: 0.9 });
+  ok('a right answer loads a knife', out.correct === true && out.loaded === 1, JSON.stringify(out));
+  ok('and answering fast earns a greatsword to do it with', out.blade === 'great', out.blade);
+  view = await look();
+  ok('answering does not touch the boss', view.boss.hp === 30, `${view.boss.hp} left`);
+
+  out = await post(`/api/games/${pin}/answer`,
+    { playerId: benId, questionId: qs[1].id, answer: wrong(qs[1]), speed: 0.9 });
+  ok('a wrong answer loads nothing', out.correct === false && !out.loaded, JSON.stringify(out));
+
+  /* Anybody can answer any question at any time: two children on different
+     questions at once is the whole point of taking the room out of step. */
+  const both = await Promise.all([
+    post(`/api/games/${pin}/answer`, { playerId: anaId, questionId: qs[5].id, answer: right(qs[5]), speed: 0.2 }),
+    post(`/api/games/${pin}/answer`, { playerId: benId, questionId: qs[2].id, answer: right(qs[2]), speed: 0.2 })
+  ]);
+  ok('two children can be on different questions at the same time',
+     both.every(r => r.correct === true), JSON.stringify(both.map(r => r.correct)));
+
+  // ── the knife: one health, then two seconds ──
+  out = await post(`/api/games/${pin}/strike`, { playerId: anaId });
+  ok('one knife takes exactly one health off', out.ok === true && out.hp === 29,
+     JSON.stringify(out));
+
+  out = await post(`/api/games/${pin}/strike`, { playerId: anaId });
+  ok('and it cannot be used again straight away', out.ok === false && /Reload/i.test(out.why || ''),
+     JSON.stringify(out));
+  view = await look();
+  ok('so a second tap takes nothing more off', view.boss.hp === 29, `${view.boss.hp} left`);
+
+  await sleep(2100);
+  out = await post(`/api/games/${pin}/strike`, { playerId: anaId });
+  ok('two seconds later it works again', out.ok === true && out.hp === 28, JSON.stringify(out));
+
+  // Ben loaded one earlier, so spend it first and then try the empty knife
+  await post(`/api/games/${pin}/strike`, { playerId: benId });
+  await sleep(2100);
+  out = await post(`/api/games/${pin}/strike`, { playerId: benId });
+  ok('a knife nobody loaded does nothing', out.ok === false && /load/i.test(out.why || ''),
+     JSON.stringify(out));
+
+  // ── the fight ends when the health does ──
+  const spend = async (who) => {
+    for (let i = 0; i < 8; i++) {
+      const q = qs[i % qs.length];
+      await post(`/api/games/${pin}/answer`,
+        { playerId: who, questionId: q.id, answer: right(q), speed: 0.5 });
+    }
+    for (let i = 0; i < 8; i++) {
+      const r = await post(`/api/games/${pin}/strike`, { playerId: who });
+      if (r.ok && r.hp === 0) return true;
+      await sleep(2050);
+    }
+    return false;
+  };
+  let down = false;
+  for (let round = 0; round < 3 && !down; round++) {
+    down = await spend(anaId) || await spend(benId);
+  }
+  view = await look();
+  ok('cutting it to nothing ends the game', view.boss.hp === 0 && view.state === 'over',
+     `${view.boss.hp} left, state ${view.state}`);
+  const winner = view.players.slice().sort((a, b) => (b.hits || 0) - (a.hits || 0))[0];
+  ok('and the score is knives put in', (winner.hits || 0) > 0 && winner.score === winner.hits,
+     `${winner.name}: ${winner.hits} in, score ${winner.score}`);
+
+  /* ── the pages ── */
   const browser = await chromium.launch({ executablePath: CHROME, headless: false });
-  const page = await browser.newPage({ viewport: { width: 950, height: 700 } });
-  const errs = [];
-  page.on('pageerror', e => errs.push(e.message));
-  await page.setContent(PAGE);
-  await page.addScriptTag({ path: path.join(ROOT, 'static/strike.js') });
 
-  // ── it draws something ──
-  await page.evaluate(() => {
-    window.hits = [];
-    window.ctl = NovaStrike.start({
-      canvas: document.getElementById('c'),
-      me: { id: 'me', name: 'Ana', avatar: 1 },
-      blade: 'great', boss: { name: 'Boss', hp: 800, max: 800 }, seed: 12345,
-      send: () => {}, onHit: (d, c) => window.hits.push({ d, c }),
-      onDone: (out) => { window.done = out; }
-    });
-  });
-  await page.waitForTimeout(600);
+  const made2 = await post('/api/games', { quizId: qid, mode: 'boss', map: '' });
+  const pin2 = made2.pin, ht2 = made2.hostToken;
+  await post(`/api/games/${pin2}/join`, { name: 'Cleo', avatar: 7 });
 
-  const pixels = await page.evaluate(() => {
-    const c = document.getElementById('c');
+  const board = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const berrs = []; board.on('pageerror', e => berrs.push(e.message));
+  await board.goto(`${base}/host.html?pin=${pin2}#h=${ht2}`, { waitUntil: 'domcontentloaded' });
+  await board.waitForTimeout(700);
+
+  const phone = await browser.newPage({ viewport: { width: 390, height: 820 }, hasTouch: true });
+  const perrs = []; phone.on('pageerror', e => perrs.push(e.message));
+  await phone.goto(`${base}/play.html?pin=${pin2}`, { waitUntil: 'domcontentloaded' });
+  await phone.waitForTimeout(600);
+  await phone.locator('input').first().fill('Cal');
+  await phone.locator('button:has-text("Join the game")').first().click();
+  await phone.waitForTimeout(800);
+
+  await post(`/api/games/${pin2}/start`, { hostToken: ht2 });
+  await phone.waitForTimeout(2000);
+  await board.waitForTimeout(1800);
+
+  ok('the phone shows a question straight away, with no waiting for the room',
+     await phone.locator('#strikeq .opt-btn').count() > 0,
+     (await phone.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 70));
+  ok('and the knife button says it needs an answer first',
+     /ANSWER TO LOAD/i.test(await phone.locator('#s-go').innerText()),
+     await phone.locator('#s-go').innerText());
+  ok('the phone carries no boss of its own; it is on the board',
+     await phone.locator('#strike').count() === 0);
+
+  const drawn = await board.evaluate(() => {
+    const c = document.getElementById('board-strike');
+    if (!c || !c.isConnected) return { ok: false, why: 'no boss on the board' };
     const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    let lit = 0, distinct = new Set();
-    for (let i = 0; i < g.length; i += 4 * 97) {
-      if (g[i] + g[i+1] + g[i+2] > 30) lit++;
-      distinct.add(`${g[i]>>4},${g[i+1]>>4},${g[i+2]>>4}`);
-    }
-    return { lit, total: Math.floor(g.length / (4 * 97)), colours: distinct.size };
+    let on = 0, n = 0;
+    for (let i = 0; i < g.length; i += 4 * 53) { n++; if (g[i] + g[i + 1] + g[i + 2] > 40) on++; }
+    return { ok: true, pct: Math.round(on / n * 100) };
   });
-  ok('the fight draws something, not a black rectangle',
-     pixels.lit > pixels.total * 0.5, `${pixels.lit}/${pixels.total} lit pixels`);
-  ok('and it is a scene, not one flat colour', pixels.colours > 12, `${pixels.colours} distinct colours`);
+  ok('the boss is drawn on the board', drawn.ok && drawn.pct > 60,
+     drawn.ok ? `${drawn.pct}% painted` : drawn.why);
+  const boardText = (await board.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ');
+  ok('with its health and the clock on it', /30/.test(boardText) && /[0-9]:[0-9]{2}/.test(boardText),
+     boardText.slice(0, 80));
 
-  // ── swinging does damage, and the cooldown is real ──
-  await page.evaluate(() => { window.ctl.swing(); });
-  await page.waitForTimeout(60);
-  let hits = await page.evaluate(() => window.hits.length);
-  ok('a swing lands a hit', hits === 1, `${hits} hits`);
+  // answering on the real phone loads the real knife
+  await phone.locator('#strikeq .opt-btn').first().click();
+  await phone.waitForTimeout(1400);
+  const armed = await phone.locator('#s-go').innerText();
+  ok('answering on the phone arms the knife button', /PUT IT IN|RELOADING/i.test(armed), armed);
 
-  await page.evaluate(() => { window.ctl.swing(); window.ctl.swing(); window.ctl.swing(); });
-  hits = await page.evaluate(() => window.hits.length);
-  ok('swinging again inside the cooldown does nothing', hits === 1, `${hits} hits after four taps`);
+  ok('no errors on the phone', perrs.length === 0, perrs.slice(0, 2).join(' | '));
+  ok('no errors on the board', berrs.length === 0, berrs.slice(0, 2).join(' | '));
 
-  await page.waitForTimeout(500);
-  await page.evaluate(() => { window.ctl.swing(); });
-  hits = await page.evaluate(() => window.hits.length);
-  ok('and works again once the cooldown is up', hits === 2, `${hits} hits`);
-
-  // ── the blade you carry matters ──
-  const damage = await page.evaluate(() => {
-    const run = (blade, id) => {
-      const c = document.getElementById(id);
-      let dealt = 0;
-      const k = NovaStrike.start({ canvas: c, me: { id: 'x' }, blade,
-        boss: { hp: 800, max: 800 }, seed: 1, send: () => {}, onHit: (d) => { dealt += d; } });
-      k.swing(); k.stop();
-      return dealt;
-    };
-    return { great: run('great', 'b1'), sword: run('sword', 'b2'), stick: run('stick', 'b3') };
-  });
-  ok('a greatsword hits harder than a sword, which beats a stick',
-     damage.great > damage.sword && damage.sword > damage.stick,
-     `great ${damage.great}, sword ${damage.sword}, stick ${damage.stick}`);
-
-  // ── dodging is a separate thing that does not deal damage ──
-  const before = await page.evaluate(() => window.hits.length);
-  await page.evaluate(() => { window.ctl.dodge(); });
-  await page.waitForTimeout(80);
-  ok('dodging is not a swing', await page.evaluate(() => window.hits.length) === before,
-     'no damage from a roll');
-
-  // ── the boss really does wind up, twice, at the advertised times ──
-  const wu = await page.evaluate(() => NovaStrike.WINDUPS);
-  const roundMs = await page.evaluate(() => NovaStrike.ROUND_MS);
-  ok('the boss winds up twice in a round', wu.length === 2, `at ${wu.join('ms and ')}ms`);
-  ok('both wind-ups land inside the ten seconds, with room to react',
-     wu.every(t => t > 1500 && t < roundMs - 1500), `round is ${roundMs}ms`);
-
-  // ── the wind-up is visible before it lands, which is the whole mechanic ──
-  const seen = await page.evaluate(async () => {
-    // a canvas that is in the page and laid out: a detached one has no layout
-    // box, fit() makes it a single pixel, and nothing is drawn at all
-    const c = document.getElementById('t');
-    const k = NovaStrike.start({ canvas: c, me: { id: 'w' }, blade: 'sword',
-      boss: { hp: 800, max: 800 }, seed: 7, send: () => {} });
-    /* Red over green, not red over everything: the warning is painted on a
-     * purple floor, so the blue channel stays high and "r > b" never fires. */
-    const redAt = () => {
-      const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      let red = 0;
-      for (let i = 0; i < g.length; i += 4 * 13) {
-        if (g[i] - g[i + 1] > 60) red++;
-      }
-      return red;
-    };
-    const quiet = redAt();
-    // sample right through the wind-up window and keep the strongest reading:
-    // one snapshot at a guessed millisecond is a flaky way to test an animation
-    let warning = 0;
-    const until = NovaStrike.WINDUPS[0] + 60;
-    for (let t = 0; t < until; t += 150) {
-      await new Promise(r => setTimeout(r, 150));
-      const v = redAt();
-      if (v > warning) warning = v;
-    }
-    k.stop();
-    return { quiet, warning, size: [c.width, c.height] };
-  });
-  ok('the sweep is telegraphed in red before it lands',
-     seen.warning > seen.quiet + 20,
-     `${seen.quiet} red before, ${seen.warning} at its peak, canvas ${seen.size.join('x')}`);
-
-  // ── it finishes by itself and reports what happened ──
-  await page.waitForTimeout(10200);
-  const done = await page.evaluate(() => window.done);
-  ok('the round ends on its own after ten seconds', !!done, JSON.stringify(done));
-  ok('and reports the damage it dealt', done && done.damage > 0, done && `${done.damage} damage, ${done.hits} hits`);
-
-  /* The phone camera used to be placed in world coordinates while everything was
-   * drawn in view coordinates, so whether the boss was in shot at all depended on
-   * a random spawn angle. One canvas could pass forever; twenty cannot. */
-  const angles = await page.evaluate(async () => {
-    const results = [];
-    for (let i = 0; i < 20; i++) {
-      const c = document.createElement('canvas');
-      c.style.cssText = 'width:320px;height:220px;display:block';
-      document.body.append(c);
-      const k = NovaStrike.start({ canvas: c, me: { id: 'a' + i }, blade: 'sword',
-        boss: { hp: 800, max: 800 }, seed: 3, send: () => {} });
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      let lit = 0, n = 0;
-      for (let j = 0; j < g.length; j += 4 * 31) { n++; if (g[j] + g[j+1] + g[j+2] > 80) lit++; }
-      results.push(Math.round(lit / n * 100));
-      k.stop(); c.remove();
-    }
-    return results;
-  });
-  const blank = angles.filter(p => p < 25);
-  ok('the boss is in shot from every spawn angle, not just the lucky ones',
-     blank.length === 0, `${angles.length} phones, ${blank.length} looking at nothing`
-                       + ` (lit %: ${angles.join(',')})`);
-
-  /* ── the weapons have to be weapons ──
-   *
-   * A blade was two strokes of the canvas, which at the size it is drawn is a
-   * scratch: "everyone has a different knife" was true in the code and
-   * invisible on the screen. Each of the six is built from a pommel forwards
-   * now, so the test is that they are drawn at all and that no two of them
-   * come out the same. */
-  const blades = await page.evaluate(() => {
-    const c = document.createElement('canvas');
-    c.width = 300; c.height = 140;
-    const ctx = c.getContext('2d');
-    const out = {};
-    for (const shape of NovaStrike.SHAPE_IDS) {
-      for (const tier of ['great', 'sword', 'stick']) {
-        ctx.clearRect(0, 0, 300, 140);
-        ctx.save(); ctx.translate(60, 70);
-        NovaStrike.drawWeapon(ctx, 200, shape, tier);
-        ctx.restore();
-        const d = ctx.getImageData(0, 0, 300, 140).data;
-        let ink = 0, sum = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i + 3] > 40) { ink++; sum += (d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + i) % 9973; }
-        }
-        out[shape + ':' + tier] = { ink, sum };
-      }
-    }
-    return out;
-  });
-  const drawn = Object.entries(blades).filter(([, v]) => v.ink > 400);
-  ok('every weapon in every tier is actually drawn',
-     drawn.length === 18, `${drawn.length} of 18 put ink on the canvas`);
-  const prints = new Set(Object.entries(blades)
-    .filter(([k]) => k.endsWith(':sword')).map(([, v]) => v.sum));
-  ok('and no two of the six look the same', prints.size === 6,
-     `${prints.size} distinct silhouettes`);
-
-  // ── the names say what you are holding ──
-  const named = await page.evaluate(() =>
-    [0, 1, 2, 3, 4, 5].map(a => NovaStrike.weaponName(a, 'sword')));
-  ok('and each one is named', new Set(named).size === 6, named.join(', '));
-
-  /* ── the boss has to loom ──
-   *
-   * It was a purple cone at the far end of a hall: on a phone it came out a
-   * thumbnail. The ring is tight now and the thing is big, so it should take a
-   * real share of the screen rather than a corner of it. */
-  const bulk = await page.evaluate(() => {
-    const c = document.createElement('canvas');
-    c.style.cssText = 'width:380px;height:460px;position:fixed;left:0;top:0';
-    document.body.append(c);
-    const k = NovaStrike.start({ canvas: c, me: { id: 'me', name: 'Me', avatar: 2 },
-      blade: 'sword', boss: { name: 'Boss', hp: 200, max: 200 }, seed: 7, send: () => {} });
-    return new Promise(done => setTimeout(() => {
-      const ctx = c.getContext('2d');
-      const w = c.width, h = c.height;
-      // the middle column of the screen, where the boss stands
-      const d = ctx.getImageData(Math.round(w * 0.3), 0, Math.round(w * 0.4), Math.round(h * 0.62)).data;
-      let lit = 0, n = 0;
-      for (let i = 0; i < d.length; i += 4) { n++; if (d[i] + d[i + 1] + d[i + 2] > 150) lit++; }
-      k.stop(); c.remove();
-      done(Math.round(lit / n * 100));
-    }, 700));
-  });
-  ok('the boss fills the middle of a phone rather than a corner of it',
-     bulk > 25, `${bulk}% of the upper middle is the boss`);
-
-  ok('no errors while fighting', errs.length === 0, errs.slice(0, 2).join(' | '));
-
-  await page.screenshot({ path: path.join(__dirname, 'shots', 'strike.png') }).catch(() => {});
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'strike.png') }).catch(() => {});
   await browser.close();
   console.log(`\n${checks - fails}/${checks} passed`);
   process.exit(fails ? 1 : 0);

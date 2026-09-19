@@ -11,7 +11,8 @@ const { Server } = require('../server.js');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 // laser and monster run in real time and have their own tests; these two are
 // the ones that still step through questions together
-const MODES = ['tower', 'boss'];
+// boss is not in step any more and has no question state; strike.js drives it
+const MODES = ['tower'];
 
 let fails = 0, checks = 0;
 const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${d ? '  — ' + d : ''}`); }
@@ -144,92 +145,13 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
     await page.close();
   }
 
-  /* ── the boss fight, end to end ──
-   * A question, then ten seconds with a sword, then the damage on the board.
-   * Every piece of this exists in a different file, so it is exactly the sort of
-   * thing that works everywhere except when joined up. */
-  {
-    const quiz = await post('/api/quizzes', { title: 'Boss', questions: [] });
-    const qid = quiz.quiz ? quiz.quiz.id : quiz.id;
-    // three questions, so the boss has the health for a real fight and the
-    // round after the first one still exists
-    await post(`/api/quizzes/${qid}/ops`, { ops: [1, 2, 3].map(() => ({
-      op: 'add_question', question: {
-        type: 'mc', text: 'Two plus two?', points: 100, time: 30,
-        choices: [{ text: '4', correct: true }, { text: '5' }] } })) });
-    const bfull = await (await fetch(`${base}/api/quizzes/${qid}`)).json();
-    const bqs = (bfull.quiz || bfull).questions;
-    const bRight = (bqs[0].choices.find(c => c.correct) || bqs[0].choices[0]).id;
-    const made = await post('/api/games', { quizId: qid, mode: 'boss', map: '' });
-    const bpin = made.pin || made.game.pin;
-    const hostToken = made.hostToken;
-    const ana = await post(`/api/games/${bpin}/join`, { name: 'Ana', avatar: 1 });
-
-    const page = await browser.newPage({ viewport: { width: 390, height: 800 } });
-    const errs = [];
-    page.on('pageerror', e => errs.push(e.message));
-    await page.goto(`${base}/play.html?pin=${bpin}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(700);
-    await page.locator('input').first().fill('Cal');
-    await page.locator('button:has-text("Join the game")').first().click();
-    await page.waitForTimeout(900);
-
-    await post(`/api/games/${bpin}/start`, { hostToken });
-    await page.waitForFunction(() => /question \d+ of/i.test(document.body.innerText),
-                               null, { timeout: 15000 }).catch(() => {});
-    ok('boss: the question comes up', await page.evaluate(
-       () => /question \d+ of/i.test(document.body.innerText)));
-    ok('boss: and there is no move to pick any more',
-       await page.locator('.move').count() === 0, 'the fight is the decision');
-
-    // answer it, fast and right, which should earn a greatsword
-    const opt = page.locator('.opts button, .opt').first();
-    if (await opt.count()) await opt.click().catch(() => {});
-    await post(`/api/games/${bpin}/answer`, { playerId: ana.player.id, answer: bRight });
-    await page.waitForTimeout(600);
-
-    let v = await (await fetch(`${base}/api/games/${bpin}`)).json();
-    const cal = v.players.find(p => p.name === 'Cal');
-    ok('boss: a right answer arms you', cal && ['great', 'sword'].includes(cal.blade),
-       `blade=${cal && cal.blade}`);
-    ok('boss: and the boss is untouched by the question itself',
-       v.boss && v.boss.hp === v.boss.max, `${v.boss && v.boss.hp}/${v.boss && v.boss.max}`);
-
-    // the teacher sends the class in. Everybody having answered already moved
-    // the round to its reveal, so this is the one press that starts the fight.
-    await post(`/api/games/${bpin}/next`, { hostToken });
-    v = await (await fetch(`${base}/api/games/${bpin}`)).json();
-    ok('boss: the round becomes a fight', v.state === 'strike', `state ${v.state}`);
-    ok('boss: its health scales with the quiz', v.boss && v.boss.max >= 100,
-       `${v.boss && v.boss.max} HP over ${v.total} questions`);
-    ok('boss: with a seed every device can run', !!v.strikeSeed, `seed ${v.strikeSeed}`);
-
-    await page.waitForFunction(() => !!document.getElementById('strike'),
-                               null, { timeout: 8000 }).catch(() => {});
-    ok('boss: the phone shows the fight', await page.locator('#strike').count() > 0);
-    ok('boss: with a swing button and a dodge button',
-       await page.locator('#swing').count() === 1 && await page.locator('#dodge').count() === 1);
-
-    // swing a few times, with the cooldown respected
-    for (let i = 0; i < 6; i++) {
-      await page.locator('#swing').dispatchEvent('mousedown').catch(() => {});
-      await page.waitForTimeout(450);
-    }
-    // read what the player is actually shown, not a page-scoped variable
-    const shown = await page.locator('#s-dmg').innerText().catch(() => '');
-    const dealt = parseInt(shown, 10) || 0;
-    ok('boss: swinging on the phone does damage, and says so', dealt > 0,
-       `the phone reads "${shown}"`);
-
-    // let the ten seconds run out; the phone reports and the host applies it
-    await page.waitForTimeout(8000);
-    await post(`/api/games/${bpin}/tick`, { hostToken });
-    v = await (await fetch(`${base}/api/games/${bpin}`)).json();
-    ok('boss: the damage reaches the boss', v.boss && v.boss.hp < v.boss.max,
-       `${v.boss && v.boss.hp}/${v.boss && v.boss.max} left`);
-    ok('boss: no errors during the fight', errs.length === 0, errs.slice(0, 2).join(' | '));
-    await page.close();
-  }
+  /* The boss fight used to be checked here: a question, then ten seconds with a
+     sword. It is one three-minute self-paced round now with no question state at
+     all, so the whole of it — answering out of step, loading a knife, one health
+     a hit, the two-second reload and the clock — lives in strike.js, which
+     drives it through the real server and the real pages in twenty-four checks.
+     Repeating a thinner version of that here would only be a second place for it
+     to rot. */
 
   await browser.close();
   await srv.close?.();

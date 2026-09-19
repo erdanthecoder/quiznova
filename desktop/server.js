@@ -288,6 +288,9 @@ class Server {
         return this.send(res, 200, { correct: player.correct, score: player.score, hp: player.hp,
                                      streak: player.streak, state: game.state,
                                      blocks: player.blocks, height: player.height,
+                                     // Boss Battle: what the answer loaded, and what with
+                                     loaded: player.loaded, blade: player.blade,
+                                     hits: player.hits,
                                      gain: player.lastGain });
       }
       if (tail === 'team' && method === 'POST') {

@@ -74,7 +74,7 @@
   /* Boss Battle's fight: ten seconds, and the most one player could take off it
    * in that time with the best weapon and never missing a beat. Reported damage
    * above this is a bug or a joke and is treated as both. */
-  const STRIKE_MS = 10000;
+  // the fight is one three-minute round now; its length lives in the rules
   const STRIKE_CAP = 900;
   /* Robot Run. The class shares one escape and one set of lives: the robot is
    * chasing the room, not any one child. */
@@ -146,20 +146,28 @@
       // phones need the questions rather than being fed one at a time. A child
       // who digs into the page can read the answers; that is true of every game
       // of this shape and always has been.
-      quiz: (game.state === 'arena' || game.state === 'running') ? questions : null,
+      quiz: (game.state === 'arena' || game.state === 'running'
+             || game.state === 'strike') ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
       // the world's own state: without these the wind and the shoal are things
       // that happen to the scores with nothing on screen to explain them
       shoal: game.shoal || '', wind: !!game.wind,
       // Boss Battle's fight: the script every device runs, and how long is left
-      strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
+      strikeSeed: game.strikeSeed || 0, strikeMs: R.BOSS_MS,
+      knifeReload: R.KNIFE_RELOAD_MS,
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
       lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
       round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
-      boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES[DEFAULT_MODE],
+      /* trackLength went with the racing mode when the fourteen were cut to
+         four. The constant was deleted; this reference was not, and because it
+         was a bare name rather than a property it threw a ReferenceError every
+         single time a game was read — so every board on the live site sat on
+         "Reconnecting…" for ever, reconnecting to a game it could see perfectly
+         well. Nothing caught it because the live engine had no test. */
+      boss: game.boss || null, modeInfo: MODES[game.mode] || MODES[DEFAULT_MODE],
       goal: game.goal || { kind: 'questions', value: 0 },
       startedAt: game.startedAt || 0, music: game.music !== false
     };
@@ -409,6 +417,27 @@
     }
 
     if (tail === '/answer' && method === 'POST') {
+      /* Boss Battle is not in step. Everybody has the whole quiz on their phone
+         and works through it at their own pace, so an answer names the question
+         it belongs to rather than relying on one index the whole room shares —
+         and it is still graded here, because a phone should not be able to load
+         a knife by claiming it got one right. */
+      if (game.mode === 'boss' && game.state === 'strike') {
+        const p = game.players[body && body.playerId];
+        if (!p) return { error: 'Not in this game.' };
+        const q = game.questions.find(x => x.id === (body && body.questionId));
+        if (!q) throw new Error('No such question.');
+        const right = grade(q, body.answer);
+        p.streak = right ? p.streak + 1 : 0;
+        p.best = Math.max(p.best, p.streak);
+        const fast = Math.max(0, Math.min(1, Number(body.speed) || 0));
+        p.correct = right;
+        SCORERS.boss(game, p, q, right, fast);
+        game.lastEvents = game.lastEvents.slice(-6);
+        await writeGame(pin, game);
+        return { ok: true, correct: right, loaded: p.loaded || 0, blade: p.blade,
+                 hits: p.hits || 0, view: publicView(game) };
+      }
       if (game.state !== 'question') throw new Error('No question is open.');
       const limit = secondsFor(game, game.questions[game.index]) * 1000;
       const left = Math.max(0, (game.endsAt || now()) - now());
@@ -444,18 +473,26 @@
       const p = game.players[body && body.playerId];
       if (!p) return { error: 'Not in this game.' };
       if (game.mode !== 'boss' || !game.boss) return { ok: false, why: 'Not that kind of game.' };
-      if (p.struck) return { ok: true, already: true, view: publicView(game) };
-      const dealt = Math.max(0, Math.min(STRIKE_CAP, Math.round(Number(body.damage) || 0)));
-      p.struck = dealt;
-      p.score += dealt;
-      game.boss.hp = Math.max(0, game.boss.hp - dealt);
-      if (dealt) game.lastEvents.push(`${p.name} did ${dealt} to ${game.boss.name}`);
+      if (game.state !== 'strike') return { ok: false, why: 'The fight is over.' };
+      if ((p.loaded || 0) <= 0) return { ok: false, why: 'Answer to load your knife.' };
+      const since = now() - (p.swungAt || 0);
+      if (since < R.KNIFE_RELOAD_MS) {
+        return { ok: false, why: 'Reloading.', wait: R.KNIFE_RELOAD_MS - since };
+      }
+      p.loaded -= 1;
+      p.swungAt = now();
+      p.hits = (p.hits || 0) + 1;
+      p.score = p.hits;
+      game.boss.hp = Math.max(0, game.boss.hp - R.KNIFE_DAMAGE);
+      game.lastEvents.push(`${p.name} put one in — ${game.boss.hp} left`);
+      game.lastEvents = game.lastEvents.slice(-6);
       if (game.boss.hp === 0) {
-        game.lastEvents.push(`${game.boss.name} is defeated`);
+        game.lastEvents.push(`${game.boss.name} is down`);
         game.state = 'over'; game.endsAt = null;
       }
       await writeGame(pin, game);
-      return { ok: true, damage: dealt, view: publicView(game) };
+      return { ok: true, hp: game.boss.hp, hits: p.hits, loaded: p.loaded,
+               view: publicView(game) };
     }
 
     /* One child spending one boost.
@@ -584,10 +621,21 @@
         game.lava = 0;
         for (const p of Object.values(game.players)) { p.height = 0; p.safe = true; }
       }
+      /* Boss Battle is one three-minute fight and nobody is in step: everybody
+         answers at their own pace out of the whole quiz, a right answer loads a
+         knife, and the knife takes one health off. It ran question by question
+         with a ten-second fight between each, which left the quick waiting and
+         hurried the slow. */
       if (game.mode === 'boss') {
-        const hp = BOSS_HP_PER_QUESTION * Math.max(1, game.questions.length);
-        game.boss = { hp, max: hp, name: pickBossName(),
-                      classHp: 100, classMax: 100 };
+        game.state = 'strike'; game.index = 0;
+        game.boss = { hp: R.BOSS_HP, max: R.BOSS_HP, name: pickBossName() };
+        game.strikeSeed = Math.floor(Math.random() * 0xffffff);
+        game.endsAt = now() + R.BOSS_MS;
+        for (const p of Object.values(game.players)) {
+          p.loaded = 0; p.hits = 0; p.swungAt = 0; p.score = 0; p.blade = 'stick';
+        }
+        await writeGame(pin, game);
+        return publicView(game);
       }
       openQuestion(game);
       await writeGame(pin, game);
@@ -595,14 +643,6 @@
     }
     if (tail === '/next') {
       if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }
-      else if (game.state === 'reveal' && game.mode === 'boss' && game.boss && game.boss.hp > 0) {
-        // Boss Battle answers a question and then fights for ten seconds with
-        // whatever that answer earned. The seed goes out with the state so every
-        // device runs the same boss from the same script.
-        game.state = 'strike';
-        game.strikeSeed = Math.floor(Math.random() * 0xffffff);
-        game.endsAt = now() + STRIKE_MS + 600;
-      }
       else openQuestion(game);
       await writeGame(pin, game);
       return publicView(game);

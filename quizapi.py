@@ -1016,7 +1016,16 @@ def arrange(questions, setup):
 
 
 ARENA_SECONDS = 20         # a full energy bar, in the Laser Tag arena
-BOSS_HP_PER_QUESTION = 55    # scales the boss to the length of the quiz
+# ── Boss Battle ──
+# One three-minute fight, nobody in step. A right answer loads a knife, the
+# knife takes one health off, and then it needs two seconds. Mirrors the block
+# in static/rules.js.
+BOSS_HP = 30
+BOSS_MS = 3 * 60 * 1000
+KNIFE_RELOAD_MS = 2000
+KNIFE_DAMAGE = 1
+
+BOSS_HP_PER_QUESTION = 55   # kept: older saved games still hold it    # scales the boss to the length of the quiz
 
 # Volcano Climb: how far one very fast right answer gets you, the least the lava
 # rises in a round, and how much of the room's average it adds on top — so a
@@ -1125,6 +1134,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
                                            "blocks", "ready", "placed", "boosts", "safe", "lastGain",
+                                           "loaded", "hits", "swungAt",
                                            "blade", "struck", "move", "on")}
                     for p in players],
         "teams": game["teams"],
@@ -1271,7 +1281,8 @@ def join_game(pin):
             "on": "",
             "job": None,
             # per-mode workings the moves need
-            "ready": 0, "placed": 0, "item": False, "run": 0, "rocks": False,
+            "ready": 0, "placed": 0, "loaded": 0, "hits": 0, "swungAt": 0,
+            "item": False, "run": 0, "rocks": False,
             "tuned": 0, "stopped": False, "guarding": False, "acted": "",
             "shielded": False, "exposed": False, "offer": "",
             "answers": {},
@@ -1683,25 +1694,24 @@ def score_tower(game, player, question, ok, speed):
 
 
 def score_boss(game, player, question, ok, speed):
-    """Boss Battle does not really score here any more.
+    """Answering loads the knife. Putting it in is what hurts the boss.
 
-    It used to be the same as every other mode: answer, and a number goes up.
-    What the answer buys now is a weapon, and the damage is done in the ten
-    seconds afterwards with it — so a child who reads fast and a child who reads
-    slowly both walk into the fight, and the one who wins it is the one who
-    reads the boss rather than the question.
-
-    Right and quick is a greatsword. Right is a sword. Wrong is a stick, which
-    is weak and is still a thing to hold: nobody sits a round out watching other
-    people play. Mirrors SCORERS.boss in static/rules.js.
+    The tier still comes from how fast the answer was, because a greatsword is
+    worth earning — but it decides what the weapon looks like, not what it does.
+    Every knife takes exactly one health off, which is the whole point of
+    everyone carrying a different one. Mirrors SCORERS.boss in static/rules.js.
     """
     player["blade"] = "stick" if not ok else ("great" if speed >= 0.5 else "sword")
-    player["struck"] = 0
-    gain = round(10 + 10 * speed) if ok else 0     # a little for knowing it
-    player["score"] += gain
-    player["lastGain"] = gain
-    if ok and speed >= 0.5:
-        game["lastEvents"].append(f"{player['name']} picked up a greatsword")
+    if ok:
+        player["loaded"] = player.get("loaded", 0) + 1
+        player["lastGain"] = 1
+        if speed >= 0.5:
+            game["lastEvents"].append(f"{player['name']} picked up a greatsword")
+    else:
+        player["lastGain"] = 0
+    player["score"] = player.get("hits", 0)
+
+
 def score_robot(game, player, question, ok, speed):
     """Robot Run scores nothing here.
 
