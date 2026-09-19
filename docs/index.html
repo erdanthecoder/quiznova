@@ -506,8 +506,8 @@ async function newQuiz() {
 
 async function hostGame(q) {
   modal(`
-    <h2 style="margin-bottom:6px">Pick how the class plays</h2>
-    <p class="muted tiny" style="margin-bottom:18px">“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.</p>
+    <h2 style="margin-bottom:6px" id="pick-title">Pick how the class plays</h2>
+    <p class="muted tiny" style="margin-bottom:18px" id="pick-sub">“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.</p>
     <div class="modegrid" id="mode-list">
       <p class="tiny faint">Loading</p>
     </div>
@@ -516,28 +516,60 @@ async function hostGame(q) {
     async onMount(box, close) {
       box.querySelector('[data-x]').onclick = close;
       const list = box.querySelector('#mode-list');
+      const title = box.querySelector('#pick-title');
+      const sub = box.querySelector('#pick-sub');
       let modes = [];
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
       // a fallback for a page that could not reach the server; it has to name a
       // mode that still exists
       if (!modes.length) modes = [{ id: 'tower', icon: 'bricks', label: 'Tower Build',
-                                    blurb: 'Build tall and sway, or stop and brace before the wind' }];
-      list.innerHTML = '';
-      modes.forEach(m => {
-        const btn = el('button', { class: 'modecard', 'data-mode': m.id });
-        btn.append(el('span', { class: 'art', html: Sprite.scene(m.id, 320) }),
-                   el('span', { class: 'body' },
-                      el('strong', {}, m.label),
-                      el('span', { class: 'sub' }, m.blurb)));
-        list.append(btn);
-      });
-      box.querySelectorAll('[data-mode]').forEach(btn => btn.onclick = async () => {
+                                    blurb: 'Build tall and sway, or stop and brace before the wind',
+                                    maps: [] }];
+      showModes();
+
+      function showModes() {
+        title.textContent = 'Pick how the class plays';
+        sub.innerHTML = `“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.`;
+        list.innerHTML = '';
+        modes.forEach(m => {
+          const btn = el('button', { class: 'modecard', 'data-mode': m.id,
+            onclick: () => (m.maps && m.maps.length) ? showMaps(m) : start(m.id, '') });
+          btn.append(el('span', { class: 'art', html: Sprite.scene(m.id, 320) }),
+                     el('span', { class: 'body' },
+                        el('strong', {}, m.label),
+                        el('span', { class: 'sub' }, m.blurb)));
+          list.append(btn);
+        });
+      }
+
+      /* Second step: where it is played.
+       *
+       * This screen did not exist here at all. Picking Laser Tag on the main
+       * page went straight into a game on whatever map came first, so the
+       * Bunker and the Moon Base were drawn, shipped, and impossible to see
+       * unless you happened to start the game from inside the studio. */
+      function showMaps(mode) {
+        title.textContent = 'Pick the map';
+        sub.innerHTML = `${esc(mode.label)} · choose where the class plays`;
+        list.innerHTML = '';
+        mode.maps.forEach(mp => {
+          const btn = el('button', { class: 'modecard', 'data-map': mp.id,
+            onclick: () => start(mode.id, mp.id) });
+          btn.append(el('span', { class: 'art', html: Sprite.map(mp.id, 320, mode.id) }),
+                     el('span', { class: 'body' }, el('strong', {}, mp.label)));
+          list.append(btn);
+        });
+        list.append(el('button', { class: 'btn ghost', style: 'grid-column:1/-1;margin-top:4px',
+          onclick: showModes }, 'Back to the games'));
+      }
+
+      async function start(mode, map) {
         try {
-          const game = await api('/games', { method: 'POST', body: { quizId: q.id, mode: btn.dataset.mode } });
+          const game = await api('/games', { method: 'POST', body: { quizId: q.id, mode, map } });
           Nova.store.set('host:' + game.pin, game.hostToken);
           location.href = 'host.html?pin=' + game.pin + '#h=' + game.hostToken;
         } catch (err) { toast(err.message, 'bad'); }
-      });
+      }
     }
   });
 }

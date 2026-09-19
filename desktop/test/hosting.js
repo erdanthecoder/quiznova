@@ -87,6 +87,36 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
      /only the teacher device/i.test(board) ? 'it thinks it is watching' : 'it can control the game');
   ok('so the Start button is there', await page.locator('#start, button:has-text("Start game")').count() > 0);
 
+  /* The same journey from the main page, which is where a teacher actually
+   * starts. It had no map step at all: picking Laser Tag went straight into a
+   * game, so the Bunker and the Moon Base were drawn, shipped and impossible to
+   * see unless you happened to begin from inside the studio. */
+  const hub = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  const huberrs = [];
+  hub.on('pageerror', e => huberrs.push(e.message));
+  await hub.goto(`${base}/quiznova.html`, { waitUntil: 'domcontentloaded' });
+  await hub.waitForTimeout(1800);
+  // the little play button on the quiz card is how a teacher starts one here
+  const play = hub.locator('button[title="Host a live game"]').first();
+  ok('the main page has a way to host', await play.count() > 0);
+  if (await play.count()) { await play.click(); await hub.waitForTimeout(1400); }
+  const hubModes = await hub.locator('[data-mode]').count();
+  ok('the main page offers the modes too', hubModes === 4, `${hubModes} modes`);
+  if (hubModes) {
+    await hub.locator('[data-mode="laser"]').click();
+    await hub.waitForTimeout(700);
+    const hubMaps = await hub.locator('[data-map]').count();
+    ok('and now shows the maps, which it never did', hubMaps === 3, `${hubMaps} maps`);
+    const hubArt = await hub.evaluate(() =>
+      [...document.querySelectorAll('[data-map] .art svg')].map(s => s.innerHTML));
+    ok('each with its own picture', hubArt.length === 3 && new Set(hubArt).size === 3,
+       `${new Set(hubArt).size} distinct`);
+    const hubNames = await hub.evaluate(() =>
+      [...document.querySelectorAll('[data-map]')].map(b => b.innerText.trim()));
+    ok('named on screen', hubNames.length === 3, hubNames.join(' · '));
+  }
+  ok('no errors on the main page', huberrs.length === 0, huberrs.slice(0, 2).join(' | '));
+
   ok('no errors anywhere in that flow', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   await browser.close();
