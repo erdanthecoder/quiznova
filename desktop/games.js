@@ -29,7 +29,11 @@ const { rid, now } = require('./store.js');
  * off the boss in them. Reported damage above this is a bug or a joke. */
 const STRIKE_MS = 10000;
 const STRIKE_CAP = 900;
-const RUN_CAP = 200000;          // further than any lesson can run
+/* Robot Run: the class shares one escape and one set of lives. */
+const ESCAPE_TARGET = 100;
+const BOOST_WORTH = 9;
+const ROBOT_LIVES = 3;
+const ROBOT_ROUND_MS = 75000;
 
 const ARENA_SECONDS = 20;
 const GAME_LIFETIME = 6 * 60 * 60 * 1000;   // a game nobody ended is forgotten after six hours
@@ -108,6 +112,9 @@ class Games {
       // app is playing a different game from the website off the same rules.
       lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
       strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
+      escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
+      lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
+      round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: R.movesFor(game.mode), moveAsk: (R.MOVES[game.mode] || {}).ask || '',
       startedAt: game.startedAt,
       music: game.music !== false
@@ -155,12 +162,15 @@ class Games {
       game.state = 'arena'; game.index = 0; game.endsAt = null;
       return this.changed(game);
     }
-    /* Monster Run never gathers the class on one question: it starts, and then
-     * everybody is running at their own pace until the teacher stops it. */
-    if (game.mode === 'monster') {
+    /* Robot Run is one long escape for the whole room. Nobody is fed a
+     * question: everybody answers at their own pace and what they earn goes
+     * into the same pot. */
+    if (game.mode === 'robot') {
       game.state = 'running'; game.index = 0; game.endsAt = null;
+      game.escape = 0; game.lives = ROBOT_LIVES; game.round = 1;
+      game.roundEndsAt = now() + ROBOT_ROUND_MS;
       for (const p of Object.values(game.players)) {
-        p.distance = 0; p.level = 1; p.boosts = 0; p.score = 0;
+        p.boosts = 0; p.ready = 0; p.score = 0; p.safe = true;
       }
       return this.changed(game);
     }
@@ -194,18 +204,31 @@ class Games {
     game.endsAt = now() + R.secondsFor(game, game.questions[game.index]) * 1000 + 700;
   }
 
-  /* How far one child has got in Monster Run, reported by their own phone. */
-  run(game, body) {
+  /* One child spending one boost. Every one goes into the same pot, because the
+   * class escapes together or not at all. Counted one at a time so a phone that
+   * reconnects and repeats itself cannot push the whole room to the exit. */
+  boost(game, body) {
     const p = game.players[body.playerId];
     if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
-    if (game.mode !== 'monster') return { ok: false, why: 'Not that kind of game.' };
-    const ran = Math.max(0, Math.min(RUN_CAP, Math.round(Number(body.distance) || 0)));
-    if (ran > (p.distance || 0)) p.distance = ran;      // only ever forwards
-    p.level = Math.max(1, Math.min(3, Math.round(Number(body.level) || 1)));
-    p.boosts = Math.max(0, Math.min(99, Math.round(Number(body.boosts) || 0)));
-    p.score = p.distance;
+    if (game.mode !== 'robot' || game.state !== 'running') {
+      return { ok: false, why: 'Not that kind of game.' };
+    }
+    const seq = Math.max(0, Math.round(Number(body.seq) || 0));
+    if (seq <= (p.boosts || 0)) return { ok: true, already: true };
+    p.boosts = Math.min(seq, (p.boosts || 0) + 1);
+    p.score = p.boosts;
+    game.escape = Math.min(ESCAPE_TARGET, (game.escape || 0) + BOOST_WORTH);
+    game.lastEvents.push(`${p.name} boosted`);
+    game.lastEvents = game.lastEvents.slice(-6);
+    if (game.escape >= ESCAPE_TARGET) {
+      game.round = (game.round || 1) + 1;
+      game.escape = 0;
+      game.roundEndsAt = now() + ROBOT_ROUND_MS;
+      for (const x of Object.values(game.players)) x.ready = 0;
+      game.lastEvents.push(`The class got clear — deck ${game.round}`);
+    }
     this.changed(game);
-    return { ok: true, distance: p.distance };
+    return { ok: true, escape: game.escape, round: game.round };
   }
 
   /* Boss Battle: the question is followed by ten seconds of fighting. */
@@ -276,6 +299,19 @@ class Games {
   /* The clock, called on a timer by the server: a question can run out with
    * nobody having answered, and a time limit can run out mid-question. */
   tick(game) {
+    // a deck that runs out of time is the robot reaching the room
+    if (game.state === 'running' && game.mode === 'robot'
+        && game.roundEndsAt && now() >= game.roundEndsAt) {
+      game.lives = Math.max(0, (game.lives === undefined ? ROBOT_LIVES : game.lives) - 1);
+      game.escape = 0;
+      game.roundEndsAt = now() + ROBOT_ROUND_MS;
+      for (const x of Object.values(game.players)) x.ready = 0;
+      game.lastEvents.push(game.lives
+        ? `The robot caught up — ${game.lives} live${game.lives === 1 ? '' : 's'} left`
+        : 'The robot got them');
+      if (!game.lives) { game.state = 'over'; game.endsAt = null; }
+      return this.changed(game);
+    }
     if (game.state === 'strike' && game.endsAt && now() >= game.endsAt) {
       this.openQuestion(game);
       return this.changed(game);

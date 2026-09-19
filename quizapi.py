@@ -873,8 +873,8 @@ MODES = {
                  "blurb": "Build tall and sway, or stop and brace before the wind"},
     "boss":     {"label": "Boss Battle", "icon": "dragon", "teams": False,
                  "blurb": "Answer to arm yourself, then ten seconds to cut it down"},
-    "monster":  {"label": "Monster Run", "icon": "dragon", "teams": False,
-                 "blurb": "Something is chasing you. Three right in a row and you sprint"},
+    "robot":    {"label": "Robot Run", "icon": "dragon", "teams": False,
+                 "blurb": "The whole class outruns the robot together. Answer, earn a boost, hold to use it"},
 }
 
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -883,7 +883,8 @@ MAPS = {
     "laser":    [("arena", "Neon Arena"), ("bunker", "Bunker"), ("moon", "Moon Base")],
     "tower":    [("site", "Building Site"), ("candy", "Candy Land"), ("castle", "Castle Walls")],
     "boss":     [("lair", "Dragon Lair"), ("volcano", "Volcano"), ("ruins", "Old Ruins")],
-    "monster":  [("sewer", "The Sewers"), ("forest", "Night Forest"), ("city", "Ruined City")],
+    "robot":    [("station", "The Space Station"), ("reactor", "Reactor Deck"),
+                 ("hangar", "The Hangar")],
 }
 
 
@@ -1115,7 +1116,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "blocks", "sway", "distance", "level", "boosts", "lastGain",
+                                           "blocks", "sway", "boosts", "ready", "safe", "lastGain",
                                            "blade", "struck", "move", "on")}
                     for p in players],
         "teams": game["teams"],
@@ -1246,9 +1247,9 @@ def join_game(pin):
             "lastDamage": 0,
             "blocks": 0,        # tower build
             "sway": 0,          # and how close it is to coming down
-            "distance": 0,      # monster run: how far they have run
-            "level": 1,         # and how deep they have got
-            "boosts": 0,
+            "boosts": 0,        # robot run: what they have put in
+            "ready": 0,
+            "safe": True,
             "target": "",       # laser tag: who they lined up
             "lastGain": 0,
             # the move, and whatever it is aimed at
@@ -1600,13 +1601,13 @@ def score_boss(game, player, question, ok, speed):
     player["lastGain"] = gain
     if ok and speed >= 0.5:
         game["lastEvents"].append(f"{player['name']} picked up a greatsword")
-def score_monster(game, player, question, ok, speed):
-    """Monster Run scores nothing here.
+def score_robot(game, player, question, ok, speed):
+    """Robot Run scores nothing here.
 
-    Every child is running their own race at their own pace — they are not all
-    on the same question, so there is no round to settle and nothing to compare.
-    Their phone runs the chase and reports how far they got; the board keeps the
-    table. Mirrors SCORERS.monster in static/rules.js.
+    Everybody answers at their own pace and none of it is a race against each
+    other — the whole class is running from the same robot and it is the boosts,
+    pooled, that decide whether they get away. Mirrors SCORERS.robot in
+    static/rules.js.
     """
     player["lastGain"] = 0
 def resolve(game):
@@ -1653,7 +1654,7 @@ def after_round(game):
             game["lastEvents"].append("The wind is getting up — brace anything that is swaying")
 SCORERS = {
     "laser": score_laser, "tower": score_tower,
-    "boss": score_boss, "monster": score_monster,
+    "boss": score_boss, "robot": score_robot,
 }
 
 

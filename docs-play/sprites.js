@@ -294,7 +294,7 @@
       '<circle cx="26" cy="78" r="10" fill="#12BE8E"/><circle cx="50" cy="83" r="8" fill="#FFC53D"/>' +
       '<circle cx="124" cy="80" r="9" fill="#F4364C"/><circle cx="144" cy="85" r="7" fill="#2BA8FF"/>' +
       '<rect y="91" width="160" height="9" fill="#DED2FF"/>',
-    monster:
+    robot:
       '<rect width="160" height="100" fill="#0A1418"/>' +
       '<path d="M26 100 L64 38 L96 38 L134 100z" fill="#1B2422"/>' +
       '<path d="M56 100 L74 50 L86 50 L104 100z" fill="#0A1214"/>' +
@@ -468,8 +468,8 @@
       '<g fill="#7BC62D"><circle cx="24" cy="54" r="2.6"/><circle cx="50" cy="64" r="2.6"/><circle cx="108" cy="60" r="2.6"/></g>' +
       '<circle cx="132" cy="70" r="7" fill="#7C4DFF"/><circle cx="129.6" cy="67.6" r="2.1" fill="#fff"/>',
 
-    // ── Monster Run ──
-    sewer:
+    // ── Robot Run ──
+    station:
       '<rect width="160" height="100" fill="#0A1418"/>' +
       // the tunnel, closing to a point you are running towards
       '<path d="M0 0h160v100H0z" fill="#101C20"/>' +
@@ -489,8 +489,8 @@
       '<path d="M96 100c-4-22 6-34 18-34s22 12 18 34z" fill="#0C060F"/>' +
       '<circle cx="108" cy="74" r="2.6" fill="#FF5A6E"/><circle cx="118" cy="74" r="2.6" fill="#FF5A6E"/>' +
       '<path d="M96 88c-8-4-12-10-12-16M132 88c8-4 12-10 12-16" stroke="#0C060F" stroke-width="4" fill="none" stroke-linecap="round"/>',
-    forest:
-      '<rect width="160" height="100" fill="#070E1C"/>' +
+    reactor:
+      '<rect width="160" height="100" fill="#1A0A10"/>' +
       '<circle cx="128" cy="16" r="9" fill="#E9ECF5" opacity=".85"/>' +
       '<circle cx="124" cy="14" r="7.5" fill="#070E1C"/>' +
       '<path d="M0 0h160v56c-18 6-32-4-50-2S74 62 56 58 16 48 0 52z" fill="#16233F" opacity=".7"/>' +
@@ -507,8 +507,8 @@
       '<rect x="77.8" y="66" width="4.4" height="7" rx="2" fill="#7BC62D"/>' +
       '<path d="M94 100c-4-24 7-36 20-36s24 12 20 36z" fill="#0A0610"/>' +
       '<circle cx="106" cy="72" r="2.8" fill="#FFD86B"/><circle cx="118" cy="72" r="2.8" fill="#FFD86B"/>',
-    city:
-      '<rect width="160" height="100" fill="#160A14"/>' +
+    hangar:
+      '<rect width="160" height="100" fill="#0A1410"/>' +
       '<path d="M0 0h160v44c-16 6-28-4-44-2s-22 8-38 6-24-8-38-6-22 4-40 0z" fill="#37152A"/>' +
       '<g fill="#221224">' +
       '<rect x="2" y="14" width="22" height="70"/><rect x="28" y="28" width="16" height="56"/>' +

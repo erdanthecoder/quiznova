@@ -32,7 +32,7 @@ def fresh(mode, names):
             "id": n, "name": n, "avatar": i, "team": "blue" if i % 2 else "red",
             "score": 0, "hp": 100, "streak": 0, "best": 0, "answered": False,
             "correct": None, "down": False, "lastDamage": 0, "lastGain": 0,
-            "blocks": 0, "sway": 0, "distance": 0, "level": 1, "boosts": 0,
+            "blocks": 0, "sway": 0, "boosts": 0, "ready": 0, "safe": True,
             "guarding": False, "acted": "", "shielded": False, "exposed": False,
             "target": "", "move": "", "on": "", "answers": {},
         }
@@ -59,7 +59,7 @@ def py_run(mode, move, ok, speed):
     Q.SCORERS[mode](g, g["players"]["Ana"], QUESTION, ok, speed)
     return {
         "score": g["players"]["Ana"]["score"], "hp": g["players"]["Ana"]["hp"],
-        "blocks": g["players"]["Ana"]["blocks"], "distance": g["players"]["Ana"]["distance"],
+        "blocks": g["players"]["Ana"]["blocks"], "boosts": g["players"]["Ana"]["boosts"],
         "sway": g["players"]["Ana"]["sway"], "lastGain": g["players"]["Ana"]["lastGain"],
         "bossHp": g["boss"]["hp"], "classHp": g["boss"]["classHp"],
         "blade": g["players"]["Ana"].get("blade", ""),
@@ -92,7 +92,7 @@ for (const [mode, move, ok, speed] of cases) {
   const a = g.players.Ana;
   out.push({ score:a.score, hp:a.hp, blocks:a.blocks, sway:a.sway,
     lastGain:a.lastGain, bossHp:g.boss.hp, classHp:g.boss.classHp, blade:a.blade||'',
-    distance:a.distance,
+    boosts:a.boosts,
     redHp:g.teams.red.hp, blueHp:g.teams.blue.hp });
 }
 console.log(JSON.stringify(out));

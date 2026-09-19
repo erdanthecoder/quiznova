@@ -1002,7 +1002,9 @@ function arenaView() {
   return root;
 }
 
-/* Monster Run's board is a table and nothing else.
+/* Robot Run's board: the shared escape, the shared lives, and who is putting
+ * boosts in. Not a question — everybody is on a different one — and not a
+ * ranking either, because the class gets out together or not at all.
  *
  * Every child is on a different question, so there is no question to put up and
  * no answer split to draw — putting one up would only be showing the room one
@@ -1011,13 +1013,25 @@ function arenaView() {
 function runView() {
   const root = el('div', { class: 'board' });
   const panel = el('div', { class: 'ask' });
-  const deepest = Math.max(1, ...game.players.map(p => p.level || 1));
-  panel.innerHTML = `<h1>Monster Run</h1>
-    <div class="tally"><b>${game.players.length}</b><span>running</span></div>
-    <p class="tiny faint" style="margin-top:8px">Everyone answers at their own pace · deepest is level ${deepest}</p>`;
+  const lives = game.lives === undefined ? 3 : game.lives;
+  const target = game.escapeTarget || 100;
+  const pct = Math.round(Math.max(0, Math.min(1, (game.escape || 0) / target)) * 100);
+  const left = game.roundEndsAt ? Math.max(0, Math.round((game.roundEndsAt - (Date.now() + drift)) / 1000)) : 0;
+  panel.innerHTML = `<h1>Robot Run</h1>
+    <div class="tally"><b>${'&#9829;'.repeat(Math.max(0, lives)) || '—'}</b><span>lives left</span></div>`;
   root.append(panel);
+  /* The escape bar is the board's whole job. Everybody's boosts are in it, so
+     the room can see at a glance whether it is going to make the door — which
+     is what turns this into thirty children shouting at each other to answer. */
+  const esc = el('div', { class: 'escape' });
+  esc.innerHTML = `<div class="escape-head">
+      <strong>Deck ${game.round || 1}</strong>
+      <span>${left}s before the robot reaches you</span></div>
+    <div class="escape-bar"><i style="width:${pct}%"></i></div>
+    <p class="tiny faint">${pct}% of the way out · every boost anybody spends fills this</p>`;
+  root.append(esc);
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 10, title: 'How far they have run' }));
+  rest.append(leaderboard({ rows: 8, title: 'Boosts put in' }));
   root.append(rest);
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
     el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
@@ -1233,6 +1247,15 @@ let lastFort = {};
  * once, so both are big, both sit under the stage, and the dangerous one is
  * red and moves. A warning nobody notices is the same as no warning. */
 const WORLD_CSS = `
+.escape{margin:14px 0 6px;padding:16px 20px;border-radius:20px;flex:none;
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.1)}
+.escape-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.escape-head strong{font-size:1.3rem;letter-spacing:-.01em}
+.escape-head span{font-size:.9rem;opacity:.7}
+.escape-bar{height:22px;border-radius:11px;overflow:hidden;background:rgba(0,0,0,.45)}
+.escape-bar i{display:block;height:100%;border-radius:11px;
+  background:linear-gradient(90deg,#12BE8E,#FFC53D);transition:width .4s var(--ease)}
+
 .telegraph{display:flex;align-items:center;gap:14px;margin-top:14px;padding:12px 16px;
   border-radius:16px;background:color-mix(in srgb,#FFC53D 16%,transparent);
   border:2px solid color-mix(in srgb,#FFC53D 45%,transparent)}
@@ -1303,7 +1326,7 @@ function bossArena() {
 let lastBossHp = null;
 
 const unitFor = (p) => game.mode === 'tower' ? `${p.blocks || 0} blocks`
-  : game.mode === 'monster' ? `${Math.round(p.distance || 0)} m · level ${p.level || 1}`
+  : game.mode === 'robot' ? `${p.boosts || 0} boost${(p.boosts || 0) === 1 ? '' : 's'}`
   : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
   : String(p.score);
 

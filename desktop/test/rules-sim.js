@@ -34,7 +34,7 @@ function round(g, plan) {
     if (how.move) R.chooseMove(g, p, how.move, how.on || '');
     if (how.target) p.target = how.target;
     p.streak = how.ok ? (p.streak || 0) + 1 : 0;
-    (R.SCORERS[g.mode] || R.SCORERS.normal)(g, p, QUESTION, how.ok, how.speed == null ? 0.6 : how.speed);
+    (R.SCORERS[g.mode] || R.SCORERS[R.DEFAULT_MODE])(g, p, QUESTION, how.ok, how.speed == null ? 0.6 : how.speed);
   }
   R.afterRound(g);
 }
@@ -103,16 +103,15 @@ console.log('\n— the choice changes the game —');
   })(), 'sway goes back to nothing');
 }
 
-// monster: the chase is played, not scored — the scorer must stay out of it
+// robot: the escape is played, not scored — the scorer must stay out of it
 {
-  const g = newGame('monster', ['A', 'B']);
-  g.players.A.distance = 900; g.players.A.level = 2;
+  const g = newGame('robot', ['A', 'B']);
+  g.players.A.boosts = 2;
   round(g, { A: { ok: true, speed: .9 }, B: { ok: false, speed: .2 } });
-  ok('monster: answering does not move anybody on the server',
-     g.players.A.distance === 900 && g.players.A.level === 2,
-     `${g.players.A.distance}m, level ${g.players.A.level}`);
-  ok('monster: and it has no move to pick, because it is played with a thumb',
-     R.movesFor('monster').length === 0, `${R.movesFor('monster').length} moves`);
+  ok('robot: answering does not spend a boost by itself',
+     g.players.A.boosts === 2, `${g.players.A.boosts} boosts`);
+  ok('robot: and it has no move to pick, because it is played with a thumb',
+     R.movesFor('robot').length === 0, `${R.movesFor('robot').length} moves`);
 }
 
 // boss: the answer no longer scores, it arms you for the fight

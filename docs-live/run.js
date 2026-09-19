@@ -1,63 +1,49 @@
-/* Monster Run: something is behind you and it does not get tired.
+/* Robot Run: the class gets off the deck together, or nobody does.
  *
- * The other modes ask a question, wait for thirty children, and then show what
- * happened. This one never waits. Every child is running their own race at
- * their own pace, answering their own questions, and the only clock that
- * matters is the one closing the gap behind them.
+ * The mistake worth recording: this was built first as a race. Every child ran
+ * their own chase, sprinted on their own streak, and the board ranked them by
+ * metres. That is a perfectly good game and it is not this one. Kahoot's Robot
+ * Run — which is what was actually asked for — is collaborative: the room is
+ * being chased by one robot, boosts are pooled, and the class clears the deck
+ * together or loses a life together. Ranking children against each other was
+ * the opposite of the point.
  *
  * The loop
- *   Answer right and you gain ground. Answer three right in a row and you
- *   SPRINT — a real one, the screen tears past and the monster is suddenly a
- *   long way back. Answer wrong and you stumble, and it is closer than it was.
- *   Get caught and you lose a chunk of ground, not the game: being out with
- *   four minutes left is a child who has stopped learning.
+ *   Answer at your own pace. Three right and a BOOST is charged; you then have
+ *   to tap and hold to spend it, which is deliberate — it is a second small
+ *   thing to do with your hands, and it means a boost is used when the child
+ *   decides rather than automatically.
  *
- * Why the camera is behind the monster
+ *   Every boost anybody spends fills the same bar. Fill it and the whole class
+ *   is through to the next deck. Let the deck run out and the robot reaches the
+ *   room and it costs everybody a life.
+ *
+ * Why the camera is behind the robot
  *   A runner filmed from behind the runner hides the only thing that matters.
- *   This camera sits behind the thing chasing you and looks past it, so the gap
- *   is the picture: when it closes, the monster fills the screen. Nobody needs
- *   a number to know they are in trouble.
- *
- * Levels
- *   Four sprints finishes a stretch. The ground drops away, you are carried to
- *   somewhere worse, and it starts again faster. Three stretches; the third is
- *   for the classes that get there.
+ *   This camera sits behind the thing chasing and looks past it, so the gap is
+ *   the picture: when the bar is low the robot fills the screen. Nobody needs a
+ *   number to know the room is in trouble.
  */
 (function (global) {
   'use strict';
 
   const LANE = 260;                  // how wide the road is, in world units
-  const RUN_AHEAD = 900;             // how far ahead of the monster you start
-  const GAP_MAX = 1700, GAP_MIN = 90;
-  const CATCH_LOSS = 420;            // ground lost when it reaches you
-  const RIGHT_GAIN = 190;            // one right answer
-  const WRONG_LOSS = 150;            // one wrong one
-  const SPRINT_GAIN = 900;           // three right in a row
-  const SPRINT_STREAK = 3;
-  const BOOSTS_PER_LEVEL = 4;
-  const MAX_LEVEL = 3;
+  const GAP_MAX = 1700, GAP_MIN = 120;   // an empty bar puts it on top of you
+  const SPRINT_STREAK = 3;        // right answers that charge one boost
+  const HOLD_MS = 550;            // how long the finger stays down to spend it
 
-  /* The monster gains on you steadily, and faster the deeper you are. A class
-   * that is answering well should still feel it coming. */
-  const CHASE = [0, 52, 74, 98];     // world units a second, by level
 
   const WORLDS = {
-    sewer: { sky: ['#0A1418', '#122A2E'], road: ['#2A2E2C', '#121614'],
-             wall: '#1B2422', mist: 'rgba(80,200,170,.10)', prop: 'pipe',
-             tint: '#3AC0D8', name: 'The Sewers' },
-    forest: { sky: ['#070E1C', '#16233F'], road: ['#2A2418', '#120F0A'],
-              wall: '#101B14', mist: 'rgba(90,140,255,.10)', prop: 'tree',
-              tint: '#7BC62D', name: 'Night Forest' },
-    city: { sky: ['#160A14', '#37152A'], road: ['#2C2830', '#141118'],
-            wall: '#1C1622', mist: 'rgba(255,120,90,.10)', prop: 'block',
-            tint: '#FF7A45', name: 'Ruined City' }
+    station: { sky: ['#06101C', '#0E2038'], road: ['#2A3442', '#121820'],
+               wall: '#16202C', mist: 'rgba(90,170,255,.09)', prop: 'strut',
+               tint: '#2BA8FF', name: 'The Space Station' },
+    reactor: { sky: ['#1A0A10', '#3A1420'], road: ['#32262A', '#161014'],
+               wall: '#241A20', mist: 'rgba(255,120,90,.10)', prop: 'pipe',
+               tint: '#FF7A45', name: 'Reactor Deck' },
+    hangar:  { sky: ['#0A1410', '#14301F'], road: ['#2A3230', '#141A18'],
+               wall: '#18241E', mist: 'rgba(90,255,170,.08)', prop: 'crate',
+               tint: '#12BE8E', name: 'The Hangar' }
   };
-
-  /* The chase works in its own units — they only ever get compared with each
-   * other — but the number on screen is the one a child repeats afterwards, so
-   * it is shown in something a person can picture. A strong run is a few
-   * hundred metres, not forty thousand. */
-  const METRES = 0.08;
 
   const now = () => performance.now();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -78,17 +64,16 @@
     const world = WORLDS[opts.world] || WORLDS.sewer;
 
     const me = {
-      distance: 0,          // how far this child has run, all levels
-      gap: RUN_AHEAD,       // how far ahead of the monster
-      streak: 0,            // right answers toward the next sprint
-      boosts: 0,            // sprints used this stretch
-      level: Math.max(1, Math.min(MAX_LEVEL, opts.level || 1)),
-      caught: 0,            // when it last reached them
-      sprintUntil: 0
+      streak: 0,            // right answers toward the next boost
+      charged: 0,           // boosts earned and not yet spent
+      spent: 0,             // and spent, which is what gets reported
+      holdFrom: 0,          // when the finger went down on the boost
+      boosting: 0           // and when the boost itself is playing out
     };
+    // the room's, handed in from the game and refreshed as it changes
+    let room = { escape: 0, target: 100, lives: 3, round: 1 };
 
     let raf = null, stopped = false, last = now();
-    let flying = 0;                         // the hand-off between stretches
     const puffs = [], lines = [];
     let shakeUntil = 0, banner = '', bannerUntil = 0;
 
@@ -127,6 +112,11 @@
 
     // ── what answering does ──
     let lastToken = null;
+    /* The gap is read from the room's escape bar rather than kept here. Every
+     * child sees the same robot in the same place, because it is chasing all of
+     * them — that is the difference between this and a race. */
+    const gapNow = () => GAP_MIN + (GAP_MAX - GAP_MIN) *
+      Math.max(0, Math.min(1, (room.escape || 0) / Math.max(1, room.target)));
 
     /* answered(right, token)
      *
@@ -139,7 +129,7 @@
      * limit would also throttle a child who is genuinely quick, and being quick
      * is the thing this mode is for. */
     function answered(right, token) {
-      if (stopped || flying) return;
+      if (stopped) return;
       if (token !== undefined && token !== null) {
         if (token === lastToken) return;
         lastToken = token;
@@ -148,50 +138,56 @@
         me.streak += 1;
         if (me.streak >= SPRINT_STREAK) {
           me.streak = 0;
-          me.boosts += 1;
-          me.gap = Math.min(GAP_MAX, me.gap + SPRINT_GAIN);
-          me.distance += SPRINT_GAIN;
-          me.sprintUntil = now() + 1400;
-          shakeUntil = now() + 500;
-          say('SPRINT');
-          for (let i = 0; i < 26; i++) lines.push({ z: 200 + Math.random() * 1600,
-            x: (Math.random() - 0.5) * LANE * 2.6, born: now() });
-          if (me.boosts >= BOOSTS_PER_LEVEL) nextLevel();
+          me.charged += 1;
+          say('BOOST READY');
         } else {
-          me.gap = Math.min(GAP_MAX, me.gap + RIGHT_GAIN);
-          me.distance += RIGHT_GAIN;
           say(SPRINT_STREAK - me.streak === 1 ? 'One more' : 'Go');
         }
       } else {
         me.streak = 0;
-        me.gap = Math.max(GAP_MIN, me.gap - WRONG_LOSS);
-        say('Stumble');
+        say('Wrong');
       }
       tell();
     }
 
-    /* The hand-off. The ground goes, the child is carried somewhere worse, and
-     * the next stretch starts with the monster further back but quicker. */
-    function nextLevel() {
-      if (me.level >= MAX_LEVEL) { say('YOU MADE IT OUT'); if (opts.onLevel) opts.onLevel(me.level, true); return; }
-      flying = now();
-      say('LEVEL ' + (me.level + 1));
-      setTimeout(() => {
-        me.level += 1;
-        me.boosts = 0;
-        me.gap = RUN_AHEAD;
-        flying = 0;
-        if (opts.onLevel) opts.onLevel(me.level, false);
-        tell();
-      }, 2200);
+    /* Spending a boost is its own act: charged by answering, then held down.
+     *
+     * It would be easier to fire it the moment the third answer lands, and much
+     * worse — the child would never feel they did it. Holding is a second small
+     * thing to do with the hands, at a moment of their choosing, and it is the
+     * only part of this mode that is not reading. */
+    function holdStart() {
+      if (stopped || me.charged <= 0 || me.holdFrom || me.boosting) return false;
+      me.holdFrom = now();
+      return true;
     }
+    function holdEnd() {
+      if (!me.holdFrom) return false;
+      const held = now() - me.holdFrom;
+      me.holdFrom = 0;
+      if (held < HOLD_MS) { say('Hold it down'); return false; }
+      me.charged -= 1;
+      me.spent += 1;
+      me.boosting = now();
+      shakeUntil = now() + 520;
+      say('BOOST');
+      for (let i = 0; i < 30; i++) lines.push({ z: 200 + Math.random() * 1700,
+        x: (Math.random() - 0.5) * LANE * 2.6, born: now() });
+      if (opts.onBoost) opts.onBoost(me.spent);
+      tell();
+      return true;
+    }
+    /** How far through the hold the finger is, 0 to 1, for the ring on screen. */
+    const holdAt = () => me.holdFrom ? Math.min(1, (now() - me.holdFrom) / HOLD_MS) : 0;
+
+    /** The room's state, refreshed from the game. */
+    function setRoom(next) { room = Object.assign(room, next || {}); }
 
     const say = (t) => { banner = t; bannerUntil = now() + 1300; };
     const tell = () => opts.onState && opts.onState({
-      gap: Math.round(me.gap), distance: Math.round(me.distance * METRES),
-      raw: Math.round(me.distance),
-      boosts: me.boosts, level: me.level, streak: me.streak,
-      need: SPRINT_STREAK - me.streak, perLevel: BOOSTS_PER_LEVEL });
+      charged: me.charged, spent: me.spent, streak: me.streak,
+      need: SPRINT_STREAK - me.streak,
+      escape: room.escape, target: room.target, lives: room.lives, round: room.round });
 
     // ── the world ──
     function drawRoad(t) {
@@ -228,7 +224,7 @@
 
       /* Stripes rushing past. They are what makes it a run rather than a
        * picture, so they move with the child's own speed. */
-      const roll = (me.distance + (now() - last) * 0.12) % 220;
+      const roll = (t * 0.16 + (me.boosting ? (t - me.boosting) * 0.6 : 0)) % 220;
       for (let i = 0; i < 16; i++) {
         const z = i * 220 - roll + 60;
         const a = put(z, -12, 1), b = put(z + 90, 12, 1);
@@ -275,12 +271,12 @@
       // four pixels tall and the best moment in the game is invisible, so the
       // road is honest and the runner's distance is squashed to keep them
       // legible. The bar along the top is the number that tells the truth.
-      const z = 160 + me.gap * 0.42;
+      const z = 160 + gapNow() * 0.42;
       const foot = put(z, 0, 0), head = put(z, 0, 150);
       if (!foot || !head) return;
       const tall = Math.max(8, foot.y - head.y);
       const wide = tall * 0.46;
-      const sprinting = now() < me.sprintUntil;
+      const sprinting = !!me.boosting;
       const cycle = Math.sin(t / (sprinting ? 55 : 95));
 
       ctx.save();
@@ -320,55 +316,102 @@
       ctx.restore();
     }
 
-    /* The monster. It is close to the camera by design, so when the gap closes
-     * it stops being scenery and starts filling the screen. */
-    function drawMonster(t) {
+    /* The robot. Close to the camera by design, so when the room's escape bar is
+     * low it stops being scenery and fills the screen.
+     *
+     * Built out of hard shapes rather than a silhouette: a boxy chassis, a
+     * plated head, a single scanning eye and two piston arms. A monster is a
+     * blob with eyes; a machine has edges, and edges are what make it read as
+     * a machine at a glance on a projector. */
+    function drawRobot(t) {
       const foot = put(0, 0, 0), head = put(0, 0, 175);
       if (!foot || !head) return;
       const tall = Math.max(30, foot.y - head.y);
       const wide = tall * 0.56;
-      const near = clamp(1 - (me.gap - GAP_MIN) / (RUN_AHEAD * 1.4), 0, 1);
-      const lurch = Math.sin(t / 120) * tall * 0.03;
+      const near = clamp(1 - (gapNow() - GAP_MIN) / (GAP_MAX - GAP_MIN), 0, 1);
+      const stomp = Math.sin(t / 150);
 
       ctx.save();
-      ctx.translate(0, lurch);
+      ctx.translate(0, stomp * tall * 0.02);
       ctx.fillStyle = 'rgba(0,0,0,.5)';
       ctx.beginPath();
-      ctx.ellipse(foot.x, foot.y, wide * 0.8, wide * 0.2, 0, 0, TAU);
+      ctx.ellipse(foot.x, foot.y, wide * 0.82, wide * 0.2, 0, 0, TAU);
       ctx.fill();
 
-      const body = ctx.createLinearGradient(0, foot.y - tall, 0, foot.y);
-      body.addColorStop(0, '#2A1430');
-      body.addColorStop(1, '#0C060F');
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.moveTo(foot.x - wide * 0.52, foot.y);
-      ctx.quadraticCurveTo(foot.x - wide * 0.72, foot.y - tall * 0.66, foot.x, foot.y - tall);
-      ctx.quadraticCurveTo(foot.x + wide * 0.72, foot.y - tall * 0.66, foot.x + wide * 0.52, foot.y);
-      ctx.closePath(); ctx.fill();
-
-      // arms reaching, further out the closer it gets
-      ctx.strokeStyle = '#1A0E20';
-      ctx.lineWidth = Math.max(3, wide * 0.16);
-      ctx.lineCap = 'round';
-      [-1, 1].forEach(s => {
+      // legs: two pistons, out of step
+      ctx.strokeStyle = '#2E3440';
+      ctx.lineWidth = Math.max(4, wide * 0.2);
+      ctx.lineCap = 'butt';
+      [-1, 1].forEach((sgn, i2) => {
+        const swing = Math.sin(t / 150 + i2 * Math.PI) * wide * 0.16;
         ctx.beginPath();
-        ctx.moveTo(foot.x + s * wide * 0.34, foot.y - tall * 0.62);
-        ctx.quadraticCurveTo(foot.x + s * wide * (0.9 + near * 0.5), foot.y - tall * 0.5,
-                             foot.x + s * wide * (0.6 + near * 0.6), foot.y - tall * (0.86 + near * 0.1));
+        ctx.moveTo(foot.x + sgn * wide * 0.26, foot.y - tall * 0.42);
+        ctx.lineTo(foot.x + sgn * wide * 0.26 + swing, foot.y);
         ctx.stroke();
       });
 
-      // eyes, and they brighten as it gains
-      const eyeY = foot.y - tall * 0.78, eyeR = Math.max(2, wide * 0.1);
-      ctx.fillStyle = `rgba(255,${Math.round(60 - near * 40)},${Math.round(80 - near * 60)},1)`;
-      [-0.22, 0.22].forEach(ex => {
+      // chassis
+      const body = ctx.createLinearGradient(0, foot.y - tall, 0, foot.y);
+      body.addColorStop(0, '#59636F');
+      body.addColorStop(0.5, '#3A424E');
+      body.addColorStop(1, '#222831');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.roundRect(foot.x - wide * 0.5, foot.y - tall * 0.86, wide, tall * 0.5, wide * 0.1);
+      ctx.fill();
+      // shoulder plates
+      ctx.fillStyle = '#4A535F';
+      [-1, 1].forEach(sgn => {
         ctx.beginPath();
-        ctx.ellipse(foot.x + ex * wide, eyeY, eyeR, eyeR * 1.25, 0, 0, TAU);
+        ctx.roundRect(foot.x + sgn * wide * 0.5 - (sgn > 0 ? 0 : wide * 0.26),
+                      foot.y - tall * 0.84, wide * 0.26, tall * 0.18, wide * 0.06);
         ctx.fill();
       });
+      // vents down the chest, lit from inside
+      ctx.fillStyle = `rgba(255,${Math.round(140 - near * 110)},60,${0.5 + near * 0.5})`;
+      for (let v = 0; v < 3; v++) {
+        ctx.fillRect(foot.x - wide * 0.22, foot.y - tall * (0.74 - v * 0.11),
+                     wide * 0.44, Math.max(1, tall * 0.035));
+      }
+
+      // head: a plated box with one scanning eye
+      ctx.fillStyle = '#6A737F';
+      ctx.beginPath();
+      ctx.roundRect(foot.x - wide * 0.32, foot.y - tall, wide * 0.64, tall * 0.2, wide * 0.08);
+      ctx.fill();
+      const eyeX = foot.x + Math.sin(t / 420) * wide * 0.14;
+      const eyeR = Math.max(2, wide * 0.1);
+      ctx.fillStyle = near > 0.5 ? '#FF3B4E' : '#FF8A3D';
+      ctx.beginPath();
+      ctx.ellipse(eyeX, foot.y - tall * 0.9, eyeR * 1.5, eyeR, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.ellipse(eyeX, foot.y - tall * 0.9, eyeR * 0.5, eyeR * 0.36, 0, 0, TAU);
+      ctx.fill();
+      // the beam it sweeps down the deck
+      ctx.fillStyle = `rgba(255,90,60,${0.05 + near * 0.12})`;
+      ctx.beginPath();
+      ctx.moveTo(eyeX, foot.y - tall * 0.9);
+      ctx.lineTo(foot.x - wide * 1.6, foot.y - tall * 1.9);
+      ctx.lineTo(foot.x + wide * 1.6, foot.y - tall * 1.9);
+      ctx.closePath();
+      ctx.fill();
+
+      // arms: pistons that reach further the closer the room is to losing
+      ctx.strokeStyle = '#39414D';
+      ctx.lineWidth = Math.max(3, wide * 0.15);
+      ctx.lineCap = 'round';
+      [-1, 1].forEach(sgn => {
+        ctx.beginPath();
+        ctx.moveTo(foot.x + sgn * wide * 0.5, foot.y - tall * 0.74);
+        ctx.quadraticCurveTo(foot.x + sgn * wide * (1.0 + near * 0.5), foot.y - tall * 0.6,
+                             foot.x + sgn * wide * (0.7 + near * 0.6), foot.y - tall * (0.9 + near * 0.12));
+        ctx.stroke();
+      });
+
       if (near > 0.55) {
-        ctx.fillStyle = `rgba(255,90,110,${(near - 0.55) * 0.7})`;
+        ctx.fillStyle = `rgba(255,60,70,${(near - 0.55) * 0.75})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
       ctx.restore();
@@ -380,14 +423,17 @@
       ctx.textAlign = 'left';
       ctx.fillStyle = '#fff';
       ctx.font = `800 ${Math.max(14, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
-      ctx.fillText(Math.round(me.distance * METRES) + ' m', w * 0.04, h * 0.085);
+      // the room's lives, and which deck it is on — both shared, both the point
+      ctx.fillText('Deck ' + (room.round || 1), w * 0.04, h * 0.085);
       ctx.textAlign = 'right';
-      ctx.fillStyle = world.tint;
-      ctx.fillText('Level ' + me.level, w * 0.96, h * 0.085);
+      ctx.fillStyle = (room.lives || 0) > 1 ? world.tint : '#FF5A6E';
+      ctx.fillText('♥ '.repeat(Math.max(0, room.lives || 0)).trim() || 'last chance',
+                   w * 0.96, h * 0.085);
 
       // the gap, as a bar, because a number is not a feeling
       const barW = w * 0.9, barX = w * 0.05, barY = h * 0.12;
-      const frac = clamp((me.gap - GAP_MIN) / (GAP_MAX - GAP_MIN), 0, 1);
+      // the shared escape: everybody's boosts, in one bar
+      const frac = clamp((room.escape || 0) / Math.max(1, room.target || 100), 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,.45)';
       ctx.fillRect(barX, barY, barW, Math.max(5, h * 0.016));
       ctx.fillStyle = frac < 0.22 ? '#F4364C' : frac < 0.5 ? '#FF9A3D' : '#12BE8E';
@@ -409,19 +455,7 @@
       last = t;
       fit();
 
-      if (!flying) {
-        // it never stops
-        me.gap -= CHASE[me.level] * dt;
-        if (me.gap <= GAP_MIN) {
-          me.gap = RUN_AHEAD * 0.45;
-          me.distance = Math.max(0, me.distance - CATCH_LOSS);
-          me.streak = 0;
-          me.caught = t;
-          shakeUntil = t + 600;
-          say('CAUGHT');
-          tell();
-        }
-      }
+      if (me.boosting && t - me.boosting > 1500) me.boosting = 0;
 
       ctx.save();
       if (t < shakeUntil) {
@@ -430,14 +464,19 @@
       }
       drawRoad(t);
       drawRunner(t);
-      drawMonster(t);
+      drawRobot(t);
       ctx.restore();
 
-      if (flying) {
-        // the hand-off: white out, then back into somewhere worse
-        const p = clamp((t - flying) / 2200, 0, 1);
-        ctx.fillStyle = `rgba(255,255,255,${p < 0.5 ? p * 1.6 : (1 - p) * 1.6})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // the ring that fills while the boost button is held down
+      const hold = holdAt();
+      if (hold > 0) {
+        const w2 = canvas.width, h2 = canvas.height;
+        ctx.strokeStyle = '#FFD86B';
+        ctx.lineWidth = Math.max(3, h2 * 0.012);
+        ctx.beginPath();
+        ctx.arc(w2 / 2, h2 * 0.74, Math.min(w2, h2) * 0.13, -Math.PI / 2,
+                -Math.PI / 2 + TAU * hold);
+        ctx.stroke();
       }
       drawHud(t);
       raf = requestAnimationFrame(frame);
@@ -446,16 +485,13 @@
     tell();
 
     return {
-      answered,
-      get state() { return { gap: me.gap, distance: Math.round(me.distance * METRES),
-                             raw: me.distance, level: me.level,
-                             boosts: me.boosts, streak: me.streak }; },
+      answered, holdStart, holdEnd, setRoom,
+      get state() { return { charged: me.charged, spent: me.spent, streak: me.streak }; },
       stop() { stopped = true; if (raf) cancelAnimationFrame(raf); }
     };
   }
 
-  global.NovaRun = { start, WORLDS, METRES, SPRINT_STREAK, BOOSTS_PER_LEVEL, MAX_LEVEL,
-                     RIGHT_GAIN, SPRINT_GAIN, CHASE };
+  global.NovaRun = { start, WORLDS, SPRINT_STREAK, HOLD_MS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.NovaRun;

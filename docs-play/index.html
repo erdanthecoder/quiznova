@@ -276,6 +276,18 @@
 .runq-text{font-size:1.02rem;font-weight:800;line-height:1.3;margin-bottom:10px;color:#fff}
 .runq .opts{flex:1 1 auto}
 
+/* Hold to boost. Big, because it is pressed under a desk while the eyes are on
+ * the robot, and it says what it wants rather than showing an icon. */
+.boostbtn{margin-top:10px;flex:none;border:0;border-radius:18px;padding:18px 12px;
+  font-size:1rem;font-weight:900;letter-spacing:.09em;color:#fff;cursor:pointer;
+  touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  background:linear-gradient(180deg,#FFB020,#E07000);
+  box-shadow:0 7px 0 #9C4E00,0 12px 24px rgba(224,112,0,.38);
+  transition:transform .08s ease,filter .08s ease}
+.boostbtn:active{transform:translateY(4px) scale(.98);box-shadow:0 3px 0 #9C4E00}
+.boostbtn:disabled{background:rgba(255,255,255,.08);box-shadow:none;color:rgba(255,255,255,.45);
+  cursor:default;letter-spacing:.06em}
+
 /* The sword pad. Both buttons are as big as a thumb can miss, because a child
  * in a ten-second fight is watching the boss, not their own hands. */
 .swordpad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;flex:none}
@@ -347,7 +359,7 @@
 <body class="dark">
 <main class="shell" id="app"></main>
 
-<script src="sprites.js?v=06b2255e"></script>
+<script src="sprites.js?v=d8f75232"></script>
 <script src="launch.js?v=61b7828a"></script>
 <script src="progress.js?v=4849abb2"></script>
 
@@ -359,10 +371,10 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=fb3b6182"></script>
 <script src="strike.js?v=d438527a"></script>
-<script src="run.js?v=519ee67e"></script>
+<script src="run.js?v=0cd33cf7"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=1f915780"></script>
-<script src="live.js?v=175efcb1"></script>
+<script src="rules.js?v=3c3c1997"></script>
+<script src="live.js?v=32b5cdf7"></script>
 <script src="nova-local.js?v=21b460e4"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script>
@@ -381,7 +393,7 @@ const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
 let strike = null, strikeTotal = 0;
-let runner = null, runQ = 0, runTeller = null, runStarting = false, runCardNode = null;
+let runner = null, runQ = 0, runStarting = false, runCardNode = null;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -643,6 +655,8 @@ function connect() {
 
 function apply(state) {
   game = state;
+  // the robot is chasing the room, so every phone has to know where the room is
+  if (runner && state.mode === 'robot') runner.setRoom(roomFromGame());
   drift = state.serverNow - Date.now();
   const mine = state.players.find(p => p.id === me?.id);
   if (mine) me = { ...me, ...mine };
@@ -729,7 +743,6 @@ function render(fresh) {
   if (game.state !== 'strike' && strike) { strike.stop(); strike = null; strikeTotal = 0; }
   if (game.state !== 'running' && runner) {
     runner.stop(); runner = null; runStarting = false; runCardNode = null;
-    clearInterval(runTeller); runTeller = null;
   }
   if (game.state === 'over') return app.append(overCard());
   if (game.state === 'reveal') return app.append(revealCard());
@@ -785,11 +798,13 @@ let arena = null, arenaQ = 0, arenaAsking = false;
 function runCard() {
   const card = el('div', { class: 'play arena-wrap' });
   card.append(el('div', { class: 'qhead' },
-    el('span', { class: 'chip', id: 'r-dist' }, '0 m'),
-    el('span', { class: 'chip live', id: 'r-need' }, '3 right in a row to sprint')));
+    el('span', { class: 'chip', id: 'r-dist' }, '0 boosts'),
+    el('span', { class: 'chip', id: 'r-need' }, '3 right in a row to charge a boost')));
   const shell = el('div', { class: 'runshell' });
   shell.append(el('canvas', { class: 'arena-canvas', id: 'runner' }));
   card.append(shell);
+  card.append(el('button', { class: 'boostbtn', id: 'r-boost', type: 'button', disabled: true },
+                'ANSWER TO CHARGE'));
   card.append(el('div', { class: 'runq', id: 'runq' }));
   setTimeout(startRun, 0);
   return card;
@@ -805,30 +820,63 @@ function startRun() {
   runQ = 0;
   runner = NovaRun.start({
     canvas,
-    world: game.map || 'sewer',
-    level: me.level || 1,
+    world: game.map || 'station',
     colour: Sprite.colourFor ? Sprite.colourFor(me.avatar || 0) : '#FFC53D',
-    onState: (st) => {
-      const d = document.getElementById('r-dist');
-      if (d) d.textContent = Math.round(st.distance) + ' m';
-      const n = document.getElementById('r-need');
-      if (n) n.textContent = st.need === 1 ? 'One more to sprint'
-                           : `${st.need} right in a row to sprint`;
-    },
-    onLevel: () => { askRunQuestion(); report(); }
+    onState: paintRunHud,
+    /* Every boost goes into the room's pot. It is sent one at a time, counted,
+       so a phone that reconnects and repeats itself cannot shove the whole
+       class through the door on its own. */
+    onBoost: (seq) => {
+      api(`/games/${pin}/boost`, { method: 'POST', body: { playerId: me.id, seq } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
   });
   runStarting = false;
+  runner.setRoom(roomFromGame());
   askRunQuestion();
-  // the phone tells the board where it has got to, rather than every stride
-  runTeller = setInterval(report, 2500);
+  wireBoost();
+}
 
-  function report() {
-    if (!runner) return;
-    const st = runner.state;
-    api(`/games/${pin}/run`, { method: 'POST', body: { playerId: me.id,
-      distance: Math.round(st.distance), level: st.level, boosts: st.boosts } })
-      .catch(() => {});
+/** What the room looks like right now, handed to the chase so every phone draws
+ *  the robot in the same place. */
+function roomFromGame() {
+  return { escape: game.escape || 0, target: game.escapeTarget || 100,
+           lives: game.lives === undefined ? 3 : game.lives, round: game.round || 1 };
+}
+
+function paintRunHud(st) {
+  const n = document.getElementById('r-need');
+  if (n) {
+    n.textContent = st.charged > 0
+      ? (st.charged === 1 ? 'Boost ready — hold it' : st.charged + ' boosts ready')
+      : st.need === 1 ? 'One more to charge a boost'
+      : `${st.need} right in a row to charge a boost`;
+    n.classList.toggle('live', st.charged > 0);
   }
+  const b = document.getElementById('r-boost');
+  if (b) {
+    b.disabled = st.charged <= 0;
+    b.textContent = st.charged > 0 ? 'HOLD TO BOOST' : 'ANSWER TO CHARGE';
+  }
+  const d = document.getElementById('r-dist');
+  if (d) d.textContent = st.spent + (st.spent === 1 ? ' boost' : ' boosts');
+}
+
+/* Hold, not tap. Charging a boost by answering and then spending it with a
+ * deliberate press is the only part of this mode that is not reading, and
+ * firing it automatically on the third right answer would take that away. */
+function wireBoost() {
+  const btn = document.getElementById('r-boost');
+  if (!btn) return;
+  const down = (e) => { e.preventDefault(); if (runner && runner.holdStart() && navigator.vibrate) navigator.vibrate(12); };
+  const up = (e) => { e.preventDefault(); if (runner && runner.holdEnd() && navigator.vibrate) navigator.vibrate([20, 40, 20]); };
+  btn.addEventListener('touchstart', down, { passive: false });
+  btn.addEventListener('touchend', up, { passive: false });
+  btn.addEventListener('touchcancel', up, { passive: false });
+  btn.addEventListener('mousedown', down);
+  btn.addEventListener('mouseup', up);
+  btn.addEventListener('mouseleave', up);
 }
 
 /* The next question, in the panel under the chase. There is always one waiting:

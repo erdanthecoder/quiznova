@@ -76,7 +76,12 @@
    * above this is a bug or a joke and is treated as both. */
   const STRIKE_MS = 10000;
   const STRIKE_CAP = 900;
-  const RUN_CAP = 200000;         // further than any lesson can run
+  /* Robot Run. The class shares one escape and one set of lives: the robot is
+   * chasing the room, not any one child. */
+  const ESCAPE_TARGET = 100;      // how full the bar is when the deck is cleared
+  const BOOST_WORTH = 9;          // so about a dozen boosts between everybody
+  const ROBOT_LIVES = 3;
+  const ROBOT_ROUND_MS = 75000;   // how long a deck lasts before it costs a life
 
 
   /* ── state helpers ────────────────────────────────────── */
@@ -148,6 +153,10 @@
       shoal: game.shoal || '', wind: !!game.wind,
       // Boss Battle's fight: the script every device runs, and how long is left
       strikeSeed: game.strikeSeed || 0, strikeMs: STRIKE_MS,
+      // Robot Run's shared escape: one bar, one set of lives, for the whole room
+      escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
+      lives: game.lives === undefined ? ROBOT_LIVES : game.lives,
+      round: game.round || 1, roundEndsAt: game.roundEndsAt || 0,
       moves: movesFor(game.mode), moveAsk: (MOVES[game.mode] || {}).ask || '',
       boss: game.boss || null, trackLength: TRACK_LENGTH, modeInfo: MODES[game.mode] || MODES[DEFAULT_MODE],
       goal: game.goal || { kind: 'questions', value: 0 },
@@ -287,7 +296,7 @@
   /* What a player is allowed to ask for on their own behalf. Everything else on
    * a live game belongs to the teacher's device. */
   const PLAYER_OWNED = new Set(['/join', '/answer', '/team', '/score', '/move', '/strike',
-                                '/run',
+                                '/boost',
                                 '/events']);   // read-only, and every device reads it
 
   async function handle(path, method, body) {
@@ -445,21 +454,35 @@
       return { ok: true, damage: dealt, view: publicView(game) };
     }
 
-    /* How far one child has got. Reported by their own phone every few seconds,
-     * the same trust model the arena has always used, and clamped so a fumbled
-     * message cannot put somebody a hundred kilometres ahead. */
-    if (tail === '/run') {
+    /* One child spending one boost.
+     *
+     * Every boost goes into the same pot, because the class escapes together or
+     * not at all — that is the whole difference between this and a race. It is
+     * counted one at a time rather than as a running total the phone reports,
+     * so a phone that reconnects and repeats itself cannot push the whole room
+     * to the exit on its own. */
+    if (tail === '/boost') {
       const p = game.players[body && body.playerId];
       if (!p) return { error: 'Not in this game.' };
-      if (game.mode !== 'monster') return { ok: false, why: 'Not that kind of game.' };
-      const ran = Math.max(0, Math.min(RUN_CAP, Math.round(Number(body.distance) || 0)));
-      // only ever forwards: a reconnecting phone must not erase a good run
-      if (ran > (p.distance || 0)) p.distance = ran;
-      p.level = Math.max(1, Math.min(3, Math.round(Number(body.level) || 1)));
-      p.boosts = Math.max(0, Math.min(99, Math.round(Number(body.boosts) || 0)));
-      p.score = p.distance;
+      if (game.mode !== 'robot') return { ok: false, why: 'Not that kind of game.' };
+      if (game.state !== 'running') return { ok: false, why: 'Not running.' };
+      const seq = Math.max(0, Math.round(Number(body.seq) || 0));
+      if (seq <= (p.boosts || 0)) return { ok: true, already: true, view: publicView(game) };
+      p.boosts = Math.min(seq, (p.boosts || 0) + 1);
+      p.score = p.boosts;
+      game.escape = Math.min(ESCAPE_TARGET, (game.escape || 0) + BOOST_WORTH);
+      game.lastEvents.push(`${p.name} boosted`);
+      game.lastEvents = game.lastEvents.slice(-6);
+      if (game.escape >= ESCAPE_TARGET) {
+        // the deck is cleared: everybody moves on together
+        game.round = (game.round || 1) + 1;
+        game.escape = 0;
+        game.roundEndsAt = now() + ROBOT_ROUND_MS;
+        for (const x of Object.values(game.players)) x.ready = 0;
+        game.lastEvents.push(`The class got clear — deck ${game.round}`);
+      }
       await writeGame(pin, game);
-      return { ok: true, distance: p.distance, view: publicView(game) };
+      return { ok: true, escape: game.escape, round: game.round, view: publicView(game) };
     }
 
     /* The move: which way this player is playing the round. Every mode has them
@@ -490,12 +513,19 @@
       /* Monster Run never gathers the class on one question. It starts and then
        * everybody is simply running, answering at their own speed, until the
        * teacher stops it or they get out. */
-      if (game.mode === 'monster') {
+      /* Robot Run is one long escape, not a series of rounds. Nobody is fed a
+       * question: everybody answers at their own pace, and what they earn goes
+       * into the same pot. */
+      if (game.mode === 'robot') {
         game.state = 'running';
         game.index = 0;
         game.endsAt = null;
+        game.escape = 0;            // how far the class has got, together
+        game.lives = ROBOT_LIVES;   // and what it has left to lose
+        game.round = 1;
+        game.roundEndsAt = now() + ROBOT_ROUND_MS;
         for (const p of Object.values(game.players)) {
-          p.distance = 0; p.level = 1; p.boosts = 0; p.score = 0;
+          p.boosts = 0; p.ready = 0; p.score = 0; p.safe = true;
         }
         await writeGame(pin, game);
         return publicView(game);
@@ -547,6 +577,22 @@
     if (tail === '/tick') {
       /* The fight runs on its own clock and nobody presses anything to end it,
        * so the host's own poll is what closes it. */
+      /* Robot Run has no question clock, but a deck does run out. When it does
+       * the robot reaches the room, it costs a life, and the deck starts again
+       * — which is the moment a class starts shouting at each other to answer. */
+      if (game.state === 'running' && game.mode === 'robot'
+          && game.roundEndsAt && now() >= game.roundEndsAt) {
+        game.lives = Math.max(0, (game.lives === undefined ? ROBOT_LIVES : game.lives) - 1);
+        game.escape = 0;
+        game.roundEndsAt = now() + ROBOT_ROUND_MS;
+        for (const x of Object.values(game.players)) x.ready = 0;
+        game.lastEvents.push(game.lives
+          ? `The robot caught up — ${game.lives} live${game.lives === 1 ? '' : 's'} left`
+          : 'The robot got them');
+        if (!game.lives) { game.state = 'over'; game.endsAt = null; }
+        await writeGame(pin, game);
+        return publicView(game);
+      }
       if (game.state === 'strike' && game.endsAt && now() >= game.endsAt) {
         openQuestion(game);
         await writeGame(pin, game);

@@ -1,4 +1,4 @@
-/* Monster Run, played.
+/* Robot Run, played.
  *
  * The claim is that this is a game and not a quiz with a picture over it, so
  * what gets checked is the game: that the chase draws, that three right in a
@@ -31,7 +31,7 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
 
   await page.evaluate(() => {
     window.levels = [];
-    window.ctl = NovaRun.start({ canvas: document.getElementById('c'), world: 'sewer',
+    window.ctl = NovaRun.start({ canvas: document.getElementById('c'), world: 'station',
       level: 1, onState: (s) => { window.last = s; }, onLevel: (l) => window.levels.push(l) });
   });
   await page.waitForTimeout(500);
@@ -51,61 +51,57 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   ok('the chase draws a world, not a black rectangle', lit.pct > 55, `${lit.pct}% lit`);
   ok('and it is a scene', lit.cols > 10, `${lit.cols} distinct colours`);
 
-  // three right in a row must be worth far more than three scattered
-  const compare = await page.evaluate(async () => {
-    const run = (pattern) => {
-      const c = document.createElement('canvas');
-      c.style.cssText = 'width:300px;height:200px;display:block';
-      document.body.append(c);
-      let st = null;
-      const k = NovaRun.start({ canvas: c, world: 'sewer', level: 1,
-        onState: (s) => { st = s; } });
-      pattern.forEach(right => k.answered(right));
-      k.stop(); c.remove();
-      return st ? st.distance : 0;
-    };
-    return { streak: run([true, true, true]),
-             broken: run([true, true, false, true]) };
+  /* Three right charges a boost; spending it takes a deliberate hold. Firing
+   * it automatically on the third right answer would take away the only part
+   * of this mode that is not reading. */
+  const charging = await page.evaluate(async () => {
+    const c = document.getElementById('c');
+    let st = null, sent = [];
+    const k = NovaRun.start({ canvas: c, world: 'station',
+      onState: (s) => { st = s; }, onBoost: (seq) => sent.push(seq) });
+    k.setRoom({ escape: 0, target: 100, lives: 3, round: 1 });
+    k.answered(true, 1); k.answered(true, 2);
+    const twoIn = st.charged;
+    k.answered(true, 3);
+    const threeIn = st.charged;
+    // a tap that is too short must not spend it
+    k.holdStart(); k.holdEnd();
+    const afterTap = st.charged;
+    // and a proper hold must
+    k.holdStart();
+    await new Promise(r => setTimeout(r, NovaRun.HOLD_MS + 90));
+    k.holdEnd();
+    const afterHold = st.charged;
+    k.stop();
+    return { twoIn, threeIn, afterTap, afterHold, sent, spent: st.spent };
   });
-  ok('three right in a row sprints you well past three scattered ones',
-     compare.streak > compare.broken * 2,
-     `in a row ${compare.streak}m, broken up ${compare.broken}m`);
+  ok('two right answers charge nothing', charging.twoIn === 0, `${charging.twoIn} charged`);
+  ok('the third charges a boost', charging.threeIn === 1, `${charging.threeIn} charged`);
+  ok('a quick tap does not spend it', charging.afterTap === 1, `${charging.afterTap} still charged`);
+  ok('holding it down does', charging.afterHold === 0 && charging.spent === 1,
+     `${charging.afterHold} charged, ${charging.spent} spent`);
+  ok('and the boost is reported to the room', charging.sent.length === 1,
+     `sent ${JSON.stringify(charging.sent)}`);
 
-  // the monster closes when you do nothing
-  const closing = await page.evaluate(async () => {
-    const before = window.last.gap;
-    await new Promise(r => setTimeout(r, 1500));
-    return { before, after: window.last ? window.last.gap : before,
-             now: window.ctl.state.gap };
+  // the robot's distance comes from the room, not from this child
+  const shared = await page.evaluate(async () => {
+    const c = document.getElementById('c');
+    const k = NovaRun.start({ canvas: c, world: 'station', onState: () => {} });
+    // a frame has to actually run before the canvas shows the new room
+    const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shot = () => { const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let red = 0; for (let i = 0; i < g.length; i += 4 * 17) if (g[i] - g[i+1] > 50) red++; return red; };
+    k.setRoom({ escape: 95, target: 100, lives: 3, round: 1 });
+    await frame();
+    const far = shot();
+    k.setRoom({ escape: 2, target: 100, lives: 1, round: 1 });
+    await frame();
+    const near = shot();
+    k.stop();
+    return { far, near };
   });
-  ok('it gains on you while you are reading', closing.now < closing.before,
-     `${Math.round(closing.before)} → ${Math.round(closing.now)}`);
-
-  // four sprints finishes a stretch
-  const levelled = await page.evaluate(async () => {
-    for (let i = 0; i < 12; i++) window.ctl.answered(true);
-    await new Promise(r => setTimeout(r, 2600));
-    return { levels: window.levels, level: window.ctl.state.level };
-  });
-  ok('four sprints carries you to the next level', levelled.level === 2,
-     `level ${levelled.level}, hand-offs ${JSON.stringify(levelled.levels)}`);
-
-  /* A child on a phone double-taps: an impatient thumb, a slow screen, a button
-   * that redraws under them. Every extra tap used to be another sprint. */
-  const spam = await page.evaluate(() => {
-    const c = document.createElement('canvas');
-    c.style.cssText = 'width:300px;height:200px;display:block';
-    document.body.append(c);
-    let st = null;
-    const k = NovaRun.start({ canvas: c, world: 'city', level: 1, onState: (s) => { st = s; } });
-    for (let i = 0; i < 12; i++) k.answered(true, 'q7');   // one question, twelve taps
-    const after = st ? st.distance : 0;
-    k.stop(); c.remove();
-    return after;
-  });
-  const oneRight = Math.round(NovaRun_RIGHT * NovaRun_METRES);
-  ok('hammering the button counts once, not twelve times', spam <= oneRight + 1,
-     `twelve taps moved them ${spam}m; one answer is ${oneRight}m`);
+  ok('an empty escape bar puts the robot on top of the room',
+     shared.near > shared.far, `red pixels: ${shared.far} when clear, ${shared.near} when it is close`);
 
   ok('no errors while running', errs.length === 0, errs.slice(0, 2).join(' | '));
   await page.close();
@@ -125,7 +121,7 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
       text: 'Question ' + n, points: 100, time: 25,
       choices: [{ text: 'Right', correct: true }, { text: 'Wrong' }] } })),
     { op: 'delete_question', at: 0 }] });
-  const made = await post('/api/games', { quizId: qid, mode: 'monster', map: 'forest' });
+  const made = await post('/api/games', { quizId: qid, mode: 'robot', map: 'station' });
   const pin = made.pin || made.game.pin;
   const ana = await post(`/api/games/${pin}/join`, { name: 'Ana', avatar: 3 });
   await post(`/api/games/${pin}/join`, { name: 'Ben', avatar: 5 });
@@ -148,7 +144,6 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      `${await phone.locator('#runq .opt-btn').count()} answers on screen`);
 
   const firstQ = await phone.locator('.runq-text').innerText().catch(() => '');
-  // answer three right, which should sprint
   for (let i = 0; i < 3; i++) {
     await phone.locator('#runq .opt-btn').first().click().catch(() => {});
     await phone.waitForTimeout(500);
@@ -157,14 +152,24 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
   ok('answering moves you to the next question without waiting for anyone',
      firstQ && secondQ && firstQ !== secondQ, `"${firstQ}" → "${secondQ}"`);
 
-  const dist = await phone.locator('#r-dist').innerText().catch(() => '');
-  ok('and the metres are going up', parseInt(dist, 10) > 0, `the phone reads "${dist}"`);
+  const boostBtn = phone.locator('#r-boost');
+  ok('three right answers arm the boost button',
+     !(await boostBtn.isDisabled()), await boostBtn.innerText());
 
-  await phone.waitForTimeout(3000);
+  // hold it, the way a thumb does
+  await boostBtn.dispatchEvent('mousedown');
+  await phone.waitForTimeout(800);
+  await boostBtn.dispatchEvent('mouseup');
+  await phone.waitForTimeout(1200);
+
   const view = await (await fetch(`${base}/api/games/${pin}`)).json();
   const cal = view.players.find(p => p.name === 'Cal');
-  ok('the board is told how far they got', cal && cal.distance > 0,
-     `${cal && cal.distance}m on the server`);
+  ok('holding it puts a boost into the room', cal && cal.boosts === 1,
+     `${cal && cal.boosts} boosts recorded`);
+  ok('and the whole room moves towards the door', view.escape > 0,
+     `escape bar at ${view.escape}/${view.escapeTarget}`);
+  ok('the room shares its lives rather than each child having their own',
+     view.lives !== undefined, `${view.lives} lives`);
   ok('the game stays in one long run rather than stepping through rounds',
      view.state === 'running', `state ${view.state}`);
   ok('and the phones hold the whole quiz, because nobody is in step',

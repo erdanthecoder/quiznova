@@ -19,7 +19,7 @@
     
     boss:     { label: 'Boss Battle',  icon: 'dragon', blurb: 'Answer to arm yourself, then ten seconds to cut it down' },
 
-    monster:  { label: 'Monster Run',   icon: 'dragon', blurb: 'Something is chasing you. Three right in a row and you sprint' },
+    robot:    { label: 'Robot Run',     icon: 'dragon', blurb: 'The whole class outruns the robot together. Answer, earn a boost, hold to use it' },
     
     };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -32,7 +32,7 @@
     
     boss:     [['lair', 'Dragon Lair'], ['volcano', 'Volcano'], ['ruins', 'Old Ruins']],
 
-    monster:  [['sewer', 'The Sewers'], ['forest', 'Night Forest'], ['city', 'Ruined City']],
+    robot:    [['station', 'The Space Station'], ['reactor', 'Reactor Deck'], ['hangar', 'The Hangar']],
     
     };
   /* How a game finishes. Playing every question is the default, but a class with
@@ -361,14 +361,14 @@
       if (ok && speed >= 0.5) game.lastEvents.push(`${p.name} picked up a greatsword`);
     },
 
-    /* Monster Run scores nothing here.
+    /* Robot Run scores nothing here.
      *
-     * Every child is running their own race at their own pace — they are not
-     * all on the same question, so there is no round to settle and nothing to
-     * compare. Their phone runs the chase and reports how far they got; the
-     * board keeps the table. All this does is keep a note of the answer so the
-     * teacher's marking still works. */
-    monster(game, p, q, ok, speed) {
+     * Everybody is answering at their own pace and none of it is a race against
+     * each other — the whole class is running from the same robot and it is the
+     * boosts, pooled, that decide whether they get away. Their phones report
+     * what they earned; the game keeps the shared escape. All this does is note
+     * the answer so the teacher's marking still works. */
+    robot(game, p, q, ok, speed) {
       p.lastGain = 0;
     }
 
@@ -422,7 +422,7 @@
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, lastGain: 0, target: '',
     blocks: 0, sway: 0,                       // tower build
-    distance: 0, level: 1, boosts: 0,         // monster run: how far, and how deep
+    boosts: 0, ready: 0, safe: true,          // robot run: what they have put in
     guarding: false, acted: '',               // boss battle
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
