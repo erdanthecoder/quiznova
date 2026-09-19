@@ -170,6 +170,36 @@
 .energy i{display:block;height:100%;width:100%;border-radius:99px;
   background:linear-gradient(90deg,#12BE8E,#7BC62D);transition:width .12s linear}
 .energy i.low{background:linear-gradient(90deg,#FF6B5A,#FFC53D)}
+
+/* ── the superpower you are holding ──
+   A chip reading "Rapid fire" tells you what you have and nothing about how
+   long you have it for, which is the half that decides whether to charge or
+   sit tight. So: the mark of the power, its name, and a bar that runs out. */
+.power-slot{position:absolute;left:10px;top:10px;display:flex;align-items:center;gap:9px;
+  padding:7px 13px 7px 8px;border-radius:99px;background:rgba(8,5,20,.72);
+  border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px);
+  opacity:0;transform:translateY(-6px);transition:.18s ease;pointer-events:none}
+.power-slot.on{opacity:1;transform:none}
+.power-slot .mark{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center}
+.power-slot .mark svg{width:16px;height:16px;display:block}
+.power-slot .txt{display:flex;flex-direction:column;gap:3px;min-width:78px}
+.power-slot b{font-size:.72rem;font-weight:900;letter-spacing:.04em;color:#fff;line-height:1}
+.power-slot .clock{height:4px;border-radius:99px;background:rgba(255,255,255,.2);overflow:hidden}
+.power-slot .clock i{display:block;height:100%;width:100%;border-radius:99px;transition:width .1s linear}
+
+/* and the shout when you pick one up */
+.power-shout{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(.7);
+  padding:10px 20px;border-radius:99px;font-weight:900;font-size:1rem;letter-spacing:.03em;
+  color:#fff;background:rgba(8,5,20,.8);border:2px solid currentColor;
+  opacity:0;pointer-events:none;white-space:nowrap}
+.power-shout.go{animation:shout 1100ms ease forwards}
+@keyframes shout{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}
+  18%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}
+  28%{transform:translate(-50%,-50%) scale(1)}
+  72%{opacity:1;transform:translate(-50%,-58%) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-72%) scale(1)}}
+@media (prefers-reduced-motion:reduce){.power-shout.go{animation:none;opacity:1}}
 .opt-btn.right{outline:4px solid #12BE8E}
 .opt-btn.wrong{outline:4px solid #F4364C;opacity:.75}
 
@@ -370,7 +400,7 @@
 <script src="/nova.js?v=9fa1dfb0"></script>
 <script src="/quizbank.js?v=f18e8cbc"></script>
 <script src="/realtime.js?v=75e1623c"></script>
-<script src="/arena.js?v=93de9731"></script>
+<script src="/arena.js?v=8bb1c058"></script>
 <script src="/strike.js?v=d438527a"></script>
 <script src="/run.js?v=0cd33cf7"></script>
 <script src="/paste.js?v=3032c005"></script>
@@ -988,13 +1018,20 @@ function arenaCard() {
   const card = el('div', { class: 'play arena-wrap' });
   card.append(el('div', { class: 'qhead' },
     el('span', { class: 'chip', id: 'a-score' }, '0'),
-    el('span', { class: 'chip', id: 'a-power' }, ''),
+    el('span', { class: 'chip', id: 'a-power' }, 'no power-up'),
     el('span', { class: 'chip', id: 'a-alive' }, 'In play')));
 
   const shell = el('div', { class: 'arena-shell' });
   const canvas = el('canvas', { class: 'arena-canvas', id: 'arena' });
   const bar = el('div', { class: 'energy' }, el('i', { id: 'a-energy' }));
-  shell.append(canvas, bar);
+  /* The superpower slot sits on the arena itself rather than in the row of
+     chips above it, because that is where your eyes already are. */
+  const slot = el('div', { class: 'power-slot', id: 'a-slot' });
+  slot.innerHTML = `<span class="mark" id="a-mark"></span>
+    <span class="txt"><b id="a-pname"></b>
+      <span class="clock"><i id="a-pclock"></i></span></span>`;
+  const shout = el('div', { class: 'power-shout', id: 'a-shout' });
+  shell.append(canvas, slot, shout, bar);
   card.append(shell);
 
   const pad = el('div', { class: 'gamepad' });
@@ -1016,11 +1053,36 @@ function startArena() {
     onScore: (score) => { const n = document.getElementById('a-score'); if (n) n.textContent = score; },
     onSave: (score) => api(`/games/${pin}/score`, { method: 'POST', body: { playerId: me.id, score } })
                          .catch(() => {}),
-    onQuestion: () => askArenaQuestion()
+    onQuestion: () => askArenaQuestion(),
+    onPower: (label, colour) => shoutPower(label, colour)
   });
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => arena && arena.heard(event, payload));
   wireStick();
   paintArenaHud();
+}
+
+/* The small drawing on a superpower's chip. The same six marks the orbs in the
+   arena carry, so the thing you ran for and the thing you are holding look like
+   the same thing. */
+const POWER_MARK = {
+  rapid:  '<path d="M4 4l4 4-4 4M10 4l4 4-4 4M16 4l4 4-4 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  triple: '<g fill="#fff"><circle cx="5" cy="12" r="2.6"/><circle cx="12" cy="12" r="2.6"/><circle cx="19" cy="12" r="2.6"/></g>',
+  spread: '<g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 20V6M12 20L5 8M12 20l7-12"/></g>',
+  speed:  '<path d="M14 2L5 13h5l-2 9 9-11h-5l2-9z" fill="#fff"/>',
+  shield: '<path d="M12 3l8 3.6v5.4c0 4.6-3.4 8.2-8 9.6-4.6-1.4-8-5-8-9.6V6.6z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>',
+  mystery:'<path d="M8.6 8.6a3.4 3.4 0 1 1 4.4 3.3c-.9.3-1 .9-1 1.7v.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18.4" r="1.6" fill="#fff"/>'
+};
+const POWER_COLOUR = { rapid: '#FFC53D', triple: '#FF7A45', spread: '#E8467C',
+                       speed: '#2BA8FF', shield: '#12BE8E', mystery: '#7C4DFF' };
+
+function shoutPower(label, colour) {
+  const n = document.getElementById('a-shout');
+  if (!n) return;
+  n.textContent = label;
+  n.style.color = colour || '#FFC53D';
+  n.classList.remove('go');
+  void n.offsetWidth;                                // restart the animation
+  n.classList.add('go');
 }
 
 function paintArenaHud() {
@@ -1029,8 +1091,34 @@ function paintArenaHud() {
   if (!bar) return;                                  // the screen moved on
   bar.style.width = Math.max(0, arena.energy) + '%';
   bar.classList.toggle('low', arena.energy < 28);
+
   const power = document.getElementById('a-power');
   if (power) { power.textContent = arena.power || 'no power-up'; power.classList.toggle('live', !!arena.power); }
+
+  /* The slot: the mark, the name, and a bar that empties. A force field has no
+     clock — it lasts until something hits it — so its bar stays full. */
+  const slot = document.getElementById('a-slot');
+  if (slot) {
+    const kind = arena.powerKind;
+    slot.classList.toggle('on', !!kind);
+    if (kind && slot.dataset.kind !== kind) {
+      slot.dataset.kind = kind;
+      const colour = POWER_COLOUR[kind] || '#FFC53D';
+      const mark = document.getElementById('a-mark');
+      if (mark) {
+        mark.style.background = colour;
+        mark.innerHTML = '<svg viewBox="0 0 24 24">' + (POWER_MARK[kind] || '') + '</svg>';
+      }
+      const name = document.getElementById('a-pname');
+      if (name) name.textContent = arena.power;
+      const clock = document.getElementById('a-pclock');
+      if (clock) clock.style.background = colour;
+    }
+    if (!kind) slot.dataset.kind = '';
+    const clock = document.getElementById('a-pclock');
+    if (clock && kind) clock.style.width = Math.round(arena.powerLeft * 100) + '%';
+  }
+
   const alive = document.getElementById('a-alive');
   if (alive) alive.textContent = arena.alive ? 'In play' : 'Out';
   requestAnimationFrame(paintArenaHud);

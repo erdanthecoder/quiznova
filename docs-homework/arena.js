@@ -20,12 +20,13 @@
   'use strict';
 
   const W = 1600, H = 1000;              // the arena, in its own units
-  const PLAYER_R = 26, ALIEN_R = 22, SHOT_R = 7;
+  const PLAYER_R = 26, BOT_R = 24, SHOT_R = 7;
+  const BOT_WALK = 130, BOT_RUN = 300;     // units a second, strolling and bolting
   const SPEED = 340, SHOT_SPEED = 780;   // units per second
   const ENERGY_SECONDS = 20;             // a full bar, spent just by being alive
   const SHOT_COST = 3;                   // per shot, as a percentage of the bar
   const FIRE_GAP = 260;                  // milliseconds between shots
-  const ALIEN_POINTS = 10, PLAYER_POINTS = 100;
+  const BOT_POINTS = 10, PLAYER_POINTS = 100;
   const SEND_HZ = 10, SAVE_MS = 4000;
 
   const POWERS = {
@@ -37,6 +38,60 @@
     mystery:{ label: 'Mystery',     colour: '#7C4DFF', life: 0 }
   };
   const REAL_POWERS = ['rapid', 'triple', 'spread', 'speed', 'shield'];
+
+  /* What each superpower looks like.
+   *
+   * They were six identical pills in six colours, which asks a child to learn a
+   * colour code in the middle of a firefight. Every one carries its own mark
+   * now — drawn, not written, because a word at that size on a phone is a
+   * smudge. Chevrons go faster, dots come in threes, the fan spreads, the bolt
+   * is speed, the shield is a shield, and the one you cannot know is a
+   * question mark. */
+  function glyph(ctx, kind, cx, cy, r) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(r / 10, r / 10);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 2.4;
+    if (kind === 'rapid') {
+      [-5, 0, 5].forEach(dx => {
+        ctx.beginPath();
+        ctx.moveTo(dx - 2.6, -5); ctx.lineTo(dx + 1.4, 0); ctx.lineTo(dx - 2.6, 5);
+        ctx.stroke();
+      });
+    } else if (kind === 'triple') {
+      [-5.6, 0, 5.6].forEach(dx => {
+        ctx.beginPath(); ctx.arc(dx, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+    } else if (kind === 'spread') {
+      [-0.6, 0, 0.6].forEach(a => {
+        ctx.beginPath();
+        ctx.moveTo(0, 6);
+        ctx.lineTo(Math.sin(a) * 13, 6 - Math.cos(a) * 13);
+        ctx.stroke();
+      });
+    } else if (kind === 'speed') {
+      ctx.beginPath();
+      ctx.moveTo(2.5, -8); ctx.lineTo(-4.5, 1); ctx.lineTo(0, 1);
+      ctx.lineTo(-2.5, 8); ctx.lineTo(4.5, -1); ctx.lineTo(0, -1);
+      ctx.closePath(); ctx.fill();
+    } else if (kind === 'shield') {
+      ctx.beginPath();
+      ctx.moveTo(0, -8); ctx.lineTo(7, -4.5); ctx.lineTo(7, 1.5);
+      ctx.quadraticCurveTo(7, 6.5, 0, 8.5);
+      ctx.quadraticCurveTo(-7, 6.5, -7, 1.5);
+      ctx.lineTo(-7, -4.5); ctx.closePath();
+      ctx.stroke();
+    } else {
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, -3, 4, Math.PI, Math.PI * 2.25);
+      ctx.lineTo(0, 2.5);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 7, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
 
   /* ── the maps ─────────────────────────────────────────────
    *
@@ -259,24 +314,45 @@
     };
     const others = new Map();            // id -> last state heard, with a timestamp
     const shots = [];
-    const aliens = [];
+    const bots = [];
     const capsules = [];
     const sparks = [];
+    const rings = [];          // the burst where a superpower was picked up
+    const ghosts = [];         // afterimages, left behind while you are fast
     let running = true, last = now(), lastSend = 0, lastSave = 0, lastFire = 0;
     const keys = new Set();
     let stickX = 0, stickY = 0, pointer = null;
 
     /* ── the arena's own furniture ─────────────────────── */
-    const spawnAlien = () => aliens.push({
-      id: 'a' + Math.random().toString(36).slice(2, 7),
-      ...freeSpot(cover, 120, ALIEN_R),
-      vx: rand(-70, 70), vy: rand(-70, 70), hp: 1
-    });
+    /* The wandering blooks.
+     *
+     * These were green blobs with two eyes — the one thing in a Blooket-shaped
+     * game that was not a blook. They are blooks now: the same characters
+     * children pick in the lobby, loose in the maze, wearing a ring so you can
+     * tell at a glance who is a bot and who is somebody's phone.
+     *
+     * They walk to somewhere rather than bouncing like billiard balls, and they
+     * bolt when a shot goes past, which is the difference between a target and
+     * something worth chasing round a corner. */
+    const spawnBot = () => {
+      const home = freeSpot(cover, 120, BOT_R);
+      bots.push({
+        id: 'a' + Math.random().toString(36).slice(2, 7),
+        x: home.x, y: home.y,
+        avatar: Math.floor(Math.random() * (global.Sprite ? Sprite.COMBINATIONS : 60)),
+        angle: rand(0, Math.PI * 2), bob: rand(0, 6.28),
+        ...botTarget(), spooked: 0, hp: 1
+      });
+    };
+    const botTarget = () => {
+      const t = freeSpot(cover, 90, BOT_R);
+      return { tx: t.x, ty: t.y };
+    };
     const spawnCapsule = () => capsules.push({
       kind: REAL_POWERS.concat('mystery')[Math.floor(Math.random() * 6)],
       ...freeSpot(cover, 140, 22), born: now()
     });
-    for (let i = 0; i < 7; i++) spawnAlien();
+    for (let i = 0; i < 8; i++) spawnBot();
     for (let i = 0; i < 3; i++) spawnCapsule();
 
     /* ── what other devices tell us ────────────────────── */
@@ -397,19 +473,29 @@
             if (kind === 'shield') self.shield = true;
             else { self.power = kind; self.powerUntil = t + POWERS[kind].life; }
             boom(c.x, c.y, POWERS[kind].colour);
+            rings.push({ x: c.x, y: c.y, born: t, colour: POWERS[kind].colour });
+            /* Say what it was. A power that changes how you shoot without ever
+               naming itself is a bug as far as a child is concerned. */
+            if (opts.onPower) opts.onPower(POWERS[kind].label, POWERS[kind].colour, kind);
             capsules.splice(i, 1);
             setTimeout(() => { if (running) spawnCapsule(); }, 6000);
           }
         });
       }
 
-      aliens.forEach(a => {
-        const ax = a.x + a.vx * dt, ay = a.y + a.vy * dt;
-        if (blocked(cover, ax, a.y, ALIEN_R)) a.vx *= -1; else a.x = ax;
-        if (blocked(cover, a.x, ay, ALIEN_R)) a.vy *= -1; else a.y = ay;
-        if (a.x < ALIEN_R || a.x > W - ALIEN_R) a.vx *= -1;
-        if (a.y < ALIEN_R || a.y > H - ALIEN_R) a.vy *= -1;
-        a.x = clamp(a.x, ALIEN_R, W - ALIEN_R); a.y = clamp(a.y, ALIEN_R, H - ALIEN_R);
+      bots.forEach(a => {
+        const dx = a.tx - a.x, dy = a.ty - a.y;
+        const far = Math.hypot(dx, dy);
+        if (far < 40) Object.assign(a, botTarget());
+        const hurry = t < a.spooked ? BOT_RUN : BOT_WALK;
+        a.angle = Math.atan2(dy, dx);
+        const nx = a.x + (dx / (far || 1)) * hurry * dt;
+        const ny = a.y + (dy / (far || 1)) * hurry * dt;
+        // a wall means pick somewhere else to be, not bounce off it for ever
+        let stuck = true;
+        if (!blocked(cover, nx, a.y, BOT_R)) { a.x = clamp(nx, BOT_R, W - BOT_R); stuck = false; }
+        if (!blocked(cover, a.x, ny, BOT_R)) { a.y = clamp(ny, BOT_R, H - BOT_R); stuck = false; }
+        if (stuck) Object.assign(a, botTarget());
       });
 
       for (let i = shots.length - 1; i >= 0; i--) {
@@ -421,12 +507,17 @@
         if (!s.mine) continue;                         // only our own shots can score for us
 
         let done = false;
-        for (let j = aliens.length - 1; j >= 0 && !done; j--) {
-          if (Math.hypot(aliens[j].x - s.x, aliens[j].y - s.y) < ALIEN_R + SHOT_R) {
-            boom(aliens[j].x, aliens[j].y, '#7BC62D');
-            aliens.splice(j, 1);
-            setTimeout(() => { if (running) spawnAlien(); }, 2500);
-            self.score += ALIEN_POINTS;
+        for (let j = bots.length - 1; j >= 0 && !done; j--) {
+          const near = Math.hypot(bots[j].x - s.x, bots[j].y - s.y);
+          if (near < BOT_R * 4 && near >= BOT_R + SHOT_R) {
+            bots[j].spooked = t + 1800;               // a near miss sends it running
+            Object.assign(bots[j], botTarget());
+          }
+          if (near < BOT_R + SHOT_R) {
+            boom(bots[j].x, bots[j].y, global.Sprite ? Sprite.colourFor(bots[j].avatar) : '#7BC62D');
+            bots.splice(j, 1);
+            setTimeout(() => { if (running) spawnBot(); }, 2500);
+            self.score += BOT_POINTS;
             if (opts.onScore) opts.onScore(self.score);
             done = true;
           }
@@ -445,6 +536,14 @@
         if (done) shots.splice(i, 1);
       }
 
+      for (let i = rings.length - 1; i >= 0; i--) if (t - rings[i].born > 640) rings.splice(i, 1);
+      for (let i = ghosts.length - 1; i >= 0; i--) if (t - ghosts[i].born > 420) ghosts.splice(i, 1);
+      if (self.alive && self.power === 'speed' && t - (self.lastGhost || 0) > 70) {
+        self.lastGhost = t;
+        ghosts.push({ x: self.x, y: self.y, a: self.angle, born: t,
+                      team: self.team, avatar: self.avatar });
+      }
+
       for (let i = sparks.length - 1; i >= 0; i--) {
         const p = sparks[i];
         p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94;
@@ -457,7 +556,8 @@
         lastSend = t;
         send('move', { id: meId, x: Math.round(self.x), y: Math.round(self.y),
                        a: +self.angle.toFixed(2), alive: self.alive, team: self.team,
-                       name: self.name, avatar: self.avatar, score: self.score });
+                       name: self.name, avatar: self.avatar, score: self.score,
+                       power: self.power, shield: self.shield });
       }
       if (!watching && opts.onSave && t - lastSave > SAVE_MS) {
         lastSave = t; opts.onSave(self.score);
@@ -545,12 +645,15 @@
         // the camera rides a fixed distance behind this player, and the scale is
         // worked out from that distance so the same amount of arena is in view on
         // any phone: about VIEW units across at the player's own depth
-        const BEHIND = 560, VIEW = 950;
+        const BEHIND = 560, VIEW = 1020;
         cam.x = self.x; cam.y = self.y + BEHIND;
         const depth = BEHIND * cosT + EYE * sinT;
         cam.scale = w / (VIEW * (FOCAL / depth));
         cam.cx = w / 2;
-        cam.cy = h * 0.62;                     // the player low, the arena ahead
+        /* The player sits just above the middle. It was 0.62, which on a phone
+           held upright spent the top third of the screen on the wall at the far
+           end of the hall — handsome, and none of it is where you are playing. */
+        cam.cy = h * 0.54;
       }
       return cam;
     }
@@ -570,10 +673,31 @@
       return { x: cam.x + u * depth / FOCAL, y: cam.y - ey };
     }
 
+    /* The mark of a superpower, floating over whoever is holding one. Powers
+       used to be invisible on everybody but yourself, so a classmate suddenly
+       firing three beams at once read as the game cheating rather than as
+       somebody who got to the orb first. */
+    function aura(x, y, kind) {
+      if (!kind || !POWERS[kind]) return;
+      const p = project(x, y, BODY_H + 52);
+      if (!p) return;
+      const R = 13 * p.k;
+      const beat = 0.85 + Math.sin(now() / 220) * 0.15;
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.shadowColor = POWERS[kind].colour;
+      ctx.shadowBlur = 18 * p.k;
+      ctx.fillStyle = POWERS[kind].colour;
+      ctx.beginPath(); ctx.arc(p.x, p.y, R * beat, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      glyph(ctx, kind, p.x, p.y, R * 0.62);
+      ctx.restore();
+    }
+
     /* One standing figure: a shadow on the floor, a body between the floor and its
        own height, and a face on the front of it. Sizes come from the projection, so
        somebody at the far end of the arena is genuinely smaller. */
-    function body(x, y, angle, colour, alive, label, isSelf, avatar) {
+    function body(x, y, angle, colour, alive, label, isSelf, avatar, wild) {
       const foot = project(x, y, 0);
       const head = project(x, y, BODY_H);
       if (!foot || !head) return;
@@ -589,8 +713,21 @@
       ctx.ellipse(foot.x, foot.y, r * 1.05, r * 0.42, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      /* A wild blook has no gun, and a ring on the floor under it so nobody
+         wastes a shot working out whether that one is a bot or a classmate. */
+      if (wild) {
+        ctx.strokeStyle = 'rgba(255,255,255,.5)';
+        ctx.setLineDash([r * 0.45, r * 0.4]);
+        ctx.lineWidth = Math.max(1.5, 3 * foot.k);
+        ctx.beginPath();
+        ctx.ellipse(foot.x, foot.y, r * 1.25, r * 0.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
       // the barrel, lying along the floor in the direction of aim
-      const reach = project(x + Math.cos(angle) * 52, y + Math.sin(angle) * 52, BODY_H * 0.55);
+      const reach = wild ? null
+        : project(x + Math.cos(angle) * 52, y + Math.sin(angle) * 52, BODY_H * 0.55);
       if (reach) {
         ctx.strokeStyle = colour;
         ctx.lineWidth = Math.max(2, 7 * foot.k);
@@ -786,11 +923,138 @@
           ctx.globalAlpha = 0.16;
           ctx.fillStyle = glow;
           ctx.fillRect(inset, y - span * 0.07, w - inset * 2, span * 0.14);
-          ctx.globalAlpha = 0.85;
+          ctx.globalAlpha = 0.6;
           ctx.fillStyle = c;
-          ctx.fillRect(inset, y - span * 0.01, w - inset * 2, span * 0.02);
+          ctx.fillRect(inset, y - span * 0.008, w - inset * 2, span * 0.016);
         });
         ctx.globalAlpha = 1;
+      }
+
+      /* A dark top on every backdrop. Whatever is hung up there is scenery, and
+         scenery that is as bright as the floor competes with the game for the
+         one thing a phone screen has least of, which is room. */
+      const dim = ctx.createLinearGradient(0, y0, 0, bot);
+      dim.addColorStop(0, 'rgba(0,0,0,.62)');
+      dim.addColorStop(0.55, 'rgba(0,0,0,.12)');
+      dim.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = dim;
+      ctx.fillRect(0, y0, w, bot - y0);
+      ctx.restore();
+    }
+
+    /** A shape on the floor, given as arena points. */
+    function floorShape(pts, fill, stroke, wide) {
+      const ps = pts.map(([x, y]) => project(x, y, 0));
+      if (ps.some(q => !q)) return;
+      ctx.beginPath();
+      ps.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
+      ctx.closePath();
+      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = wide || 3; ctx.stroke(); }
+    }
+
+    function floorEllipse(cx, cy, rx, ry, fill, stroke) {
+      const pts = [];
+      for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
+      }
+      floorShape(pts, fill, stroke, 3);
+    }
+
+    function floorMarks() {
+      ctx.save();
+
+      // the two ends the teams start from: a painted pad, a ring round it and
+      // cross hairs, so it reads as somewhere you are meant to stand
+      [[150, '#F4364C'], [W - 150, '#4F6BFF']].forEach(([cx, colour]) => {
+        ctx.globalAlpha = 0.30;
+        floorEllipse(cx, H / 2, 130, 130, colour, null);
+        ctx.globalAlpha = 0.95;
+        ctx.lineWidth = 6;
+        floorEllipse(cx, H / 2, 130, 130, null, colour);
+        ctx.globalAlpha = 0.75;
+        floorEllipse(cx, H / 2, 74, 74, null, colour);
+        [[[cx - 130, H / 2], [cx - 74, H / 2]], [[cx + 74, H / 2], [cx + 130, H / 2]],
+         [[cx, H / 2 - 130], [cx, H / 2 - 74]], [[cx, H / 2 + 74], [cx, H / 2 + 130]]]
+          .forEach(([a, b]) => {
+            const pa = project(a[0], a[1], 0), pb = project(b[0], b[1], 0);
+            if (!pa || !pb) return;
+            ctx.strokeStyle = colour; ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+          });
+        ctx.globalAlpha = 1;
+      });
+
+      if (look.scene === 'hangar') {
+        // a hazard line down the middle of the hall
+        ctx.globalAlpha = 0.5;
+        for (let y = 40; y < H; y += 120) {
+          floorShape([[W / 2 - 16, y], [W / 2 + 16, y],
+                      [W / 2 + 16, y + 70], [W / 2 - 16, y + 70]], '#FFB020', null);
+        }
+        ctx.globalAlpha = 1;
+      } else if (look.scene === 'space') {
+        // the landing pad, and craters worn into the regolith
+        ctx.globalAlpha = 0.5;
+        floorEllipse(W / 2, H / 2, 300, 300, null, '#38E0C0');
+        ctx.globalAlpha = 0.16;
+        [[330, 250, 90, 54], [1290, 790, 120, 70], [420, 830, 70, 40],
+         [1180, 210, 84, 48]].forEach(([x, y, rx, ry]) =>
+          floorEllipse(x, y, rx, ry, '#0A1020', null));
+        ctx.globalAlpha = 1;
+      } else {
+        // chevrons pointing into the corners of the neon arena
+        ctx.globalAlpha = 0.34;
+        [[70, 70, 1, 1], [W - 70, 70, -1, 1],
+         [70, H - 70, 1, -1], [W - 70, H - 70, -1, -1]].forEach(([x, y, sx, sy]) => {
+          for (let i = 0; i < 3; i++) {
+            const d = i * 34;
+            floorShape([[x + sx * d, y + sy * (d + 74)],
+                        [x + sx * (d + 16), y + sy * (d + 74)],
+                        [x + sx * (d + 90), y + sy * d],
+                        [x + sx * (d + 74), y + sy * d]], look.trim, null);
+          }
+        });
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+
+    /* The rest of the hall.
+     *
+     * The camera stands behind the player, so when you are near the front of
+     * the arena it is looking across ground that is outside it — and that
+     * ground was flat black, which reads as a hole in the world rather than as
+     * floor you are not allowed on. So the floor carries on past the barrier,
+     * darker, with the same grid on it. The barrier is what says where the
+     * arena stops; the dark is not asked to do that job any more. */
+    function apron() {
+      const OUT = 1400;
+      const c1 = project(-OUT, -OUT, 0), c2 = project(W + OUT, -OUT, 0);
+      const c3 = project(W + OUT, H + OUT, 0), c4 = project(-OUT, H + OUT, 0);
+      if (!c1 || !c2 || !c3 || !c4) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y);
+      ctx.lineTo(c3.x, c3.y); ctx.lineTo(c4.x, c4.y); ctx.closePath();
+      const g = ctx.createLinearGradient(0, Math.min(c1.y, c2.y), 0, Math.max(c3.y, c4.y));
+      g.addColorStop(0, look.sky[2]);
+      g.addColorStop(0.5, look.floor[1]);
+      g.addColorStop(1, look.sky[2]);
+      ctx.fillStyle = g; ctx.fill();
+      ctx.clip();
+      ctx.strokeStyle = look.grid;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1.2;
+      const step = look.grid2 * 2;
+      for (let x = -OUT; x <= W + OUT; x += step) {
+        const a = project(x, -OUT, 0), b = project(x, H + OUT, 0);
+        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      }
+      for (let y = -OUT; y <= H + OUT; y += step) {
+        const a = project(-OUT, y, 0), b = project(W + OUT, y, 0);
+        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
       ctx.restore();
     }
@@ -801,6 +1065,7 @@
       // the ground, out to wherever the screen ends
       ctx.fillStyle = look.sky[2];
       ctx.fillRect(0, Math.max(0, hz), canvas.width, h);
+      apron();
       drawBack();
       // and a little light along the horizon, so the two meet rather than butt
       if (hz > -60 && hz < h + 60) {
@@ -837,6 +1102,14 @@
         const a = project(0, y, 0), b = project(W, y, 0);
         if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
+
+      /* Painted on the floor. A big plane with a grid on it reads as a texture;
+         a plane with markings on it reads as a room somebody uses. Each map
+         gets its own — hazard chevrons in the corners of the neon arena, a lane
+         line down the bunker, a landing pad and craters on the moon — and all
+         three get the two team pads, so you can see where the other end starts
+         from without being told. */
+      floorMarks();
 
       /* The centre of the floor gets a painted ring, because a big empty plane
          with nothing on it reads as a texture rather than as a place. */
@@ -895,6 +1168,28 @@
             ctx.globalAlpha = 1;
           }
         }
+        /* Seams, every metre or so along the run. A four-hundred-unit wall drawn
+           as one flat quad reads as a slab of colour; the same wall with panel
+           joints in it reads as something that was built, and gives the eye
+           something to measure distance against as you run past. */
+        const along = Math.max(bk.w, bk.h);
+        if (along > 150) {
+          const across = bk.w > bk.h;
+          ctx.strokeStyle = 'rgba(0,0,0,.28)';
+          ctx.lineWidth = 1.5;
+          for (let d = 110; d < along - 40; d += 110) {
+            const sx = across ? x0 + d : x0, sy = across ? y0 : y0 + d;
+            const ex = across ? x0 + d : x1;
+            const a = project(sx, across ? y1 : sy, 0);
+            const b = project(across ? ex : x1, across ? y1 : sy, BLOCK_H);
+            const a2 = project(sx, across ? y1 : sy, BLOCK_H);
+            if (a && a2) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a2.x, a2.y); ctx.stroke(); }
+            // and across the top, so the joint carries over the lip
+            const t1 = project(sx, across ? y0 : sy, BLOCK_H);
+            if (t1 && a2) { ctx.beginPath(); ctx.moveTo(t1.x, t1.y); ctx.lineTo(a2.x, a2.y); ctx.stroke(); }
+            void b;
+          }
+        }
         if (tl && tr) {
           ctx.strokeStyle = look.edge;
           ctx.lineWidth = 2;
@@ -944,61 +1239,73 @@
          figure in front must be painted over the one behind it. */
       const solids = [];
 
+      /* The superpowers, waiting to be picked up.
+       *
+       * A pill you have to have been told the colour code for is not a prize.
+       * Each one is an orb now: a pool of its own light on the floor, a ring
+       * turning round it, and its mark on the front. You can see from across
+       * the maze that there is something there and what it is, which is the
+       * whole reason to break cover and go and get it. */
       capsules.forEach(c => {
-        const bob = Math.sin((now() - c.born) / 320) * 6;
-        const p = project(c.x, c.y, 26 + bob);
+        const age = now() - c.born;
+        const bob = Math.sin(age / 380) * 7;
+        const p = project(c.x, c.y, 40 + bob);
         const foot = project(c.x, c.y, 0);
         if (!p || !foot) return;
         solids.push({ depth: p.depth, paint: () => {
           const kind = POWERS[c.kind];
+          const R = 21 * p.k;
           ctx.save();
-          ctx.fillStyle = 'rgba(0,0,0,.35)';
+
+          // light pooled on the floor under it
+          const pool = ctx.createRadialGradient(foot.x, foot.y, 1, foot.x, foot.y, R * 2.4);
+          pool.addColorStop(0, kind.colour);
+          pool.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.32;
+          ctx.fillStyle = pool;
           ctx.beginPath();
-          ctx.ellipse(foot.x, foot.y, 17 * foot.k, 7 * foot.k, 0, 0, Math.PI * 2);
+          ctx.ellipse(foot.x, foot.y, R * 2.4, R * 0.95, 0, 0, Math.PI * 2);
           ctx.fill();
-          ctx.shadowColor = kind.colour; ctx.shadowBlur = 26 * p.k;
-          ctx.fillStyle = kind.colour;
+          ctx.globalAlpha = 1;
+
+          // a ring turning round it, flattened so it lies in the world
+          const spin = age / 620;
+          ctx.strokeStyle = kind.colour;
+          ctx.globalAlpha = 0.85;
+          ctx.lineWidth = Math.max(1.5, 3 * p.k);
           ctx.beginPath();
-          ctx.roundRect(p.x - 17 * p.k, p.y - 22 * p.k, 34 * p.k, 44 * p.k, 17 * p.k);
-          ctx.fill();
+          ctx.ellipse(p.x, p.y, R * 1.5, R * 0.5, Math.sin(spin) * 0.5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          // the orb: bright at the top left, its own colour through the middle
+          const ball = ctx.createRadialGradient(p.x - R * 0.35, p.y - R * 0.4, R * 0.1,
+                                                p.x, p.y, R);
+          ball.addColorStop(0, '#FFFFFF');
+          ball.addColorStop(0.42, kind.colour);
+          ball.addColorStop(1, 'rgba(0,0,0,.55)');
+          ctx.shadowColor = kind.colour; ctx.shadowBlur = 30 * p.k;
+          ctx.fillStyle = ball;
+          ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.fill();
           ctx.shadowBlur = 0;
-          ctx.fillStyle = 'rgba(255,255,255,.85)';
-          ctx.beginPath();
-          ctx.roundRect(p.x - 11 * p.k, p.y - 16 * p.k, 22 * p.k, 12 * p.k, 6 * p.k);
-          ctx.fill();
+
+          // and its mark on the front
+          glyph(ctx, c.kind, p.x, p.y, R * 0.62);
           ctx.restore();
         } });
       });
 
-      aliens.forEach(a => {
-        const p = project(a.x, a.y, 30);
-        const foot = project(a.x, a.y, 0);
-        if (!p || !foot) return;
+      /* The wandering blooks, drawn exactly as a player is: same body, same
+         face, same light on it. They were a different kind of thing before —
+         a green oval — which made half of what moves in the arena look like it
+         came from a different game. */
+      bots.forEach(a => {
+        const p = project(a.x, a.y, BODY_H);
+        if (!p) return;
         solids.push({ depth: p.depth, paint: () => {
-          ctx.save();
-          ctx.fillStyle = 'rgba(0,0,0,.35)';
-          ctx.beginPath();
-          ctx.ellipse(foot.x, foot.y, ALIEN_R * foot.k, ALIEN_R * 0.4 * foot.k, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#7BC62D';
-          ctx.beginPath();
-          ctx.ellipse(p.x, p.y, ALIEN_R * p.k, ALIEN_R * 0.82 * p.k, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,.25)';
-          ctx.beginPath();
-          ctx.ellipse(p.x, p.y - ALIEN_R * 0.3 * p.k, ALIEN_R * 0.7 * p.k, ALIEN_R * 0.3 * p.k, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,.9)';
-          ctx.beginPath();
-          ctx.arc(p.x - 7 * p.k, p.y - 3 * p.k, 4.4 * p.k, 0, Math.PI * 2);
-          ctx.arc(p.x + 7 * p.k, p.y - 3 * p.k, 4.4 * p.k, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#1b1330';
-          ctx.beginPath();
-          ctx.arc(p.x - 7 * p.k, p.y - 3 * p.k, 2.2 * p.k, 0, Math.PI * 2);
-          ctx.arc(p.x + 7 * p.k, p.y - 3 * p.k, 2.2 * p.k, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
+          body(a.x, a.y, a.angle,
+               global.Sprite ? Sprite.colourFor(a.avatar) : '#7BC62D',
+               true, '', false, a.avatar, true);
         } });
       });
 
@@ -1019,17 +1326,51 @@
         } });
       });
 
+      /* The ring a superpower leaves behind when somebody takes it, opening out
+         along the floor. It is the one moment in the round worth announcing. */
+      rings.forEach(r => {
+        const age = (now() - r.born) / 640;
+        const foot = project(r.x, r.y, 0);
+        if (!foot || age > 1) return;
+        solids.push({ depth: foot.depth, paint: () => {
+          ctx.save();
+          ctx.globalAlpha = (1 - age) * 0.9;
+          ctx.strokeStyle = r.colour;
+          ctx.lineWidth = Math.max(2, 7 * foot.k * (1 - age));
+          ctx.beginPath();
+          ctx.ellipse(foot.x, foot.y, 120 * age * foot.k, 44 * age * foot.k, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } });
+      });
+
+      // and the trail you leave while the speed boost is on you
+      ghosts.forEach(g => {
+        const age = (now() - g.born) / 420;
+        const p = project(g.x, g.y, 0);
+        if (!p || age > 1) return;
+        // drawn as "not alive", which is what body() already fades to a ghost
+        solids.push({ depth: p.depth + 1, paint: () =>
+          body(g.x, g.y, g.a, teamColour(g.team), false, '', false, g.avatar, true) });
+      });
+
       others.forEach(o => {
         const p = project(o.x, o.y, 0);
         if (!p) return;
-        solids.push({ depth: p.depth, paint: () =>
-          body(o.x, o.y, o.a || 0, teamColour(o.team), o.alive !== false, o.name, false, o.avatar) });
+        solids.push({ depth: p.depth, paint: () => {
+          body(o.x, o.y, o.a || 0, teamColour(o.team), o.alive !== false, o.name, false, o.avatar);
+          // what they are holding, so you can see who is dangerous right now
+          if (o.alive !== false && (o.power || o.shield)) {
+            aura(o.x, o.y, o.shield ? 'shield' : o.power);
+          }
+        } });
       });
 
       if (!watching) {
         const p = project(self.x, self.y, 0);
         if (p) solids.push({ depth: p.depth, paint: () => {
           body(self.x, self.y, self.angle, teamColour(self.team), self.alive, '', true, self.avatar);
+          if (self.alive && self.power) aura(self.x, self.y, self.power);
           if (self.shield) {
             const mid = project(self.x, self.y, BODY_H * 0.5);
             if (mid) {
@@ -1070,10 +1411,13 @@
        way round, even if you cannot see it. So the walls are drawn from above,
        with you and everyone near you on them. */
     function miniMap() {
-      const pad = Math.round(canvas.width * 0.022);
-      const mw = Math.min(canvas.width * 0.30, 260);
+      /* Top right. It used to sit bottom left, where the energy bar runs across
+         it and the superpower slot sits beside it; a plan you have to read
+         through two other things is not a plan. */
+      const pad = Math.round(canvas.width * 0.03);
+      const mw = Math.min(canvas.width * 0.32, 280);
       const mh = mw * (H / W);
-      const ox = pad, oy = canvas.height - mh - pad;
+      const ox = canvas.width - mw - pad, oy = pad;
       const s = mw / W;
       const at = (x, y) => ({ x: ox + x * s, y: oy + y * s });
 
@@ -1145,6 +1489,15 @@
       get score() { return self.score; },
       get alive() { return self.alive; },
       get power() { return self.power ? POWERS[self.power].label : (self.shield ? 'Force field' : ''); },
+      get powerKind() { return self.power || (self.shield ? 'shield' : ''); },
+      /* Nought to one, how much of the power is left. A shield has no clock —
+         it lasts until it is spent — so it reads as full the whole time. */
+      get powerLeft() {
+        if (self.power && POWERS[self.power].life) {
+          return clamp((self.powerUntil - now()) / POWERS[self.power].life, 0, 1);
+        }
+        return self.shield ? 1 : 0;
+      },
       get playerCount() { return others.size + (watching ? 0 : 1); },
       /* Put the player somewhere, point them, and read it back. Only the tests
          use these; the game never moves anybody from outside. */
@@ -1152,6 +1505,21 @@
       face(a) { self.angle = a; pointer = null; },
       where() { return { x: self.x, y: self.y }; },
       shotCount() { return shots.length; },
+      botCount() { return bots.length; },
+      botsAt() { return bots.map(b => ({ x: b.x, y: b.y, avatar: b.avatar })); },
+      /** Hand this player a superpower. Tests and the shots in the docs use it;
+          in a real round the only way to one is to go and stand on it. */
+      grant(kind) {
+        if (!POWERS[kind]) return false;
+        if (kind === 'shield') self.shield = true;
+        else { self.power = kind; self.powerUntil = now() + POWERS[kind].life; }
+        if (opts.onPower) opts.onPower(POWERS[kind].label, POWERS[kind].colour, kind);
+        return true;
+      },
+      /** Drop a superpower on the floor at a given spot, for the same reason. */
+      drop(kind, x, y) {
+        capsules.push({ kind, x, y, born: now() });
+      },
       /** Back in after a question: full bar, fresh position. */
       revive() {
         self.alive = true; self.energy = 100; self.shield = false; self.power = '';
@@ -1196,7 +1564,8 @@
     return s.join('');
   }
 
-  global.NovaArena = { start, POWERS, ALIEN_POINTS, PLAYER_POINTS, ENERGY_SECONDS,
+  global.NovaArena = { start, POWERS, BOT_POINTS, ALIEN_POINTS: BOT_POINTS,
+                       PLAYER_POINTS, ENERGY_SECONDS,
                        COVER, coverFor, freeSpot, lookFor, HALVES, plan,
                        faceReady: (a) => { const f = faces.get(String(a || 0)); return !!(f && f.ready); } };
 })(typeof window !== 'undefined' ? window : globalThis);

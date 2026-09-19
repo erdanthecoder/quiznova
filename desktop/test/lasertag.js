@@ -179,10 +179,13 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
       me: { id: 'me', name: 'Me', avatar: 2, team: 'red' }, send: () => {} });
     return new Promise(done => setTimeout(() => {
       const ctx = c.getContext('2d');
-      // the minimap sits in the bottom-left corner; look for anything painted
-      // there that is not the bare floor
+      /* The minimap sits in the top-right corner — it used to be bottom left,
+         where the energy bar runs across it. Look for the panel it draws
+         there: a dark rounded box with the maze on it, over what would
+         otherwise be backdrop. */
       const w = c.width, h = c.height;
-      const d = ctx.getImageData(6, h - Math.round(h * 0.3), Math.round(w * 0.3), Math.round(h * 0.28)).data;
+      const bw = Math.round(w * 0.34), bh = Math.round(bw * (1000 / 1600)) + 20;
+      const d = ctx.getImageData(w - bw - 4, 4, bw, bh).data;
       let light = 0;
       for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 330) light++;
       k.stop();
@@ -213,6 +216,87 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
     k.stop();
     return loaded;
   });
+  /* ── the bots are blooks too ──
+   *
+   * They were green ovals with two eyes: the one thing in a game built out of
+   * blooks that was not a blook. */
+  const wild = await page.evaluate(() => {
+    const k = NovaArena.start({ canvas: document.getElementById('c'), map: 'bunker',
+      me: { id: 'me', name: 'Me', avatar: 4, team: 'red' }, send: () => {} });
+    return new Promise(done => setTimeout(() => {
+      const out = { count: k.botCount(), distinct: 0 };
+      k.stop(); done(out);
+    }, 300));
+  });
+  ok('the maze has wandering blooks in it', wild.count >= 6, `${wild.count} of them`);
+
+  // ── and they walk somewhere, without walking into walls ──
+  const roam = await page.evaluate(() => {
+    const W = 1600, H = 1000, R = 24;
+    const near = (b, x, y, r) => {
+      const nx = Math.max(b.x, Math.min(x, b.x + b.w));
+      const ny = Math.max(b.y, Math.min(y, b.y + b.h));
+      return (nx - x) ** 2 + (ny - y) ** 2 < r * r;
+    };
+    const cover = NovaArena.coverFor('arena');
+    const k = NovaArena.start({ canvas: document.getElementById('c'), map: 'arena',
+      me: { id: 'me', name: 'Me', avatar: 1, team: 'red' }, send: () => {} });
+    const first = k.botsAt();
+    return new Promise(done => setTimeout(() => {
+      const later = k.botsAt();
+      let moved = 0, inWall = 0;
+      later.forEach((b, i) => {
+        const was = first[i];
+        if (was && Math.hypot(b.x - was.x, b.y - was.y) > 20) moved++;
+        if (cover.some(c => near(c, b.x, b.y, R))) inWall++;
+        if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) inWall++;
+      });
+      k.stop();
+      done({ n: later.length, moved, inWall });
+    }, 1500));
+  });
+  ok('they walk about the maze', roam.moved >= Math.max(1, roam.n - 2),
+     `${roam.moved} of ${roam.n} moved`);
+  ok('and never through a wall', roam.inWall === 0, `${roam.inWall} inside one`);
+
+  /* ── superpowers are picked up by walking onto them ──
+   *
+   * And they say what they are. A power that changes how you shoot without ever
+   * naming itself is, to a child, the game going wrong. */
+  const grab = await page.evaluate(() => {
+    let told = null;
+    const k = NovaArena.start({ canvas: document.getElementById('c'), map: 'moon',
+      me: { id: 'me', name: 'Me', avatar: 1, team: 'red' }, send: () => {},
+      onPower: (label, colour, kind) => { told = { label, colour, kind }; } });
+    k.place(800, 500);
+    k.drop('spread', 806, 502);
+    return new Promise(done => setTimeout(() => {
+      const out = { told, kind: k.powerKind, left: k.powerLeft, name: k.power };
+      k.stop(); done(out);
+    }, 400));
+  });
+  ok('walking onto a superpower picks it up', grab.kind === 'spread', grab.kind || 'nothing');
+  ok('and it says what it is', !!grab.told && grab.told.label === 'Triple beam',
+     grab.told ? grab.told.label : 'said nothing');
+  ok('and it comes with a clock', grab.left > 0.5 && grab.left <= 1, String(grab.left));
+
+  // ── the force field spends itself on one hit, and no more ──
+  const bubble = await page.evaluate(() => {
+    const k = NovaArena.start({ canvas: document.getElementById('c'), map: 'arena',
+      me: { id: 'me', name: 'Me', avatar: 1, team: 'red' }, send: () => {} });
+    k.grant('shield');
+    const had = k.powerKind;
+    k.heard('hit', { id: 'them', to: 'me' });
+    const after = k.powerKind;
+    const alive = k.alive;
+    k.heard('hit', { id: 'them', to: 'me' });
+    const out = { had, after, alive, dead: !k.alive };
+    k.stop();
+    return out;
+  });
+  ok('a force field takes the first hit for you', bubble.had === 'shield' && bubble.alive);
+  ok('and only the first', bubble.after === '' && bubble.dead);
+
   ok('the player is drawn as their blook', drawn, drawn ? 'face rasterised' : 'still the plain shape');
 
   ok('no errors in the arena', errs.length === 0, errs.slice(0, 2).join(' | '));
