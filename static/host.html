@@ -122,7 +122,7 @@
 .board.result .ask{padding:12px 24px}
 .board.result .ask h1{font-size:clamp(1.2rem,2.6vw,2.1rem)}
 .board.result .tile{padding:12px 22px}
-.board .rest{flex:none}
+.board .rest{flex:0 1 auto;min-height:0;overflow:auto}
 .board.result .rest{flex:1;min-height:0;overflow:auto;padding-bottom:4px}
 .why{margin:0;font-size:1rem;font-weight:600;opacity:.8;text-align:center}
 
@@ -277,52 +277,23 @@
   letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45)}
 
 /* maps: the same arena, dressed differently */
-.map-hall,.map-arena,.map-city,.map-site,.map-cave,.map-lair{--floor:linear-gradient(180deg,#2A2547,#151129)}
-.map-space{--floor:linear-gradient(180deg,#131A4A,#05060F)}
-.map-jungle{--floor:linear-gradient(180deg,#123D2B,#07160F)}
+.map-arena,.map-site,.map-lair{--floor:linear-gradient(180deg,#2A2547,#151129)}
 .map-bunker{--floor:linear-gradient(180deg,#3A3730,#16150F)}
 .map-moon{--floor:linear-gradient(180deg,#3C4258,#0E1119)}
-.map-desert{--floor:linear-gradient(180deg,#6A4A22,#2A1B0B)}
-.map-ice{--floor:linear-gradient(180deg,#1E5570,#081E2B)}
 .map-candy{--floor:linear-gradient(180deg,#6B2350,#260C1D)}
 .map-castle{--floor:linear-gradient(180deg,#3E3A2E,#171510)}
-.map-beach{--floor:linear-gradient(180deg,#7A6132,#241C0D)}
-.map-vault{--floor:linear-gradient(180deg,#243A5E,#0A1120)}
 .map-volcano{--floor:linear-gradient(180deg,#5E1F16,#1C0806)}
 .map-ruins{--floor:linear-gradient(180deg,#33452F,#101710)}
-.map-playground{--floor:linear-gradient(180deg,#5C6E86,#161C26)}
-.map-forest{--floor:linear-gradient(180deg,#2C4258,#0A1018)}
-.map-peak{--floor:linear-gradient(180deg,#6A7C93,#1A222E)}
-.map-fair{--floor:linear-gradient(180deg,#6B4A2A,#22160C)}
-.map-clouds{--floor:linear-gradient(180deg,#3C5A86,#101828)}
-.map-night{--floor:linear-gradient(180deg,#241C50,#080614)}
 .map-crater{--floor:linear-gradient(180deg,#5E2318,#180806)}
 .map-ashfall{--floor:linear-gradient(180deg,#3E3A3E,#100E12)}
 .map-obsidian{--floor:linear-gradient(180deg,#2A2436,#08060C)}
-.map-works{--floor:linear-gradient(180deg,#4A4436,#141210)}
-.map-foundry{--floor:linear-gradient(180deg,#5A3220,#160C08)}
-.map-orbital{--floor:linear-gradient(180deg,#1E2A52,#06080F)}
-.map-pier{--floor:linear-gradient(180deg,#0A3A5E,#04141F)}
-.map-reef{--floor:linear-gradient(180deg,#0E5468,#031C24)}
-.scene.map-space{filter:hue-rotate(200deg) saturate(.9)}
-.scene.map-jungle{filter:hue-rotate(80deg) saturate(1.2)}
-.scene.map-bunker{filter:saturate(.5) brightness(.92)}
-.scene.map-moon{filter:hue-rotate(215deg) saturate(.6)}
-.scene.map-desert{filter:hue-rotate(-25deg) saturate(1.3)}
-.scene.map-ice{filter:hue-rotate(160deg) saturate(.8) brightness(1.08)}
-.scene.map-candy{filter:hue-rotate(295deg) saturate(1.3)}
-.scene.map-castle{filter:hue-rotate(30deg) saturate(.7)}
-.scene.map-beach{filter:hue-rotate(35deg) saturate(1.2)}
-.scene.map-vault{filter:hue-rotate(210deg) saturate(.85)}
-.scene.map-volcano{filter:hue-rotate(-40deg) saturate(1.4)}
-.scene.map-ruins{filter:hue-rotate(60deg) saturate(.6)}
-.scene.map-forest{filter:hue-rotate(185deg) saturate(.75)}
-.scene.map-peak{filter:saturate(.55) brightness(1.06)}
-.scene.map-clouds{filter:hue-rotate(190deg) saturate(.9)}
-.scene.map-night{filter:hue-rotate(240deg) saturate(1.15) brightness(.92)}
 
 /* the arena on the big screen */
-.arena-board{position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;
+/* The arena has to be the biggest thing on the board. It used to be flex:1
+   against a leaderboard that was flex:none, so the table took its full height
+   and left the game about a hundred pixels — thirty children watching six green
+   dots. It gets a floor now, and the table gives way instead. */
+.arena-board{position:relative;flex:1 1 auto;min-height:min(56vh,460px);border-radius:22px;overflow:hidden;
   border:3px solid #0b0718;box-shadow:0 22px 50px -24px rgba(0,0,0,.9)}
 .arena-board canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 

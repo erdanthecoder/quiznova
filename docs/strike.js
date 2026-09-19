@@ -61,6 +61,11 @@
     return speed >= 0.5 ? 'great' : 'sword';
   }
 
+  /* The same twelve colours the blooks use, so a child in the ring is the
+   * colour they picked in the lobby. */
+  const SKIN = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#7C4DFF', '#2BA8FF',
+                '#FF7A45', '#00B8A9', '#E8467C', '#7BC62D', '#FF9A3D', '#3AC0D8'];
+
   const now = () => performance.now();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const TAU = Math.PI * 2;
@@ -179,7 +184,7 @@
          * In view space this player is at (0, +ringAt) and the boss at the
          * origin, so the camera stands a little further out on the same line
          * and looks along −y at both of them. */
-        const BEHIND = 430, VIEW = 1250;
+        const BEHIND = 360, VIEW = 900;
         cam.x = 0;
         cam.y = ringAt(self) + BEHIND;
         const depth = BEHIND * cosT + EYE * sinT;
@@ -447,9 +452,16 @@
       ctx.ellipse(foot.x, foot.y, r * 1.05, r * 0.42, 0, 0, TAU);
       ctx.fill();
 
-      ctx.fillStyle = mine ? '#FFC53D' : '#7FD8FF';
+      /* Own colour per player, taken from their avatar, so a class can find
+       * themselves and each other. Everybody used to be the same blue, which
+       * made the ring look like furniture rather than people. */
+      ctx.fillStyle = mine ? '#FFC53D' : SKIN[(p.avatar || 0) % SKIN.length];
       ctx.beginPath();
       ctx.roundRect(foot.x - r * 0.6, foot.y - tall, r * 1.2, tall, r * 0.4);
+      ctx.fill();
+      // a head, so it is a person and not a domino
+      ctx.beginPath();
+      ctx.arc(foot.x, foot.y - tall - r * 0.42, r * 0.46, 0, TAU);
       ctx.fill();
 
       // the blade, swung as an arc rather than a line: it reads at a glance
@@ -522,10 +534,14 @@
         ctx.textAlign = 'right';
         ctx.fillStyle = BLADES[self.blade].colour;
         ctx.fillText(BLADES[self.blade].label, w * 0.97, h * 0.058);
+        /* The combo goes on its own line. It used to be centred on the same one
+         * as the clock and the blade, which on a phone meant all three words
+         * sitting on top of each other. */
         if (self.combo >= 2) {
           ctx.textAlign = 'center';
           ctx.fillStyle = '#FFC53D';
-          ctx.fillText(self.combo + ' hit combo', w / 2, h * 0.058);
+          ctx.font = `800 ${Math.max(13, h * 0.038)}px ui-sans-serif,system-ui,sans-serif`;
+          ctx.fillText(self.combo + ' in a row', w / 2, h * 0.115);
         }
       }
       if (now() < flashUntil) {
