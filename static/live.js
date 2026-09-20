@@ -542,8 +542,9 @@
         return { ok: false, why: 'Not that kind of game.' };
       }
       const out = R.claimZone(game, p, body.zone);
-      if (out.ok && !out.already) {
-        game.lastEvents.push(`${p.name} is in`);
+      // stepping out is news too: the place they had is free again
+      if (out.ok && !out.already && (out.zone || out.left)) {
+        game.lastEvents.push(out.zone ? `${p.name} is in` : `${p.name} stepped back out`);
         game.lastEvents = game.lastEvents.slice(-6);
       }
       await writeGame(pin, game);

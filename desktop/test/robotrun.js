@@ -299,6 +299,39 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      (await phone.locator('#s-state').innerText()).toLowerCase().includes('safe'),
      await phone.locator('#s-state').innerText());
 
+  /* Walking back out gives the place up. Without that the last place in a zone
+     is worth touching once and then leaving, and the scramble stops being a
+     scramble — so the phone is dragged off into the open and the room's count
+     has to come back down with it. */
+  await phone.evaluate(() => {
+    const deck = document.getElementById('s-deck');
+    const box = deck.getBoundingClientRect();
+    // the top left corner of the deck, which is open floor on every round
+    const x = box.left + box.width * 0.10, y = box.top + box.height * 0.12;
+    deck.dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: y, bubbles: true }));
+    deck.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true }));
+  });
+  await phone.waitForTimeout(2500);
+  const wandered = await (await fetch(`${base}/api/games/${pin}`)).json();
+  const calOut = wandered.players.find(p => p.name === 'Cal');
+  ok('walking back out of a zone gives the place up',
+     calOut && !calOut.zone && !(wandered.zoneCounts || {})[zone.id],
+     `Cal is in ${(calOut && calOut.zone) || 'the open'}, zone holds `
+     + `${(wandered.zoneCounts || {})[zone.id] || 0}`);
+
+  // and back in again, because that is the zone the rest of the test uses
+  await phone.evaluate((z) => {
+    const deck = document.getElementById('s-deck');
+    const box = deck.getBoundingClientRect();
+    const fit = Math.min(box.width / 1000, box.height / 700);
+    const ox = box.left + (box.width - 1000 * fit) / 2;
+    const oy = box.top + (box.height - 700 * fit) / 2;
+    const x = ox + z.x * fit, y = oy + z.y * fit;
+    deck.dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: y, bubbles: true }));
+    deck.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true }));
+  }, zone);
+  await phone.waitForTimeout(2500);
+
   /* Full is full. That is the whole decision — a child standing at a packed
      circle has to turn round and run, and the clock does not stop for it. */
   const room = await (await fetch(`${base}/api/games/${pin}`)).json();

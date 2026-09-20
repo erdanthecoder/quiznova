@@ -204,6 +204,15 @@
      out, which is the whole point of the phase. */
   function claimZone(game, p, zoneId) {
     const zones = safeZones(game.round || 1, Object.keys(game.players || {}).length);
+    /* Walking out of a zone gives the place up. Without this a child could step
+       in, be counted, and wander back off across the deck still safe — which
+       makes the last place in a zone worth taking early and then ignoring, and
+       the whole scramble a race to touch a circle once. */
+    if (!zoneId) {
+      const had = p.zone;
+      p.zone = '';
+      return { ok: true, zone: '', left: !!had };
+    }
     const zone = zones.find(z => z.id === zoneId);
     if (!zone) return { ok: false, why: 'No such zone.' };
     if (p.zone === zone.id) return { ok: true, zone: zone.id, already: true };
@@ -218,7 +227,11 @@
      other to make space rather than racing. */
   function settleSafe(game) {
     const everyone = Object.values(game.players || {});
-    const adrift = everyone.filter(p => !p.zone);
+    /* Somebody who joined, or rejoined, while the hatch was already open never
+       had a chance to get to a zone — and a phone that dropped its wifi for ten
+       seconds should not cost the class a life on the way back in. */
+    const opened = (game.safeEndsAt || now()) - SAFE_MS;
+    const adrift = everyone.filter(p => !p.zone && !(p.joinedAt > opened));
     if (adrift.length) {
       game.lives = Math.max(0, (game.lives === undefined ? 3 : game.lives) - 1);
       game.lastEvents.push(adrift.length === 1
@@ -715,8 +728,10 @@
     id: row.id, name: row.name, avatar: Number(row.avatar) || 0, team: row.team || 'red',
     score: 0, hp: 100, streak: 0, best: 0, answered: false, correct: null, down: false,
     lastDamage: 0, lastGain: 0, target: '',
+    joinedAt: now(),                          // so a child who walked in mid-scramble
+                                              // is not counted as having missed it
     blocks: 0, ready: 0, placed: 0,           // tallest tower: earned, and put up
-    boosts: 0, ready: 0, safe: true, zone: '',  // robot run: boosts in, and the zone
+    boosts: 0, safe: true, zone: '',          // robot run: boosts in, and the zone
     loaded: 0, hits: 0, swungAt: 0,           // boss battle: knives loaded, and used
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at

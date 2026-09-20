@@ -298,5 +298,45 @@ console.log('\n— the modes are not each other —');
   })(), 'five in a row is as good as twenty');
 }
 
+/* robot: the scramble between decks. Three rules decide whether it is a game
+   or a formality — a zone only holds so many, walking out gives the place up,
+   and whoever is still in the open when the clock stops costs the whole class
+   a life. The fourth is a kindness: a child who walked in while the hatch was
+   already open never had a chance, so they do not count against the room. */
+{
+  const g = newGame('robot', ['Ana', 'Ben', 'Cal']);
+  g.round = 1;
+  g.lives = 3;
+  g.safeEndsAt = Date.now() + 5000;
+  Object.values(g.players).forEach(p => { p.joinedAt = Date.now() - 60000; });
+
+  const zones = R.safeZones(1, 3);
+  ok('every deck has fewer zones than the class has children',
+     zones.length >= 2 && zones.every(z => z.cap >= 1),
+     `${zones.length} zones holding ${zones.map(z => z.cap).join('/')}`);
+
+  const first = R.claimZone(g, g.players.Ana, zones[0].id);
+  const second = R.claimZone(g, g.players.Ben, zones[0].id);
+  ok('the first one in gets the place', first.ok && g.players.Ana.zone === zones[0].id);
+  ok('and a full zone turns the next one away',
+     second.ok === false && second.full === true, second.why || 'it let them in');
+
+  R.claimZone(g, g.players.Ana, '');
+  const after = R.claimZone(g, g.players.Ben, zones[0].id);
+  ok('walking out gives the place up, and somebody else can take it',
+     after.ok && g.players.Ben.zone === zones[0].id && !g.players.Ana.zone,
+     `Ana is ${g.players.Ana.zone || 'in the open'}, Ben has ${g.players.Ben.zone}`);
+
+  // Cal joined while the hatch was already open
+  g.players.Cal.joinedAt = Date.now();
+  const lost = R.settleSafe(g);
+  ok('whoever is left in the open costs the class a life',
+     lost === 1 && g.lives === 2, `${lost} adrift, ${g.lives} lives left`);
+  ok('but a child who walked in mid-scramble is not one of them',
+     !/Cal/.test(g.lastEvents.join(' ')), g.lastEvents.slice(-1)[0]);
+  ok('and the deck is cleared for the next one',
+     Object.values(g.players).every(p => !p.zone));
+}
+
 console.log(`\n${checks - fails}/${checks} passed`);
 process.exit(fails ? 1 : 0);

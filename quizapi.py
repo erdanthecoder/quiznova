@@ -1134,7 +1134,7 @@ def public_game(game: dict, include_answers: bool = False) -> dict:
         "serverNow": now_ms(),
         "players": [{k: p.get(k) for k in ("id", "name", "avatar", "team", "score", "hp", "streak",
                                            "answered", "correct", "down", "lastDamage",
-                                           "blocks", "ready", "placed", "boosts", "safe", "zone", "lastGain",
+                                           "blocks", "ready", "placed", "boosts", "safe", "zone", "joinedAt", "lastGain",
                                            "loaded", "hits", "swungAt",
                                            "blade", "struck", "move", "on")}
                     for p in players],
@@ -1283,6 +1283,9 @@ def join_game(pin):
             "job": None,
             # per-mode workings the moves need
             "ready": 0, "placed": 0, "loaded": 0, "hits": 0, "swungAt": 0, "zone": "",
+            # when they walked in, so a child who joined mid-scramble is not
+            # counted as one who failed to reach a safe zone
+            "joinedAt": now_ms(),
             "item": False, "run": 0, "rocks": False,
             "tuned": 0, "stopped": False, "guarding": False, "acted": "",
             "shielded": False, "exposed": False, "offer": "",
@@ -1537,6 +1540,12 @@ def zone_counts(game):
 
 def claim_zone(game, player, zone_id):
     zones = safe_zones(game.get("round", 1), len(game.get("players", {})))
+    # walking out of a zone gives the place up, so a zone cannot be touched once
+    # and then left behind while its owner wanders off still counted safe
+    if not zone_id:
+        had = player.get("zone")
+        player["zone"] = ""
+        return {"ok": True, "zone": "", "left": bool(had)}
     zone = next((z for z in zones if z["id"] == zone_id), None)
     if not zone:
         return {"ok": False, "why": "No such zone."}
@@ -1549,8 +1558,13 @@ def claim_zone(game, player, zone_id):
 
 
 def settle_safe(game):
+    """The hatch shuts. Anybody still in the open costs the class a life.
+    Mirrors settleSafe in static/rules.js."""
     everyone = list(game.get("players", {}).values())
-    adrift = [p for p in everyone if not p.get("zone")]
+    # a child who joined while the hatch was already open never had a chance
+    opened = (game.get("safeEndsAt") or now_ms()) - SAFE_MS
+    adrift = [p for p in everyone
+              if not p.get("zone") and not (p.get("joinedAt", 0) > opened)]
     if adrift:
         game["lives"] = max(0, game.get("lives", 3) - 1)
         game["lastEvents"].append(

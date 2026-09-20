@@ -209,4 +209,65 @@ else:
           f" — he took {gor_py['hit']}, the green column went up at"
           f" {gor_py['marks']['blue']}, and the shield held")
 
+# ── the scramble between decks, in both languages ──
+#
+# Zone geometry, who fits, what walking out does and who counts as adrift are
+# all decided twice — once here and once in the browser. They have to agree to
+# the pixel, because the board draws the zones from one and the phone claims
+# them through the other.
+SCRAMBLE_JS = """
+const R = require(process.env.ROOT + '/static/rules.js');
+const at = 1700000000000;
+const p = (id) => Object.assign(R.blankPlayer({ id, name: id, avatar: 0 }),
+                                { joinedAt: at - 60000 });
+const g = { mode: 'robot', players: { A: p('A'), B: p('B'), C: p('C') },
+            round: 3, lives: 3, lastEvents: [], safeEndsAt: at + 5000 };
+const zones = R.safeZones(3, 3);
+const first = R.claimZone(g, g.players.A, zones[0].id);
+const second = R.claimZone(g, g.players.B, zones[0].id);
+const left = R.claimZone(g, g.players.A, '');
+const retry = R.claimZone(g, g.players.B, zones[0].id);
+g.players.C.joinedAt = at + 1000;          // walked in mid-scramble
+const adrift = R.settleSafe(g);
+console.log(JSON.stringify({ zones, first: first.ok, second: second.ok,
+  full: !!second.full, left: !!left.left, retry: retry.ok, adrift,
+  lives: g.lives, cleared: Object.values(g.players).every(x => !x.zone) }));
+"""
+
+scr_js = json.loads(subprocess.run(
+    ['node', '-e', SCRAMBLE_JS], capture_output=True, text=True, check=True,
+    env={**os.environ, 'ROOT': ROOT}).stdout)
+
+
+def scramble_py():
+    at = 1700000000000
+    def mk(i):
+        return {"id": i, "name": i, "avatar": 0, "team": "red", "score": 0, "hp": 100,
+                "streak": 0, "zone": "", "joinedAt": at - 60000}
+    g = {"mode": "robot", "players": {k: mk(k) for k in ("A", "B", "C")},
+         "round": 3, "lives": 3, "lastEvents": [], "safeEndsAt": at + 5000}
+    zones = Q.safe_zones(3, 3)
+    first = Q.claim_zone(g, g["players"]["A"], zones[0]["id"])
+    second = Q.claim_zone(g, g["players"]["B"], zones[0]["id"])
+    left = Q.claim_zone(g, g["players"]["A"], "")
+    retry = Q.claim_zone(g, g["players"]["B"], zones[0]["id"])
+    g["players"]["C"]["joinedAt"] = at + 1000
+    adrift = Q.settle_safe(g)
+    return {"zones": zones, "first": first["ok"], "second": second["ok"],
+            "full": bool(second.get("full")), "left": bool(left.get("left")),
+            "retry": retry["ok"], "adrift": adrift, "lives": g["lives"],
+            "cleared": all(not x["zone"] for x in g["players"].values())}
+
+
+scr_py = scramble_py()
+holes = {k: (scr_py[k], scr_js[k]) for k in scr_py if scr_py[k] != scr_js[k]}
+if holes:
+    fails += 1
+    print(f"FAIL  the scramble plays differently in the two editions: {holes}")
+else:
+    print("the safe zones behave the same in JavaScript and Python"
+          f" — {len(scr_py['zones'])} zones on deck three, the full one turned"
+          f" somebody away, and {scr_py['adrift']} of the three was left out"
+          " in the open")
+
 sys.exit(1 if fails else 0)

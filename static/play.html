@@ -980,14 +980,20 @@ function checkZone() {
   if (safeBusy) return;
   const zones = game.zones || [];
   const here = zones.find(z => Math.hypot(safeMe.x - z.x, safeMe.y - z.y) <= z.r * 0.82);
-  if (!here || here.id === safeMe.zone) return;
+  const want = here ? here.id : '';
+  if (want === safeMe.zone) return;
   safeBusy = true;
-  api(`/games/${pin}/safe`, { method: 'POST', body: { playerId: me.id, zone: here.id } })
+  api(`/games/${pin}/safe`, { method: 'POST', body: { playerId: me.id, zone: want } })
     .then(out => {
       if (out && out.ok) {
-        safeMe.zone = here.id;
-        if (navigator.vibrate) navigator.vibrate(18);
-      } else {
+        safeMe.zone = want;
+        if (want && navigator.vibrate) navigator.vibrate(18);
+        if (!want) {
+          // you gave the place up: say so, because somebody else can take it now
+          safeNote = 'You stepped out';
+          safeNoteUntil = Date.now() + 1000;
+        }
+      } else if (here) {
         // somebody took the last place: pushed back out, with time to run on
         safeNote = (out && out.why) || 'That one is full';
         safeNoteUntil = Date.now() + 1400;
@@ -1076,8 +1082,9 @@ function drawSafe(canvas, ctx) {
 /** The clock and the two words that say whether you are all right. */
 function feedSafe() {
   if (!safeCardNode) return;
-  // the server is the truth about whether this phone got a place
-  safeMe.zone = (me && me.zone) || safeMe.zone || '';
+  /* Not read back from the game any more: the phone knows where its own feet
+     are, and a poll arriving a second after you stepped out used to put you
+     back in the zone you had just left. */
   const clock = document.getElementById('s-clock');
   if (clock) {
     const left = game.safeEndsAt ? Math.max(0, game.safeEndsAt - drift - Date.now()) : 0;
