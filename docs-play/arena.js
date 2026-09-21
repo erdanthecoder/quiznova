@@ -235,10 +235,15 @@
    * The clearance is r + 18 rather than r + 8. Collision is round and a corner
    * is square, so a spot can clear the circle by a hair and still be tucked
    * inside the corner of the box; 18 is wider than that difference can be. */
-  function freeSpot(cover, margin, r) {
+  /* `pick` is where the randomness comes from. Left alone it is this device's
+     own luck, which is right for a bot wandering off somewhere; the superpowers
+     hand in a seeded one instead, so that every phone in the room puts them in
+     the same place. */
+  function freeSpot(cover, margin, r, pick) {
+    const rnd = pick || Math.random;
     for (let tries = 0; tries < 60; tries++) {
-      const x = margin + Math.random() * (W - margin * 2);
-      const y = margin + Math.random() * (H - margin * 2);
+      const x = margin + rnd() * (W - margin * 2);
+      const y = margin + rnd() * (H - margin * 2);
       if (!blocked(cover, x, y, r + 18)) return { x, y };
     }
     for (let y = margin; y <= H - margin; y += 40) {
@@ -304,6 +309,36 @@
     const cover = coverFor(opts.map);
     const look = lookFor(opts.map);
 
+    /* The superpowers have to be the same superpowers for everybody.
+     *
+     * They used to be three capsules per device, each in a place that device
+     * picked at random, so every child was running around a maze collecting
+     * things nobody else could see and missing things that were, to them, not
+     * there. From the classroom it looks exactly like what was reported: the
+     * power-ups never show up. So their kind and their place now come from the
+     * game's own pin — the one thing every device in the room agrees on — and
+     * picking one up is broadcast, so it goes for everybody at once.
+     *
+     * A maze this size also swallows three of anything. There are eight. */
+    const CAPSULES = 8;
+    const seedOf = (text) => {
+      let n = 2166136261;
+      for (const ch of String(text || 'quoldek')) {
+        n = (n ^ ch.charCodeAt(0)) >>> 0;
+        n = (n * 16777619) >>> 0;
+      }
+      return n || 1;
+    };
+    /** The same numbers on every phone, given the same pin and the same index. */
+    function seededSpot(room, index) {
+      let n = (seedOf(room) + index * 2654435761) >>> 0;
+      const next = () => {
+        n = (n * 1103515245 + 12345) & 0x7fffffff;
+        return n / 0x7fffffff;
+      };
+      return { pick: next };
+    }
+
     const self = {
       id: meId, name: opts.me ? opts.me.name : '', avatar: opts.me ? opts.me.avatar : 0,
       team: opts.me ? opts.me.team : 'red',
@@ -347,12 +382,23 @@
       const t = freeSpot(cover, 90, BOT_R);
       return { tx: t.x, ty: t.y };
     };
-    const spawnCapsule = () => capsules.push({
-      kind: REAL_POWERS.concat('mystery')[Math.floor(Math.random() * 6)],
-      ...freeSpot(cover, 140, 22), born: now()
-    });
+    /* One capsule, the same on every device in the room. `gen` counts how many
+       times this slot has been refilled, so a slot that was taken comes back
+       somewhere every device agrees on rather than somewhere only this one
+       knows about. */
+    const room = opts.room || opts.pin || 'quoldek';
+    const kinds = REAL_POWERS.concat('mystery');
+    function capsuleAt(slot, gen) {
+      const r = seededSpot(room + ':' + slot, gen);
+      const kind = kinds[Math.floor(r.pick() * kinds.length)];
+      /* freeSpot keeps it out of the walls; it is handed the same two numbers
+         on every device, so it lands in the same place for all of them. */
+      const spot = freeSpot(cover, 140, 22, r.pick);
+      return { id: slot + ':' + gen, slot, gen, kind, x: spot.x, y: spot.y, born: now() };
+    }
+    const spawnCapsule = (slot, gen) => capsules.push(capsuleAt(slot, gen));
     for (let i = 0; i < 8; i++) spawnBot();
-    for (let i = 0; i < 3; i++) spawnCapsule();
+    for (let i = 0; i < CAPSULES; i++) spawnCapsule(i, 0);
 
     /* ── what other devices tell us ────────────────────── */
     function heard(event, data) {
@@ -374,9 +420,34 @@
       } else if (event === 'tagged' && data.by === meId) {
         self.score += PLAYER_POINTS;                 // confirmed by the player we hit
         if (opts.onScore) opts.onScore(self.score);
+      } else if (event === 'grab') {
+        // somebody beat us to one: it goes here too, and comes back in the same
+        // place at the same time, because every device works it out the same way
+        const at = capsules.findIndex(c => c.id === data.capsule);
+        if (at >= 0) {
+          const c = capsules[at];
+          rings.push({ x: c.x, y: c.y, born: now(), colour: POWERS[c.kind] ? POWERS[c.kind].colour : '#fff' });
+          capsules.splice(at, 1);
+        }
+        takeCapsule(data.slot, data.gen);
       } else if (event === 'gone') {
         others.delete(data.id);
       }
+    }
+
+    /** A slot that was emptied fills again, in six seconds, in a place every
+        device works out for itself and therefore agrees on. */
+    const filling = new Set();
+    function takeCapsule(slot, gen) {
+      const key = slot + ':' + gen;
+      if (filling.has(key)) return;
+      filling.add(key);
+      setTimeout(() => {
+        filling.delete(key);
+        if (!running) return;
+        if (capsules.some(c => c.slot === slot)) return;   // already back
+        capsules.push(capsuleAt(slot, gen + 1));
+      }, 6000);
     }
 
     function boom(x, y, colour) {
@@ -477,7 +548,9 @@
                naming itself is a bug as far as a child is concerned. */
             if (opts.onPower) opts.onPower(POWERS[kind].label, POWERS[kind].colour, kind);
             capsules.splice(i, 1);
-            setTimeout(() => { if (running) spawnCapsule(); }, 6000);
+            // it is gone for everybody, and comes back where everybody can see
+            send('grab', { id: meId, capsule: c.id, slot: c.slot, gen: c.gen });
+            takeCapsule(c.slot, c.gen);
           }
         });
       }
@@ -1193,6 +1266,9 @@
       /* Put the player somewhere, point them, and read it back. Only the tests
          use these; the game never moves anybody from outside. */
       place(x, y) { self.x = x; self.y = y; },
+      /** What is on the floor right now. The tests use it to check that two
+          phones in one game are looking at the same superpowers. */
+      capsules() { return capsules.map(c => ({ id: c.id, kind: c.kind, x: c.x, y: c.y })); },
       face(a) { self.angle = a; pointer = null; },
       where() { return { x: self.x, y: self.y }; },
       shotCount() { return shots.length; },

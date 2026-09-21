@@ -282,6 +282,8 @@
 .gamepad .knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;
   background:linear-gradient(180deg,#8E7BFF,#5B3FE8);box-shadow:0 6px 0 -1px rgba(0,0,0,.4);transition:transform .08s}
 .chip.warn{border-color:var(--amber);color:var(--amber)}
+/* the arena's link chip: only ever shown when it is bad news */
+.chip.bad{border-color:#F4364C;color:#FFB3BC;font-weight:900}
 
 /* the result takes over the screen, the way it does on a games console */
 .big{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -450,7 +452,7 @@
 <script src="/nova.js?v=9fa1dfb0"></script>
 <script src="/quizbank.js?v=f18e8cbc"></script>
 <script src="/realtime.js?v=75e1623c"></script>
-<script src="/arena.js?v=d0a0b6df"></script>
+<script src="/arena.js?v=3e21bd6f"></script>
 <script src="/strike.js?v=09b2cc87"></script>
 <script src="/run.js?v=01118772"></script>
 <script src="/tower.js?v=9100799d"></script>
@@ -1462,7 +1464,15 @@ function arenaCard() {
   card.append(el('div', { class: 'qhead' },
     el('span', { class: 'chip', id: 'a-score' }, '0'),
     el('span', { class: 'chip', id: 'a-power' }, 'no power-up'),
-    el('span', { class: 'chip', id: 'a-alive' }, 'In play')));
+    el('span', { class: 'chip', id: 'a-alive' }, 'In play'),
+    /* Whether this phone can actually reach the others. Laser Tag is the one
+       mode that needs a live connection between the devices rather than a
+       round trip through the game: seeing each other move, and landing a shot,
+       both ride on it. When it is missing the game used to carry on looking
+       perfectly normal — you could run about and fire, and nothing you did
+       reached anybody. That is what "nobody can hit anybody" looks like from
+       the floor, and nothing on the screen said a word about it. */
+    el('span', { class: 'chip', id: 'a-link', hidden: 'hidden' }, 'connecting')));
 
   const shell = el('div', { class: 'arena-shell' });
   const canvas = el('canvas', { class: 'arena-canvas', id: 'arena' });
@@ -1487,12 +1497,45 @@ function arenaCard() {
   return card;
 }
 
+/* Did that reach anybody?
+ *
+ * Every device tells the others where it is several times a second, and the
+ * transport says whether it got through. A run of failures means this phone is
+ * on its own — a school network that will not pass a websocket is the usual
+ * reason — so the child is told, rather than left shooting at people who cannot
+ * see them. One success clears it; a handful of failures in a row raises it. */
+let linkMisses = 0, linkSaidAt = 0;
+function noteLink(sent) {
+  const chip = document.getElementById('a-link');
+  linkMisses = sent ? 0 : linkMisses + 1;
+  if (!chip) return sent;
+  const bad = linkMisses >= 8;
+  // only touch the DOM when the answer changes, at 10 sends a second
+  if (bad !== chip.dataset.bad || !chip.dataset.bad) {
+    chip.dataset.bad = String(bad);
+    chip.hidden = !bad;
+    if (bad) {
+      chip.textContent = 'Not connected to the others';
+      chip.classList.add('bad');
+      if (Date.now() - linkSaidAt > 20000) {
+        linkSaidAt = Date.now();
+        toast('This device cannot reach the other players, so your shots will not '
+              + 'land. The school network may be blocking it.', 'bad');
+      }
+    }
+  }
+  return sent;
+}
+
 function startArena() {
   const canvas = document.getElementById('arena');
   if (!canvas || arena) return;
   arena = NovaArena.start({
     canvas, me, map: game.map || 'arena',
-    send: (event, payload) => Nova.arenaSend && Nova.arenaSend(pin, event, payload),
+    // the game's pin is the one thing every device in the room agrees on, so
+    // it is what the superpowers are placed from
+    room: pin,
+    send: (event, payload) => noteLink(Nova.arenaSend && Nova.arenaSend(pin, event, payload)),
     onScore: (score) => { const n = document.getElementById('a-score'); if (n) n.textContent = score; },
     onSave: (score) => api(`/games/${pin}/score`, { method: 'POST', body: { playerId: me.id, score } })
                          .catch(() => {}),

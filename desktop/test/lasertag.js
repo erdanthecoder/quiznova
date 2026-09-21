@@ -324,6 +324,64 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
 
   ok('the player is drawn as their blook', drawn, drawn ? 'face rasterised' : 'still the plain shape');
 
+  /* ── the superpowers belong to the room, not to the phone ──
+   *
+   * They used to be three capsules per device, each placed by that device's own
+   * luck: every child was collecting things nobody else could see and walking
+   * through places where, for them, nothing was there. From a classroom that is
+   * indistinguishable from "the power-ups never show up". */
+  const shared = await page.evaluate(() => {
+    const spots = (room) => {
+      const c = document.createElement('canvas');
+      c.width = 400; c.height = 300;
+      const k = NovaArena.start({ canvas: c, map: 'arena', room,
+                                  me: { id: 'x' + room, name: 'X', avatar: 1, team: 'red' },
+                                  send: () => {} });
+      const list = k.capsules().map(p => `${p.kind}@${Math.round(p.x)},${Math.round(p.y)}`);
+      k.stop();
+      return list;
+    };
+    const a = spots('507341'), b = spots('507341'), other = spots('999111');
+    return { a, b, other };
+  });
+  ok('two phones in the same game see the same superpowers, in the same places',
+     shared.a.length > 0 && shared.a.join('|') === shared.b.join('|'),
+     `${shared.a.length} of them, first is ${shared.a[0]}`);
+  ok('and a different game gets a different arrangement',
+     shared.a.join('|') !== shared.other.join('|'),
+     `other game starts with ${shared.other[0]}`);
+  ok('there are enough of them to find in a maze this size',
+     shared.a.length >= 6, `${shared.a.length} on the floor`);
+
+  /* And one child taking one takes it from everybody. */
+  const grabbed = await page.evaluate(async () => {
+    const mk = (id) => {
+      const c = document.createElement('canvas');
+      c.width = 400; c.height = 300;
+      const sent = [];
+      const k = NovaArena.start({ canvas: c, map: 'arena', room: '424242',
+                                  me: { id, name: id, avatar: 1, team: 'red' },
+                                  send: (event, payload) => sent.push({ event, payload }) });
+      return { k, sent };
+    };
+    const one = mk('ana'), two = mk('ben');
+    const target = one.k.capsules()[0];
+    const before = two.k.capsules().length;
+    // Ana walks onto it
+    one.k.place(target.x, target.y);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const told = one.sent.filter(m => m.event === 'grab').pop();
+    if (told) two.k.heard('grab', told.payload);
+    const after = two.k.capsules().length;
+    const gone = !two.k.capsules().some(c => c.id === target.id);
+    one.k.stop(); two.k.stop();
+    return { told: !!told, before, after, gone, power: one.k.power };
+  });
+  ok('walking onto one tells the rest of the room', grabbed.told,
+     grabbed.told ? 'a grab went out' : 'nobody was told');
+  ok('and it is gone from their floor too', grabbed.gone && grabbed.after === grabbed.before - 1,
+     `${grabbed.before} before, ${grabbed.after} after`);
+
   ok('no errors in the arena', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   // ── two sticks on the phone, no fire button ──

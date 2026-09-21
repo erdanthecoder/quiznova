@@ -1193,7 +1193,8 @@ function watchArena() {
   const canvas = document.getElementById('board-arena');
   if (!canvas || boardArena) return;
   // the board is a spectator: it draws everyone and controls nobody
-  boardArena = NovaArena.start({ canvas, watching: true, map: game.map || 'arena', send: () => {} });
+  boardArena = NovaArena.start({ canvas, watching: true, map: game.map || 'arena',
+                                room: pin, send: () => {} });
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => boardArena && boardArena.heard(event, payload));
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
