@@ -255,6 +255,10 @@ body.dark .chip{color:var(--muted)}
   display:flex;gap:9px;align-items:center;max-width:min(90vw,460px);color:var(--ink);
 }
 body.dark .toast{color:var(--text)}
+/* In the arena the bottom of the screen is both thumbsticks, and a message
+   landing on them takes the controls away at exactly the moment something has
+   gone wrong. It goes above the pad there. */
+body.laser #toasts{bottom:auto;top:calc(env(safe-area-inset-top, 0px) + 92px)}
 .toast.good{background:#D8FBF0;color:#065F46}
 .toast.bad{background:#FFE1E6;color:#8B1020}
 @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.9)}}

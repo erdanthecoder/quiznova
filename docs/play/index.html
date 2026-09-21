@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="/nova.css?v=7831630d">
+<link rel="stylesheet" href="/nova.css?v=7e90b24f">
 <style>
 .shell{max-width:640px;margin:0 auto;padding:20px 16px 40px;min-height:100vh;display:flex;flex-direction:column}
 .hud{display:flex;gap:9px;align-items:center;padding:8px 12px;border-radius:99px;background:rgba(255,255,255,.06);
@@ -467,7 +467,7 @@
 <script src="/nova.js?v=9fa1dfb0"></script>
 <script src="/quizbank.js?v=f18e8cbc"></script>
 <script src="/realtime.js?v=75e1623c"></script>
-<script src="/arena.js?v=3e21bd6f"></script>
+<script src="/arena.js?v=411430fc"></script>
 <script src="/strike.js?v=929760cb"></script>
 <script src="/run.js?v=e5461e92"></script>
 <script src="/tower.js?v=a34968e3"></script>
@@ -1525,9 +1525,12 @@ function paintStrikeHud() {
 function arenaCard() {
   const card = el('div', { class: 'play arena-wrap' });
   card.append(el('div', { class: 'qhead' },
+    /* One chip, not four. The power-up had its own slot on the arena with the
+       mark, the name and a clock that empties, and the chip above repeated it
+       in words; "In play" said what the screen already showed, since being out
+       puts a question in front of you. A phone held under a desk has room for
+       the game and almost nothing else. */
     el('span', { class: 'chip', id: 'a-score' }, '0'),
-    el('span', { class: 'chip', id: 'a-power' }, 'no power-up'),
-    el('span', { class: 'chip', id: 'a-alive' }, 'In play'),
     /* Whether this phone can actually reach the others. Laser Tag is the one
        mode that needs a live connection between the devices rather than a
        round trip through the game: seeing each other move, and landing a shot,
@@ -1640,9 +1643,6 @@ function paintArenaHud() {
   bar.style.width = Math.max(0, arena.energy) + '%';
   bar.classList.toggle('low', arena.energy < 28);
 
-  const power = document.getElementById('a-power');
-  if (power) { power.textContent = arena.power || 'no power-up'; power.classList.toggle('live', !!arena.power); }
-
   /* The slot: the mark, the name, and a bar that empties. A force field has no
      clock — it lasts until something hits it — so its bar stays full. */
   const slot = document.getElementById('a-slot');
@@ -1667,8 +1667,6 @@ function paintArenaHud() {
     if (clock && kind) clock.style.width = Math.round(arena.powerLeft * 100) + '%';
   }
 
-  const alive = document.getElementById('a-alive');
-  if (alive) alive.textContent = arena.alive ? 'In play' : 'Out';
   requestAnimationFrame(paintArenaHud);
 }
 

@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="nova.css?v=7831630d">
+<link rel="stylesheet" href="nova.css?v=7e90b24f">
 <style>
 .stage{max-width:1300px;margin:0 auto;padding:24px 22px 60px}
 
@@ -520,6 +520,23 @@
 @keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
+/* Laser Tag's scoreboard: two totals and the ground between them */
+.arena-panel{padding:14px 22px}
+.teamscore{display:flex;align-items:center;gap:22px;width:100%}
+.teamscore .side{display:flex;flex-direction:column;align-items:center;min-width:130px}
+.teamscore .side b{font-size:clamp(28px,4.4vw,56px);line-height:1;font-variant-numeric:tabular-nums}
+.teamscore .side span{font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.teamscore .side.red b{color:#F4364C}
+.teamscore .side.blue b{color:#4F6BFF}
+.teamscore .tug{position:relative;flex:1;height:26px;border-radius:99px;overflow:hidden;
+  display:flex;background:rgba(20,16,40,.14)}
+.teamscore .tug i{display:block;height:100%;transition:width .4s cubic-bezier(.2,.9,.25,1)}
+.teamscore .tug i#tug-red{background:linear-gradient(90deg,#FF6B7C,#F4364C)}
+.teamscore .tug i#tug-blue{background:linear-gradient(90deg,#4F6BFF,#8EA2FF)}
+.teamscore .tug em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-style:normal;font-weight:900;font-size:.82rem;letter-spacing:.06em;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.55)}
+
 /* the boss's health, one pip per knife, across the board's panel */
 .bosspips{flex-basis:100%;display:flex;gap:3px;margin-top:10px}
 .bosspips i{flex:1;height:18px;border-radius:5px;
@@ -581,7 +598,7 @@
 <script src="nova.js?v=9fa1dfb0"></script>
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=3e21bd6f"></script>
+<script src="arena.js?v=411430fc"></script>
 <script src="strike.js?v=929760cb"></script>
 <script src="run.js?v=e5461e92"></script>
 <script src="tower.js?v=a34968e3"></script>
@@ -881,7 +898,11 @@ function render(fresh) {
   const stage = $('#stage');
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
-  if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
+  if (game.state === 'arena') {
+    if (paint(stage, arenaView, fresh)) watchArena(); else watchArena();
+    feedArena();
+    return;
+  }
   if (game.state === 'strike') {
     /* Mounted once and then fed. Repainting the whole view on every poll would
        tear the fight down and build it again several times a second. */
@@ -1050,10 +1071,21 @@ function drawQR(url) {
 let boardArena = null, boardStrike = null;
 
 function arenaView() {
+  /* Two teams, and the board says which one is winning.
+   *
+   * It used to say how many children were in the arena and list the top four
+   * by name, which is a class of individuals who happen to be wearing colours.
+   * Laser Tag is red against blue: the score that matters is the team's, it
+   * belongs at the top where the room is already looking, and the bar between
+   * the two totals is the whole game at a glance. */
   const root = el('div', { class: 'board' });
-  const panel = el('div', { class: 'ask' });
-  panel.innerHTML = `<h1>Laser Tag</h1>
-    <div class="tally"><b>${game.players.length}</b><span>in the arena</span></div>`;
+  const panel = el('div', { class: 'ask arena-panel' });
+  panel.innerHTML = `<div class="teamscore">
+      <div class="side red"><b id="score-red">0</b><span id="name-red">Crimson</span></div>
+      <div class="tug"><i id="tug-red"></i><i id="tug-blue"></i>
+        <em id="tug-say">First blood</em></div>
+      <div class="side blue"><b id="score-blue">0</b><span id="name-blue">Cobalt</span></div>
+    </div>`;
   root.append(panel);
   root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena' })));
   // the arena is the thing worth watching, so the table stays short
@@ -1063,6 +1095,34 @@ function arenaView() {
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
     el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
   return root;
+}
+
+/** The two totals, and the bar between them. Fed on every poll. */
+function feedArena() {
+  if (!game || game.state !== 'arena') return;
+  const sides = { red: 0, blue: 0 };
+  (game.players || []).forEach(p => {
+    const side = p.team === 'blue' ? 'blue' : 'red';
+    sides[side] += Math.max(0, p.score || 0);
+  });
+  const set = (id, text) => { const n = document.getElementById(id); if (n) n.textContent = text; };
+  set('score-red', sides.red);
+  set('score-blue', sides.blue);
+
+  const total = sides.red + sides.blue;
+  const redShare = total ? sides.red / total : 0.5;
+  const red = document.getElementById('tug-red');
+  const blue = document.getElementById('tug-blue');
+  if (red && blue) {
+    red.style.width = (redShare * 100).toFixed(1) + '%';
+    blue.style.width = ((1 - redShare) * 100).toFixed(1) + '%';
+  }
+  /* A sentence, not a sum: a class reads "Crimson by 300" across a hall and a
+     pair of numbers it has to subtract, it does not. */
+  const gap = Math.abs(sides.red - sides.blue);
+  set('tug-say', !total ? 'First blood'
+    : gap === 0 ? 'Level'
+    : `${sides.red > sides.blue ? 'Crimson' : 'Cobalt'} by ${gap}`);
 }
 
 /* Robot Run's board: the shared escape, the shared lives, and who is putting

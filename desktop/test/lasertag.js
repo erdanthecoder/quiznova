@@ -111,7 +111,8 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
    * fill every map and insist the whole floor is one piece. */
   const joined = await page.evaluate(() => {
     const out = {};
-    const W = 1600, H = 1000, R = 26, S = 20;
+    const { W, H } = NovaArena.SIZE;   // the arena's own size, not a copy of it
+    const R = 26, S = 20;
     const near = (b, x, y, r) => {
       const nx = Math.max(b.x, Math.min(x, b.x + b.w));
       const ny = Math.max(b.y, Math.min(y, b.y + b.h));
@@ -158,7 +159,8 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
    * and turned a half turn about the centre, so if that ever stops being true
    * one team is being given the better ground. */
   const fair = await page.evaluate(() => {
-    const W = 1600, H = 1000, out = {};
+    const { W, H } = NovaArena.SIZE;   // asked for, not remembered
+    const out = {};
     for (const m of ['arena', 'bunker', 'moon']) {
       const cover = NovaArena.coverFor(m);
       const key = (b) => [b.x, b.y, b.w, b.h].join(',');
@@ -203,9 +205,24 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
     }
     return out;
   });
+  /* One rectangle per wall, and three plans that are actually different. The
+     exact counts used to be written in here, so growing the maps "failed" the
+     test for having more in them. */
+  const wallCount = await page.evaluate(() => {
+    const out = {};
+    for (const m of ['arena', 'bunker', 'moon']) out[m] = NovaArena.coverFor(m).length;
+    return out;
+  });
+  /* Every wall is drawn, plus whatever framing the plan puts round them — the
+     same framing on each, so the difference has to be constant. */
+  const extra = ['arena', 'bunker', 'moon'].map(m => planArt[m] - wallCount[m]);
   ok('the picker draws each map from its own walls',
-     planArt.arena === 32 && planArt.bunker === 26 && planArt.moon === 22,
-     JSON.stringify(planArt));
+     extra.every(n => n >= 0 && n === extra[0]),
+     `${JSON.stringify(planArt)} drawn from ${JSON.stringify(wallCount)}`);
+  ok('and the three maps are three different mazes',
+     new Set(Object.values(planArt)).size > 1
+     && wallCount.arena > 20 && wallCount.bunker > 20 && wallCount.moon > 16,
+     JSON.stringify(wallCount));
 
   // ── the blook is drawn, not a plain blob ──
   const drawn = await page.evaluate(async () => {
@@ -257,7 +274,8 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
 
   // ── and they walk somewhere, without walking into walls ──
   const roam = await page.evaluate(() => {
-    const W = 1600, H = 1000, R = 24;
+    const { W, H } = NovaArena.SIZE;   // bots past the old edge are not out of bounds
+    const R = 24;
     const near = (b, x, y, r) => {
       const nx = Math.max(b.x, Math.min(x, b.x + b.w));
       const ny = Math.max(b.y, Math.min(y, b.y + b.h));

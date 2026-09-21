@@ -19,7 +19,12 @@
 (function (global) {
   'use strict';
 
-  const W = 1600, H = 1000;              // the arena, in its own units
+  /* The arena, in its own units. It was 1600 by 1000, which a class of thirty
+     filled up: you met somebody the moment you left cover and there was
+     nowhere to go that was not already somebody's corner. Half again as
+     big, with the extra room spent on new structure rather than on empty
+     floor — the walls below are laid out to match. */
+  const W = 2240, H = 1400;
   const PLAYER_R = 26, BOT_R = 24, SHOT_R = 7;
   const BOT_WALK = 130, BOT_RUN = 300;     // units a second, strolling and bolting
   const SPEED = 340, SHOT_SPEED = 780;   // units per second
@@ -115,51 +120,69 @@
     /* Neon labyrinth: the tightest of the three. A long west spine, a room in
        the north, a dogleg in every corner, and a four-gap bunker in the middle. */
     arena: [
-      { x: 170, y: 170, w: 55, h: 400 },
-      { x: 170, y: 515, w: 300, h: 55 },
-      { x: 390, y: 170, w: 390, h: 55 },
-      { x: 390, y: 225, w: 55, h: 165 },
-      { x: 620, y: 280, w: 55, h: 220, t: 'low' },
-      { x: 0,   y: 330, w: 55,  h: 55 },
-      { x: 0,   y: 720, w: 300, h: 55 },
-      { x: 245, y: 775, w: 55, h: 160 },
-      { x: 420, y: 660, w: 55, h: 250 },
-      { x: 420, y: 660, w: 230, h: 55, t: 'low' },
-      { x: 770, y: 120, w: 55, h: 210 },
-      { x: 540, y: 420, w: 80, h: 80, t: 'low' },
-      { x: 150, y: 620, w: 80, h: 80, t: 'low' },
-      { x: 690, y: 420, w: 220, h: 45 },
-      { x: 690, y: 465, w: 45,  h: 60 }
+      { x: 238, y: 238, w: 77, h: 560 },
+      { x: 238, y: 721, w: 420, h: 77 },
+      { x: 546, y: 238, w: 546, h: 77 },
+      { x: 546, y: 315, w: 77, h: 231 },
+      { x: 780, y: 392, w: 77, h: 308, t: 'low' },
+      { x: 0,   y: 462, w: 77,  h: 77 },
+      { x: 0,   y: 1008, w: 420, h: 77 },
+      { x: 343, y: 1085, w: 77, h: 224 },
+      { x: 588, y: 924, w: 77, h: 350 },
+      { x: 588, y: 924, w: 322, h: 77, t: 'low' },
+      { x: 1078, y: 168, w: 77, h: 294 },
+      { x: 756, y: 588, w: 112, h: 112, t: 'low' },
+      { x: 210, y: 868, w: 112, h: 112, t: 'low' },
+      { x: 966, y: 588, w: 308, h: 63 },
+      /* The room the extra space bought: a pillared hall on the west side and
+         a pair of stagger walls, so the long new run is not a straight one. */
+      { x: 120, y: 980, w: 75, h: 300 },
+      { x: 300, y: 1130, w: 260, h: 75, t: 'low' },
+      { x: 980, y: 900, w: 75, h: 240 },
+      { x: 700, y: 1240, w: 300, h: 75 },
+      { x: 1330, y: 1120, w: 110, h: 110, t: 'low' }
     ],
     /* Bunker: long straight corridors with doorways, fought down lanes rather
        than across corners, with sandbag lines you can shoot over. */
     bunker: [
-      { x: 260, y: 0,   w: 55, h: 330 },
-      { x: 260, y: 430, w: 55, h: 300 },
-      { x: 315, y: 430, w: 240, h: 55 },
-      { x: 560, y: 120, w: 55, h: 340 },
-      { x: 615, y: 120, w: 260, h: 55 },
-      { x: 0,   y: 480, w: 200, h: 55, t: 'low' },
-      { x: 380, y: 800, w: 420, h: 55 },
-      { x: 700, y: 560, w: 55, h: 300 },
-      { x: 100, y: 660, w: 55, h: 250 },
-      { x: 880, y: 250, w: 200, h: 55, t: 'low' },
-      { x: 420, y: 250, w: 90,  h: 90, t: 'low' },
-      { x: 950, y: 60,  w: 55, h: 200 }
+      { x: 364, y: 0,   w: 77, h: 462 },
+      { x: 364, y: 602, w: 77, h: 420 },
+      { x: 441, y: 602, w: 336, h: 77 },
+      { x: 784, y: 168, w: 77, h: 476 },
+      { x: 861, y: 168, w: 364, h: 77 },
+      { x: 0,   y: 672, w: 280, h: 77, t: 'low' },
+      { x: 532, y: 1120, w: 588, h: 77 },
+      { x: 980, y: 784, w: 77, h: 420 },
+      { x: 140, y: 924, w: 77, h: 350 },
+      { x: 1340, y: 350, w: 280, h: 77, t: 'low' },
+      { x: 588, y: 350, w: 126,  h: 126, t: 'low' },
+      { x: 1330, y: 84,  w: 77, h: 280 },
+      /* Two more lanes and a cross-corridor, because a longer bunker with the
+         same three lanes is just a longer walk. */
+      { x: 1180, y: 520, w: 75, h: 340 },
+      { x: 640, y: 1150, w: 300, h: 75 },
+      { x: 520, y: 1120, w: 75, h: 220 },
+      { x: 1320, y: 860, w: 240, h: 75, t: 'low' }
     ],
     /* Moon base: station modules round the edge and a clear landing pad in the
        middle. The most open of the three, and the one with the longest shots. */
     moon: [
-      { x: 150,  y: 260, w: 300, h: 55 },
-      { x: 150,  y: 315, w: 55,  h: 200 },
-      { x: 520,  y: 140, w: 55,  h: 260 },
-      { x: 575,  y: 140, w: 200, h: 55, t: 'low' },
-      { x: 0,    y: 620, w: 260, h: 55 },
-      { x: 330,  y: 620, w: 55,  h: 280 },
-      { x: 385,  y: 845, w: 300, h: 55, t: 'low' },
-      { x: 860,  y: 190, w: 90,  h: 90, t: 'low' },
-      { x: 1180, y: 300, w: 55,  h: 180 },
-      { x: 640,  y: 430, w: 90,  h: 90, t: 'low' }
+      { x: 210,  y: 364, w: 420, h: 77 },
+      { x: 210,  y: 441, w: 77,  h: 280 },
+      { x: 728,  y: 196, w: 77,  h: 364 },
+      { x: 805,  y: 196, w: 280, h: 77, t: 'low' },
+      { x: 0,    y: 868, w: 364, h: 77 },
+      { x: 462,  y: 868, w: 77,  h: 392 },
+      { x: 539,  y: 1183, w: 420, h: 77, t: 'low' },
+      { x: 1204,  y: 266, w: 126,  h: 126, t: 'low' },
+      { x: 1652, y: 420, w: 77,  h: 252 },
+      { x: 896,  y: 602, w: 126,  h: 126, t: 'low' },
+      /* Two more modules and a low ridge across the pad: the most open map
+         needed something to break the longest sightline in the game. */
+      { x: 900, y: 940, w: 420, h: 75, t: 'low' },
+      { x: 1400, y: 620, w: 75, h: 280 },
+      { x: 260, y: 1060, w: 300, h: 75 },
+      { x: 1560, y: 980, w: 120, h: 120, t: 'low' }
     ]
   };
 
@@ -415,10 +438,18 @@
         if (self.shield) { self.shield = false; boom(self.x, self.y, '#12BE8E'); return; }
         self.alive = false;
         boom(self.x, self.y, '#FF6B5A');
-        send('tagged', { id: meId, by: data.id });
+        send('tagged', { id: meId, by: data.id, name: self.name });
+        feed('You were tagged', '#FF6B5A');
+        kick(14);
         if (opts.onQuestion) opts.onQuestion('tagged');
       } else if (event === 'tagged' && data.by === meId) {
         self.score += PLAYER_POINTS;                 // confirmed by the player we hit
+        /* You hit somebody. Until now the only sign was a number going up in a
+           corner: a shot that lands has to be felt, so the crosshair marks it,
+           the screen kicks, and the room is told who tagged whom. */
+        hitMark = now();
+        kick(9);
+        feed((data.name || 'Somebody') + ' was tagged', '#FFC53D');
         if (opts.onScore) opts.onScore(self.score);
       } else if (event === 'grab') {
         // somebody beat us to one: it goes here too, and comes back in the same
@@ -448,6 +479,62 @@
         if (capsules.some(c => c.slot === slot)) return;   // already back
         capsules.push(capsuleAt(slot, gen + 1));
       }, 6000);
+    }
+
+    /* Three small things that turn a hit from a number into a moment: a mark on
+       the crosshair, a kick of the camera, and a line in the corner saying what
+       just happened to whom. None of them is expensive; together they are most
+       of what "it feels good" means. */
+    let hitMark = 0, kickUntil = 0, kickAmt = 0;
+    const kick = (n) => { kickUntil = now() + 180; kickAmt = n; };
+    const lines = [];
+    function feed(text, colour) {
+      lines.push({ text, colour: colour || '#fff', born: now() });
+      if (lines.length > 4) lines.shift();
+    }
+
+    /** The kill feed, down the left, fading out on its own. */
+    function drawFeed() {
+      const h = canvas.height;
+      const size = Math.max(11, h * 0.028);
+      ctx.save();
+      ctx.font = `900 ${size}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.textAlign = 'left';
+      lines.forEach((l, i) => {
+        const age = (now() - l.born) / 3200;
+        if (age >= 1) return;
+        ctx.globalAlpha = Math.min(1, (1 - age) * 3);
+        const y = h * 0.22 + i * size * 1.5;
+        const width = ctx.measureText(l.text).width + size;
+        ctx.fillStyle = 'rgba(8,10,20,.55)';
+        ctx.beginPath();
+        ctx.roundRect(size * 0.4, y - size, width, size * 1.35, size * 0.5);
+        ctx.fill();
+        ctx.fillStyle = l.colour;
+        ctx.fillText(l.text, size, y + size * 0.1);
+      });
+      ctx.restore();
+      while (lines.length && now() - lines[0].born > 3200) lines.shift();
+    }
+
+    /** The mark that says that one landed. */
+    function drawHitMark() {
+      const age = (now() - hitMark) / 420;
+      if (age >= 1) return;
+      const w = canvas.width, h = canvas.height;
+      const r = Math.max(10, h * 0.05) * (1 + age * 0.7);
+      ctx.save();
+      ctx.globalAlpha = 1 - age;
+      ctx.strokeStyle = '#FFC53D';
+      ctx.lineWidth = Math.max(3, h * 0.008);
+      ctx.lineCap = 'round';
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.moveTo(w / 2 + sx * r * 0.45, h / 2 + sy * r * 0.45);
+        ctx.lineTo(w / 2 + sx * r, h / 2 + sy * r);
+        ctx.stroke();
+      });
+      ctx.restore();
     }
 
     function boom(x, y, colour) {
@@ -1027,7 +1114,15 @@
 
     function draw() {
       fit();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      /* The kick. A shot landing on you, or one of yours landing on somebody
+         else, shoves the whole picture for a fifth of a second — the cheapest
+         way there is to make a hit feel like a hit. */
+      if (now() < kickUntil) {
+        const n = kickAmt * ((kickUntil - now()) / 180);
+        ctx.setTransform(1, 0, 0, 1, (Math.random() - 0.5) * n, (Math.random() - 0.5) * n);
+      } else {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
       drawFloor();
       drawWalls();
 
@@ -1221,6 +1316,10 @@
       ctx.lineTo(me.x + Math.cos(self.angle - 2.5) * 6, me.y + Math.sin(self.angle - 2.5) * 6);
       ctx.closePath(); ctx.fill();
       ctx.restore();
+
+      // what just happened, and to whom
+      drawFeed();
+      drawHitMark();
     }
 
     function frame() {
@@ -1335,7 +1434,7 @@
   }
 
 
-  global.NovaArena = { start, POWERS, BOT_POINTS, ALIEN_POINTS: BOT_POINTS,
+  global.NovaArena = { start, SIZE: { W, H }, POWERS, BOT_POINTS, ALIEN_POINTS: BOT_POINTS,
                        PLAYER_POINTS, ENERGY_SECONDS,
                        COVER, coverFor, freeSpot, lookFor, HALVES, plan,
                        faceReady: (a) => { const f = faces.get(String(a || 0)); return !!(f && f.ready); } };
