@@ -185,7 +185,7 @@
       // who digs into the page can read the answers; that is true of every game
       // of this shape and always has been.
       quiz: (game.state === 'arena' || game.state === 'running' || game.state === 'safe'
-             || game.state === 'strike') ? questions : null,
+             || game.state === 'strike' || game.state === 'building') ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
       // the world's own state: without these the wind and the shoal are things
       // that happen to the scores with nothing on screen to explain them
@@ -502,6 +502,23 @@
         return { ok: true, correct: right, loaded: p.loaded || 0, blade: p.blade,
                  hits: p.hits || 0, view: publicView(game) };
       }
+      // and the same for a child building a tower at their own pace
+      if (game.mode === 'tower' && game.state === 'building') {
+        const p = game.players[body && body.playerId];
+        if (!p) return { error: 'Not in this game.' };
+        const q = game.questions.find(x => x.id === (body && body.questionId));
+        if (!q) throw new Error('No such question.');
+        const right = grade(q, body.answer);
+        p.streak = right ? p.streak + 1 : 0;
+        p.best = Math.max(p.best, p.streak);
+        const fast = Math.max(0, Math.min(1, Number(body.speed) || 0));
+        p.correct = right;
+        SCORERS.tower(game, p, q, right, fast);
+        game.lastEvents = game.lastEvents.slice(-6);
+        await writeGame(pin, game);
+        return { ok: true, correct: right, ready: p.ready || 0, blocks: p.blocks || 0,
+                 view: publicView(game) };
+      }
       if (game.state !== 'question') throw new Error('No question is open.');
       const limit = secondsFor(game, game.questions[game.index]) * 1000;
       const left = Math.max(0, (game.endsAt || now()) - now());
@@ -701,6 +718,17 @@
       /* Robot Run is one long escape, not a series of rounds. Nobody is fed a
        * question: everybody answers at their own pace, and what they earn goes
        * into the same pot. */
+      /* Tallest Tower, self-paced: the whole quiz goes to every phone and each
+         child works through it at their own speed, earning blocks as they go. */
+      if (game.mode === 'tower') {
+        game.state = 'building'; game.index = 0; game.endsAt = null;
+        game.monsterAt = now() + R.MONSTER_EVERY;
+        for (const p of Object.values(game.players)) {
+          p.blocks = 0; p.ready = 0; p.placed = 0; p.score = 0;
+        }
+        await writeGame(pin, game);
+        return publicView(game);
+      }
       if (game.mode === 'robot') {
         game.state = 'running';
         game.index = 0;
@@ -757,6 +785,12 @@
       return publicView(game);
     }
     if (tail === '/next') {
+      /* The self-paced modes have nothing to advance: everybody is on their own
+         question and there is no "next" to press. Without this a stray call —
+         an old board, a double tap — would drop a whole class of tower builders
+         back into lock-step mid-game. */
+      const ownPace = ['building', 'strike', 'running', 'safe', 'arena'];
+      if (ownPace.includes(game.state)) return publicView(game);
       if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; afterRound(game); }
       else openQuestion(game);
       await writeGame(pin, game);

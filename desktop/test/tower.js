@@ -55,7 +55,8 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
 
   // ── answering earns a block; it does not build one ──
   const ana = joined[0];
-  await post(`/api/games/${pin}/answer`, { playerId: ana.id, answer: right(qs[0]), speed: 0.8 });
+  await post(`/api/games/${pin}/answer`,
+             { playerId: ana.id, questionId: qs[0].id, answer: right(qs[0]), speed: 0.8 });
   let view = await (await fetch(`${base}/api/games/${pin}`)).json();
   let mine = view.players.find(p => p.id === ana.id);
   ok('a right answer puts a block in your hand', (mine.ready || 0) === 1, `${mine.ready} in hand`);
@@ -71,9 +72,9 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   ok('where it landed is kept, so the tower is drawn as it was built',
      Math.abs(wonky.o - 0.6) < 1e-6, `it sits at ${wonky.o}`);
 
-  await post(`/api/games/${pin}/next`, { hostToken: ht });
-  await post(`/api/games/${pin}/next`, { hostToken: ht });
-  await post(`/api/games/${pin}/answer`, { playerId: ana.id, answer: right(qs[1]), speed: 0.8 });
+  // no next: everybody is on their own question, so Ana simply answers another
+  await post(`/api/games/${pin}/answer`,
+             { playerId: ana.id, questionId: qs[1].id, answer: right(qs[1]), speed: 0.8 });
   await post(`/api/games/${pin}/place`, { playerId: ana.id, offset: 0.01, seq: 2 });
   view = await (await fetch(`${base}/api/games/${pin}`)).json();
   mine = view.players.find(p => p.id === ana.id);
@@ -140,7 +141,8 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
 
   const cal = (await (await fetch(`${base}/api/games/${pin}`)).json())
     .players.find(p => p.name === 'Cal');
-  await post(`/api/games/${pin}/answer`, { playerId: cal.id, answer: right(qs[1]), speed: 0.9 });
+  await post(`/api/games/${pin}/answer`,
+             { playerId: cal.id, questionId: qs[1].id, answer: right(qs[1]), speed: 0.9 });
   await phone.waitForTimeout(1800);
 
   ok('holding a block puts the drop on the screen',
@@ -176,24 +178,18 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
      enough for him to want. The current question is read each time rather than
      assumed, because the board moves on by itself once everyone has answered. */
   const seqs = {};
+  /* Build the towers up: each child works through the quiz at their own pace,
+     which is the whole shape of the mode now — a right answer is a block and
+     the block goes straight up. Nobody waits for anybody. */
   for (let round = 0; round < 4; round++) {
-    let now = await (await fetch(`${base}/api/games/${pin}`)).json();
-    if (now.state !== 'question') {
-      await post(`/api/games/${pin}/next`, { hostToken: ht });
-      now = await (await fetch(`${base}/api/games/${pin}`)).json();
-    }
-    if (now.state !== 'question' || !now.question) break;
-    const full2 = await (await fetch(`${base}/api/quizzes/${qid}`)).json();
-    const here = (full2.quiz || full2).questions.find(q => q.id === now.question.id);
-    if (!here) break;
     for (const p of joined) {
+      const q = qs[(round + 1) % qs.length];
       await post(`/api/games/${pin}/answer`,
-                 { playerId: p.id, answer: right(here), speed: 0.9 });
+                 { playerId: p.id, questionId: q.id, answer: right(q), speed: 0.9 });
       seqs[p.id] = (seqs[p.id] || 0) + 1;
       await post(`/api/games/${pin}/place`,
                  { playerId: p.id, offset: 0, seq: seqs[p.id] });
     }
-    await post(`/api/games/${pin}/next`, { hostToken: ht });
   }
 
   const climbed = await post(`/api/games/${pin}/monster`, { hostToken: ht });
@@ -214,16 +210,9 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   const floorsBefore = Math.floor(withApe.towers[team].blocks.length / (withApe.towerSlots || 4));
   // somebody on his tower, with a block in hand and a question in front of them
   const victim = joined.find(p => p.team === team);
-  let asking = await (await fetch(`${base}/api/games/${pin}`)).json();
-  if (asking.state !== 'question') {
-    await post(`/api/games/${pin}/next`, { hostToken: ht });
-    asking = await (await fetch(`${base}/api/games/${pin}`)).json();
-  }
-  const fullNow = await (await fetch(`${base}/api/quizzes/${qid}`)).json();
-  const asked = (fullNow.quiz || fullNow).questions
-    .find(q => asking.question && q.id === asking.question.id) || qs[1];
+  const asked = qs[2 % qs.length];
   await post(`/api/games/${pin}/answer`,
-             { playerId: victim.id, answer: right(asked), speed: 0.9 });
+             { playerId: victim.id, questionId: asked.id, answer: right(asked), speed: 0.9 });
   seqs[victim.id] = (seqs[victim.id] || 0) + 1;
   const stolen = await post(`/api/games/${pin}/place`,
                             { playerId: victim.id, offset: 0, seq: seqs[victim.id] });

@@ -153,11 +153,51 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok('the phone shows a question straight away, with no waiting for the room',
      await phone.locator('#strikeq .opt-btn').count() > 0,
      (await phone.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 70));
-  ok('and the knife button says it needs an answer first',
-     /ANSWER TO LOAD/i.test(await phone.locator('#s-go').innerText()),
-     await phone.locator('#s-go').innerText());
-  ok('the phone carries no boss of its own; it is on the board',
-     await phone.locator('#strike').count() === 0);
+  /* The boss is on the phone now, and that is the point of the mode.
+   *
+   * It used to be a STRIKE button with a question under it, and the boss lived
+   * only on the board: "it doesn't let us play and see and kill", which was
+   * fair. A child fights the thing on their own screen — the same boss, drawn
+   * in their hand — and cuts it by dragging across it. */
+  ok('the child can see the boss they are fighting, on their own phone',
+     await phone.locator('#s-boss').count() === 1);
+  const lit = await phone.evaluate(() => {
+    const c = document.getElementById('s-boss');
+    if (!c) return -1;
+    const g = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let on = 0, n = 0;
+    for (let i = 0; i < g.length; i += 4 * 37) { n++; if (g[i] + g[i + 1] + g[i + 2] > 45) on++; }
+    return Math.round(on / n * 100);
+  });
+  ok('and it is drawn, not an empty box', lit > 55, `${lit}% of the card is painted`);
+  ok('with nothing loaded, a swipe is refused rather than swallowed',
+     await phone.evaluate(() => typeof duel !== 'undefined' && duel && duel.ready === false),
+     'the knife is empty');
+
+  /* Answer, and the same swipe takes a health off the thing in front of you. */
+  const cut = await phone.evaluate(async () => {
+    const before = (game.boss || {}).hp;
+    // answer this child's own question, whichever it is, correctly
+    const q = (game.quiz || [])[0];
+    const right = (q.choices.find(c => c.correct) || q.choices[0]).id;
+    await Nova.api(`/games/${game.pin}/answer`, { method: 'POST',
+      body: { playerId: me.id, questionId: q.id, answer: right, speed: 0.9 } });
+    await new Promise(r => setTimeout(r, 400));
+    const loaded = duel.ready;
+    // and swipe across the boss, the way a thumb does
+    const c = document.getElementById('s-boss');
+    const box = c.getBoundingClientRect();
+    c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true,
+      clientX: box.left + box.width * 0.25, clientY: box.top + box.height * 0.3 }));
+    c.dispatchEvent(new MouseEvent('mouseup', { bubbles: true,
+      clientX: box.left + box.width * 0.75, clientY: box.top + box.height * 0.7 }));
+    await new Promise(r => setTimeout(r, 900));
+    return { before, loaded, after: (game.boss || {}).hp };
+  });
+  ok('answering loads the knife on the phone', cut.loaded === true,
+     cut.loaded ? 'ready to cut' : 'still empty after a right answer');
+  ok('and a swipe across the boss takes its health off',
+     cut.after === cut.before - 1, `${cut.before} → ${cut.after}`);
 
   const drawn = await board.evaluate(() => {
     const c = document.getElementById('board-strike');
@@ -170,19 +210,27 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok('the boss is drawn on the board', drawn.ok && drawn.pct > 60,
      drawn.ok ? `${drawn.pct}% painted` : drawn.why);
   const boardText = (await board.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ');
-  ok('with its health and the clock on it', /30/.test(boardText) && /[0-9]:[0-9]{2}/.test(boardText),
+  ok('with its health and the clock on it',
+     /[0-9]+ HEALTH LEFT/i.test(boardText) && /[0-9]:[0-9]{2}/.test(boardText),
      boardText.slice(0, 80));
 
-  // answering on the real phone loads the real knife
+  /* Answering on the real phone, by tapping the answer, loads the real knife —
+     the whole loop a child actually does, with no API calls of our own. */
   await phone.locator('#strikeq .opt-btn').first().click();
-  await phone.waitForTimeout(1400);
-  const armed = await phone.locator('#s-go').innerText();
-  ok('answering on the phone arms the knife button', /PUT IT IN|RELOADING/i.test(armed), armed);
+  await phone.waitForTimeout(1600);
+  const armed = await phone.evaluate(() => ({
+    ready: duel ? duel.ready : null,
+    loaded: me.loaded || 0
+  }));
+  ok('answering on the phone loads a knife it can cut with',
+     armed.loaded > 0 || armed.ready === true,
+     `${armed.loaded} loaded, ready: ${armed.ready}`);
 
   ok('no errors on the phone', perrs.length === 0, perrs.slice(0, 2).join(' | '));
   ok('no errors on the board', berrs.length === 0, berrs.slice(0, 2).join(' | '));
 
   await board.screenshot({ path: path.join(__dirname, 'shots', 'strike.png') }).catch(() => {});
+  await phone.screenshot({ path: path.join(__dirname, 'shots', 'strike-phone.png') }).catch(() => {});
   await browser.close();
   console.log(`\n${checks - fails}/${checks} passed`);
   process.exit(fails ? 1 : 0);

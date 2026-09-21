@@ -109,7 +109,7 @@ class Games {
       question, endsAt: game.endsAt, serverNow: now(), players, teams: game.teams,
       counts: game.counts, lastEvents: game.lastEvents,
       quiz: (game.state === 'arena' || game.state === 'running' || game.state === 'safe'
-             || game.state === 'strike') ? questions : null,
+             || game.state === 'strike' || game.state === 'building') ? questions : null,
       boss: game.boss || null,
       modeInfo: R.MODES[game.mode] || R.MODES[R.DEFAULT_MODE],
       goal: game.goal, setup: game.setup || null, rope: game.rope || 0,
@@ -193,6 +193,21 @@ class Games {
       game.endsAt = now() + R.BOSS_MS;
       for (const p of Object.values(game.players)) {
         p.loaded = 0; p.hits = 0; p.swungAt = 0; p.score = 0; p.blade = 'stick';
+      }
+      return this.changed(game);
+    }
+    /* Tallest Tower is not in step either. Everybody has the whole quiz on
+     * their phone and works through it at their own pace: a right answer is a
+     * block in your hand and you drop it when you have it. It used to run
+     * question by question with the teacher pressing next, which meant the
+     * quick spent the lesson waiting and the slow never got to build at all —
+     * and a mode about racing three towers up cannot have the whole room
+     * standing still between questions. */
+    if (game.mode === 'tower') {
+      game.state = 'building'; game.index = 0; game.endsAt = null;
+      game.monsterAt = now() + R.MONSTER_EVERY;
+      for (const p of Object.values(game.players)) {
+        p.blocks = 0; p.ready = 0; p.placed = 0; p.score = 0;
       }
       return this.changed(game);
     }
@@ -306,7 +321,7 @@ class Games {
   }
 
   towerTick(game) {
-    if (game.mode !== 'tower' || game.state !== 'question') return;
+    if (game.mode !== 'tower' || game.state !== 'building') return;
     // he climbs down on his own, and the green columns go with him
     this.settleGorilla(game);
     if (!game.monsterAt) { game.monsterAt = now() + R.MONSTER_EVERY; return; }
@@ -357,6 +372,9 @@ class Games {
   }
 
   next(game) {
+    /* Nothing to advance in the modes where everybody is on their own question:
+       a stray next would drop the whole room back into lock-step mid-game. */
+    if (['building', 'strike', 'running', 'safe', 'arena'].includes(game.state)) return false;
     if (game.state === 'question') { game.state = 'reveal'; game.endsAt = null; }
     else this.openQuestion(game);
     return this.changed(game);
@@ -380,6 +398,23 @@ class Games {
       const speed = Math.max(0, Math.min(1, Number(body.speed) || 0));
       player.correct = right;
       R.SCORERS.boss(game, player, q, right, speed);
+      game.lastEvents = game.lastEvents.slice(-6);
+      this.changed(game);
+      return player;
+    }
+
+    /* The same shape for Tallest Tower: the answer names its own question,
+       it is graded here rather than taken on trust, and a right one is a block
+       in that child's hand. */
+    if (game.mode === 'tower' && game.state === 'building') {
+      const q = game.questions.find(x => x.id === body.questionId);
+      if (!q) throw Object.assign(new Error('No such question.'), { status: 400 });
+      const right = R.grade(q, body.answer);
+      player.streak = right ? player.streak + 1 : 0;
+      player.best = Math.max(player.best, player.streak);
+      const fast = Math.max(0, Math.min(1, Number(body.speed) || 0));
+      player.correct = right;
+      R.SCORERS.tower(game, player, q, right, fast);
       game.lastEvents = game.lastEvents.slice(-6);
       this.changed(game);
       return player;

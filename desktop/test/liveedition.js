@@ -296,54 +296,45 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
        through the same two calls a phone makes. */
     const out = {};
     const seq = {};
-    const rightOf = (v) => (v.question.choices.find(c => /right/.test(c.text))
-                            || v.question.choices[0]).id;
+    /* Tallest Tower is self-paced now: every phone holds the whole quiz and
+       each child answers at their own speed, so there is no shared question and
+       nothing for the host to advance. An answer names the question it belongs
+       to, and a right one is a block straight away. */
+    const quizOf = (v) => v.quiz || [];
+    const rightOf = (q) => (q.choices.find(c => /right/.test(c.text)) || q.choices[0]).id;
+    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.selfPaced = view.state === 'building' && quizOf(view).length > 0;
     for (let round = 0; round < 6; round++) {
-      let v = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
-      if (v.state !== 'question') {
-        await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
-        v = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
-      }
-      if (v.state !== 'question' || !v.question) break;
-      const answer = rightOf(v);
-      /* Answer first, all of them, and only then read as the host. On the live
-         site a phone's answer is a row in a table and the host is the referee:
-         nobody has a block in hand until the host has next looked. Placing
-         straight after answering simply found an empty hand. */
+      const set = quizOf(view);
+      if (!set.length) break;
+      const q = set[round % set.length];
       for (const id of ids) {
         await L.handle(`/games/${pin}/answer`, 'POST',
-                       { playerId: id, answer, speed: 0.9 });
-      }
-      await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
-      for (const id of ids) {
+                       { playerId: id, questionId: q.id, answer: rightOf(q), speed: 0.9 });
         seq[id] = (seq[id] || 0) + 1;
         await L.handle(`/games/${pin}/place`, 'POST',
                        { playerId: id, offset: 0, seq: seq[id] });
       }
-      await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
+      view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     }
+
     const pre = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     out.built = Object.fromEntries(Object.entries(pre.towers || {})
       .map(([t, v]) => [t, (v.blocks || []).length]));
     out.state = pre.state;
     const hit = await L.handle(`/games/${pin}/monster`, 'POST', { hostToken: game.hostToken });
     out.hit = hit && hit.hit;
-    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
     out.sitting = out.hit ? view.towers[out.hit].apeUntil > Date.now() : false;
     out.marks = Object.fromEntries(Object.entries(view.towers).map(([t, v]) => [t, v.mark]));
 
     // a block dropped on his tower goes nowhere
-    const stuck = view.players.find(p => p.team === out.hit);
+    const stuck = (view.players || []).find(p => p.team === out.hit);
     if (stuck) {
-      let asking = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
-      if (asking.state !== 'question') {
-        await L.handle(`/games/${pin}/next`, 'POST', { hostToken: game.hostToken });
-        asking = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
-      }
-      if (asking.question) {
+      const q = quizOf(view)[0];
+      if (q) {
         await L.handle(`/games/${pin}/answer`, 'POST',
-                       { playerId: stuck.id, answer: rightOf(asking), speed: 0.9 });
-        await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+                       { playerId: stuck.id, questionId: q.id, answer: rightOf(q), speed: 0.9 });
       }
       seq[stuck.id] = (seq[stuck.id] || 0) + 1;
       const drop = await L.handle(`/games/${pin}/place`, 'POST',
@@ -357,6 +348,9 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
     await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
     return out;
   });
+  ok('a tower game leaves everybody on their own question, with no host to wait for',
+     ape.selfPaced === true, ape.selfPaced ? 'the whole quiz is on every phone'
+                                          : 'the class is still in lock-step');
   ok('the gorilla climbs the winning tower on the live site too', !!ape.hit,
      `${ape.hit} — the three towers were at ${JSON.stringify(ape.built)} blocks`);
   ok('and he sits on it there as well', ape.sitting === true, JSON.stringify(ape.marks));

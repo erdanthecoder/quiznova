@@ -606,9 +606,26 @@
     /* Where the pack runs, and where the robot is behind it. The gap is the
        room's escape bar: an empty bar and the thing is on top of them. */
     const packX = () => canvas.width * 0.72;
+    /* How far behind the robot is.
+     *
+     * It used to be worked out from the escape bar alone, which meant a class
+     * that stopped answering was in no more danger than one that was sprinting:
+     * the robot simply stood where it was. Nothing on the screen said "hurry
+     * up", which is the one thing a chase is for. The deck's own clock is now
+     * half of it — as the time runs down the robot closes in whatever the bar
+     * says, and it is the boosts that shove it back off again. Run out of clock
+     * and it is on top of the room, which is exactly when the class loses a
+     * life anyway; now they can see it coming. */
+    function timeLeft() {
+      if (!room.endsAt) return 1;
+      return clamp((room.endsAt - Date.now()) / Math.max(1, room.roundMs || 75000), 0, 1);
+    }
     function robotX() {
       const frac = clamp((room.escape || 0) / Math.max(1, room.target || 100), 0, 1);
-      return packX() - canvas.width * (0.20 + frac * 0.52);
+      const clock = timeLeft();
+      // both have to be going well for the room to be comfortable
+      const gap = 0.08 + (0.20 + frac * 0.34) * (0.35 + clock * 0.65);
+      return packX() - canvas.width * gap;
     }
     /** How hard the room is boosting right now, 0 to 1. */
     function rush() {

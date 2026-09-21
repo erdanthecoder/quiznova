@@ -284,6 +284,11 @@
 .chip.warn{border-color:var(--amber);color:var(--amber)}
 /* the arena's link chip: only ever shown when it is bad news */
 .chip.bad{border-color:#F4364C;color:#FFB3BC;font-weight:900}
+/* the boss, on the phone: a card you can swipe across */
+.duel{position:relative;flex:0 1 auto;aspect-ratio:5/4;min-height:210px;
+  border-radius:20px;overflow:hidden;border:2px solid rgba(255,255,255,.10);
+  touch-action:none;cursor:crosshair;background:#0B0722}
+.duel canvas{position:absolute;inset:0;width:100%;height:100%}
 
 /* the result takes over the screen, the way it does on a games console */
 .big{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -362,6 +367,16 @@
   box-shadow:0 7px 0 #9C4E00,0 12px 24px rgba(224,112,0,.38);
   transition:transform .08s ease,filter .08s ease}
 .boostbtn:active{transform:translateY(4px) scale(.98);box-shadow:0 3px 0 #9C4E00}
+/* The hold, drawn. A button that says HOLD TO BOOST and then shows nothing at
+   all while a thumb is on it leaves a child guessing whether it is working,
+   and letting go early wastes the boost they earned. The bar fills in exactly
+   the time the hold takes, so the moment it is full is the moment to let go. */
+.boostbtn{position:relative;overflow:hidden}
+.boostbtn .fill{position:absolute;left:0;top:0;bottom:0;width:0;
+  background:rgba(255,255,255,.35);pointer-events:none}
+.boostbtn.holding .fill{width:100%;transition:width var(--hold,550ms) linear}
+.boostbtn.done{animation:boostpop .34s ease both}
+@keyframes boostpop{40%{transform:scale(1.06);box-shadow:0 0 0 8px rgba(255,197,61,.35)}}
 .boostbtn:disabled{background:rgba(255,255,255,.08);box-shadow:none;color:rgba(255,255,255,.45);
   cursor:default;letter-spacing:.06em}
 
@@ -740,7 +755,11 @@ function apply(state) {
     tally.bestRun = Math.max(tally.bestRun, mine.streak || 0, mine.best || 0);
   }
   document.body.classList.toggle('laser', state.mode === 'laser');
-  const key = state.state + ':' + state.index + ':' + (me?.answered ? 'a' : 'w');
+  /* A block arriving in your hand is as structural as a new question: it is a
+     different screen. Without it in the key the phone kept showing the
+     question it had just answered and the block sat there unplaceable. */
+  const key = state.state + ':' + state.index + ':' + (me?.answered ? 'a' : 'w')
+            + ':' + ((me?.ready || 0) > 0 ? 'block' : '-');
   const fresh = key !== lastKey;
   lastKey = key;
   if (fresh) render(true); else patch();
@@ -790,7 +809,11 @@ function render(fresh) {
 
   if (game.state === 'lobby') return app.append(lobbyCard());
   if (game.state === 'arena') return app.append(arenaCard());
-  if (game.state === 'strike') return app.append(strikeCard());
+  if (game.state === 'strike') {
+    if (!strikeCardNode) strikeCardNode = strikeCard();
+    return app.append(strikeCardNode);
+  }
+  if (strikeCardNode) { if (duel) { duel.stop(); duel = null; } strikeCardNode = null; duelHp = null; }
   /* The run is kept, not rebuilt.
    *
    * Every other screen is thrown away and redrawn when anything changes, which
@@ -814,6 +837,15 @@ function render(fresh) {
   if (safeCardNode) stopSafe();
   runCardNode = null;
   if (arena) { arena.stop(); arena = null; }
+
+  /* Tallest Tower, at your own pace: a question of your own until you get one
+     right, then the block you earned to place. The drop card below already wins
+     over everything when a block is in hand. */
+  if (game.state === 'building' && !((me.ready || 0) > 0)) {
+    if (!buildCardNode) buildCardNode = buildCard();
+    return app.append(buildCardNode);
+  }
+  buildCardNode = null;
 
   /* A block in hand comes before anything else on the screen.
    *
@@ -1152,8 +1184,10 @@ function runCard() {
   card.append(el('div', { class: 'boostmeter' },
     el('i', { id: 'r-charge' }),
     el('span', { id: 'r-chargetxt' }, '')));
-  card.append(el('button', { class: 'boostbtn', id: 'r-boost', type: 'button', disabled: true },
-                'ANSWER TO CHARGE'));
+  const boost = el('button', { class: 'boostbtn', id: 'r-boost', type: 'button', disabled: true },
+                   el('i', { class: 'fill' }), el('span', { id: 'r-boosttxt' }, 'ANSWER TO CHARGE'));
+  boost.style.setProperty('--hold', NovaRun.HOLD_MS + 'ms');
+  card.append(boost);
   card.append(el('div', { class: 'runq', id: 'runq' }));
   setTimeout(startRun, 0);
   return card;
@@ -1203,10 +1237,9 @@ function paintRunHud(st) {
     n.classList.toggle('live', st.charged > 0);
   }
   const b = document.getElementById('r-boost');
-  if (b) {
-    b.disabled = st.charged <= 0;
-    b.textContent = st.charged > 0 ? 'HOLD TO BOOST' : 'ANSWER TO CHARGE';
-  }
+  const btxt = document.getElementById('r-boosttxt');
+  if (b) b.disabled = st.charged <= 0;
+  if (btxt) btxt.textContent = st.charged > 0 ? 'HOLD TO BOOST' : 'ANSWER TO CHARGE';
   const d = document.getElementById('r-dist');
   if (d) d.textContent = st.spent + (st.spent === 1 ? ' boost' : ' boosts');
 
@@ -1232,8 +1265,27 @@ function paintRunHud(st) {
 function wireBoost() {
   const btn = document.getElementById('r-boost');
   if (!btn) return;
-  const down = (e) => { e.preventDefault(); if (runner && runner.holdStart() && navigator.vibrate) navigator.vibrate(12); };
-  const up = (e) => { e.preventDefault(); if (runner && runner.holdEnd() && navigator.vibrate) navigator.vibrate([20, 40, 20]); };
+  const down = (e) => {
+    e.preventDefault();
+    if (!runner || !runner.holdStart()) return;
+    btn.classList.remove('done');
+    btn.classList.add('holding');
+    if (navigator.vibrate) navigator.vibrate(12);
+  };
+  const up = (e) => {
+    e.preventDefault();
+    if (!runner) return;
+    const spent = runner.holdEnd();
+    btn.classList.remove('holding');
+    if (spent) {
+      // it went in: say so on the button itself, where the thumb already is
+      btn.classList.add('done');
+      const txt = document.getElementById('r-boosttxt');
+      if (txt) txt.textContent = 'BOOST IN';
+      setTimeout(() => btn.classList.remove('done'), 360);
+      if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+    }
+  };
   btn.addEventListener('touchstart', down, { passive: false });
   btn.addEventListener('touchend', up, { passive: false });
   btn.addEventListener('touchcancel', up, { passive: false });
@@ -1302,14 +1354,17 @@ function strikeCard() {
     el('span', { class: 'chip', id: 's-hits' }, '0 in')));
 
   card.append(bladeCard());
-  card.append(el('button', { class: 'boostbtn', id: 's-go', type: 'button', disabled: true },
-                'ANSWER TO LOAD'));
+  /* The boss itself, in the child's hand. Until now the phone was a STRIKE
+     button with a question under it: you never saw the thing you were fighting
+     and putting a knife in felt like filling in a form, because that is what it
+     was. Drag across it to cut — a tap does it too. */
+  card.append(el('div', { class: 'duel', id: 's-duel' }, el('canvas', { id: 's-boss' })));
   card.append(el('div', { class: 'runq', id: 'strikeq' }));
   setTimeout(startStrike, 0);
   return card;
 }
 
-let strikeQ = 0, strikeAsking = false, strikeReload = 0;
+let strikeQ = 0, strikeAsking = false, strikeReload = 0, duelHp = null;
 
 /** One question at this child's own pace, out of the whole quiz. */
 function askStrikeQuestion() {
@@ -1373,25 +1428,38 @@ function bladeCard() {
   return box;
 }
 
+let duel = null;
+
 function startStrike() {
   askStrikeQuestion();
-  const go = document.getElementById('s-go');
-  if (go) {
-    go.onclick = () => {
-      if (go.disabled) return;
-      go.disabled = true;
-      api(`/games/${pin}/strike`, { method: 'POST', body: { playerId: me.id } })
-        .then(out => {
-          if (out && out.view) apply(out.view);
-          if (out && out.ok) {
-            strikeReload = Date.now() + (game.knifeReload || 2000);
-            if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
-          }
-        })
-        .catch(() => {});
-    };
+  const canvas = document.getElementById('s-boss');
+  if (canvas && !duel) {
+    duel = NovaStrike.duel({
+      canvas,
+      name: (game.boss && game.boss.name) || 'The boss',
+      onCut: cut,
+      onEmpty: (reloading) => {
+        // say why nothing happened, rather than swallowing the swipe
+        toast(reloading ? 'Reloading — one knife every two seconds'
+                        : 'Answer a question to load your knife', 'warn');
+      }
+    });
   }
   paintStrikeHud();
+}
+
+/** One knife, put in. The server decides whether it lands. */
+function cut() {
+  api(`/games/${pin}/strike`, { method: 'POST', body: { playerId: me.id } })
+    .then(out => {
+      if (out && out.ok) {
+        strikeReload = Date.now() + (game.knifeReload || 2000);
+        if (duel) duel.struck();
+        if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
+      }
+      if (out && out.view) apply(out.view);
+    })
+    .catch(() => {});
 }
 
 /* The knife, the clock and the boss's health, three times a second. The button
@@ -1416,20 +1484,15 @@ function paintStrikeHud() {
   const hits = document.getElementById('s-hits');
   if (hits) hits.textContent = (me.hits || 0) + ' in';
 
-  const go = document.getElementById('s-go');
-  if (go) {
-    const waiting = Math.max(0, strikeReload - Date.now());
-    const loaded = me.loaded || 0;
-    if (waiting > 0) {
-      go.disabled = true;
-      go.textContent = 'RELOADING ' + (waiting / 1000).toFixed(1) + 's';
-    } else if (loaded > 0) {
-      go.disabled = false;
-      go.textContent = loaded > 1 ? `PUT IT IN (${loaded})` : 'PUT IT IN';
-    } else {
-      go.disabled = true;
-      go.textContent = 'ANSWER TO LOAD';
-    }
+  if (duel) {
+    duel.setBoss({ hp: boss.hp, max: boss.max || 30,
+                   name: boss.name || 'The boss' });
+    duel.setKnife(me.loaded || 0, Math.max(0, strikeReload - Date.now()));
+    // somebody else's knife landing shakes this screen too, so the fight feels
+    // like thirty children hitting the same thing rather than thirty solitaires
+    if (duelHp === null) duelHp = boss.hp;
+    if (boss.hp < duelHp) duel.struck();
+    duelHp = boss.hp;
   }
   requestAnimationFrame(paintStrikeHud);
 }
@@ -1855,6 +1918,67 @@ function stagePanel() {
  * The swing gets faster as the tower grows, because a mechanic that never gets
  * harder has stopped being a mechanic by question six.
  */
+/* ── building, at your own pace ──────────────────────────
+ *
+ * The class used to be marched through Tallest Tower one question at a time,
+ * with everybody waiting on the slowest child and the teacher pressing next.
+ * A mode about racing three towers up cannot have the whole room standing
+ * still between questions, so this is the same shape as the rest: the whole
+ * quiz is on the phone, you work through it at your own speed, and a right
+ * answer is a block in your hand.
+ */
+let buildCardNode = null, buildQ = 0, strikeCardNode = null;
+
+function buildCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  const team = me.team || 'red';
+  const T = (NovaTower.TEAM[team] || NovaTower.TEAM.red);
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', style: `border-color:${T.face}` }, T.name),
+    el('span', { class: 'chip', id: 'b-blocks' }, (me.blocks || 0) + ' blocks up')));
+  card.append(el('div', { class: 'runq', id: 'buildq' }));
+  card.append(el('p', { class: 'tiny faint', style: 'text-align:center;margin-top:2px' },
+    'Every right answer is a block for your tower'));
+  setTimeout(askBuildQuestion, 0);
+  return card;
+}
+
+/** The next question for this child alone, out of the quiz their phone holds. */
+function askBuildQuestion() {
+  const box = document.getElementById('buildq');
+  const quiz = game.quiz || [];
+  if (!box || !quiz.length) return;
+  const q = quiz[buildQ % quiz.length];
+  const asked = Date.now();
+  box.innerHTML = '';
+  box.append(el('p', { class: 'runq-text' }, q.text || 'Question'));
+  const grid = el('div', { class: 'opts' });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: 'opt-btn ' + ['a', 'b', 'c', 'd'][i % 4], type: 'button' },
+                   c.text || '');
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      [...grid.children].forEach(n => { n.disabled = true; });
+      const seconds = Math.max(1, (q.time || 20));
+      const speed = Math.max(0, Math.min(1, 1 - (Date.now() - asked) / (seconds * 1000)));
+      api(`/games/${pin}/answer`, { method: 'POST',
+          body: { playerId: me.id, questionId: q.id, answer: c.id, speed } })
+        .then(out => {
+          const right = out && (out.correct ?? out.player?.correct);
+          btn.classList.add(right ? 'right' : 'wrong');
+          if (navigator.vibrate) navigator.vibrate(right ? [16, 40, 16] : 22);
+          if (out && out.view) apply(out.view);
+          // a right answer is a block, and the block takes the screen over
+          buildQ += 1;
+          setTimeout(() => { if (game.state === 'building') render(); }, 520);
+        })
+        .catch(() => { [...grid.children].forEach(n => { n.disabled = false; }); });
+    };
+    grid.append(btn);
+  });
+  box.append(grid);
+}
+
 function dropCard() {
   const card = el('div', { class: 'play arena-wrap' });
   const team = me.team || 'red';

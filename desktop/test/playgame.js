@@ -80,13 +80,15 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
        (await page.evaluate(() => document.body.innerText)).slice(0, 60).replace(/\s+/g, ' '));
 
     await post(`/api/games/${pin}/start`, { hostToken });
-    // wait for the phone to actually reach the question, however it finds out
-    await page.waitForFunction(() => /question \d+ of/i.test(document.body.innerText),
+    /* Tallest Tower is self-paced: the whole quiz goes to the phone and this
+       child gets a question of their own straight away, with no "question 3 of
+       10" because there is no room to be in step with. */
+    await page.waitForFunction(() => document.querySelectorAll('#buildq .opt-btn').length > 0,
                                null, { timeout: 15000 })
       .catch(() => {});
     await page.waitForTimeout(600);
-    const onQuestion = await page.evaluate(() => /question \d+ of/i.test(document.body.innerText));
-    ok(`${mode}: the phone reaches the question`, onQuestion,
+    const onQuestion = await page.locator('#buildq .opt-btn').count() > 0;
+    ok(`${mode}: the phone gets a question of its own, with nobody to wait for`, onQuestion,
        (await page.evaluate(() => document.body.innerText)).slice(0, 70).replace(/\s+/g, ' '));
 
     const moveCount = await page.locator('.move').count();
@@ -132,15 +134,20 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
 
     ok(`${mode}: no errors on the phone`, errs.length === 0, errs.slice(0, 2).join(' | '));
 
-    // both answer, and the round must actually resolve
-    // Cal answers by tapping, the way a child does
-    const opt = page.locator('.opts button, .opt').first();
+    /* Cal answers by tapping, the way a child does, and gets a block for it —
+       the game does not advance for anybody else, because there is no round to
+       resolve any more. That is the whole point of the change. */
+    const opt = page.locator('#buildq .opt-btn').first();
     if (await opt.count()) await opt.click().catch(() => {});
-    await post(`/api/games/${pin}/answer`, { playerId: a.player.id, answer: rightId(0) });
-    await post(`/api/games/${pin}/answer`, { playerId: b.player.id, answer: wrongId(0) });
+    await page.waitForTimeout(1200);
     const after = await (await fetch(`${base}/api/games/${pin}`)).json();
-    ok(`${mode}: the round resolves`, after.state === 'reveal' || after.state === 'over',
-       `state ${after.state}, events: ${(after.lastEvents || []).slice(-1)[0] || 'none'}`);
+    const cal = (after.players || []).find(p => p.name === 'Cal') || {};
+    ok(`${mode}: answering earns that child a block and nobody waits`,
+       after.state === 'building' && ((cal.ready || 0) + (cal.blocks || 0)) > 0,
+       `state ${after.state}, Cal has ${cal.ready || 0} in hand and ${cal.blocks || 0} up`);
+    ok(`${mode}: and the phone moves straight on to placing it`,
+       await page.locator('#d-go').count() > 0 || (cal.blocks || 0) > 0,
+       'the drop is on the screen');
 
     await page.close();
   }

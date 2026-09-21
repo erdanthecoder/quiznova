@@ -868,6 +868,12 @@ function render(fresh) {
     if (paint(stage, strikeView, fresh)) watchStrike(); else feedStrike();
     return;
   }
+  /* Tallest Tower has no shared question any more: everybody is on their own,
+     so the board is the three towers, the gorilla and the standings. */
+  if (game.state === 'building') {
+    if (paint(stage, towerView, fresh)) watchTower(); else { watchTower(); feedTower(); }
+    return;
+  }
   if (game.state === 'running' || game.state === 'safe') {
     /* The canvas is mounted once and then fed. Repainting the whole view on
        every poll would tear the chase down and build it again several times a
@@ -1058,6 +1064,25 @@ function runView() {
                 el('canvas', { id: 'board-run' })));
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 6, title: 'Boosts put in' }));
+  root.append(rest);
+  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
+    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  return root;
+}
+
+/* The board while a class builds. No question on it — thirty children are on
+   thirty different ones — so it is the three towers, full height, with who has
+   put the most blocks in underneath. */
+function towerView() {
+  const root = el('div', { class: 'board' });
+  const panel = el('div', { class: 'ask' });
+  panel.innerHTML = `<h1>Tallest Tower</h1>
+    <div class="tally"><b id="towerlead">—</b><span>in front</span></div>
+    <div class="tally" style="margin-left:18px"><b id="towerblocks">0</b><span>blocks up</span></div>`;
+  root.append(panel);
+  root.append(el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower' })));
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 6, title: 'Blocks placed' }));
   root.append(rest);
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
     el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
@@ -1378,6 +1403,26 @@ function feedTower() {
   boardTower.update({ towers: game.towers, players: game.players,
                       slots: game.towerSlots || 4, drift });
 
+  // who is in front, and how much is standing up between the three of them
+  const names = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
+  const floors = Object.entries(game.towers || {})
+    .map(([t, v]) => [t, Math.floor(((v && v.blocks) || []).length / (game.towerSlots || 4))])
+    .sort((a, b) => b[1] - a[1]);
+  const lead = document.getElementById('towerlead');
+  if (lead && floors.length) {
+    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'level' : names[floors[0][0]];
+  }
+  const blocks = document.getElementById('towerblocks');
+  if (blocks) {
+    blocks.textContent = Object.values(game.towers || {})
+      .reduce((n, v) => n + ((v && v.blocks) || []).length, 0);
+  }
+  const done = document.getElementById('advance');
+  if (done && !done.onclick) {
+    done.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
+      .catch(e => toast(e.message, 'bad'));
+  }
+
   /* The gorilla climbs down on a clock, and on the live edition there is no
      clock but this one — so the board tidies him away, the same way it settles
      Robot Run's safe phase. Harmless on the desktop edition, whose own timer
@@ -1394,7 +1439,7 @@ function feedTower() {
   /* The monster comes on its own clock rather than between questions, because
      there is no "between" — so the board asks for it, once, when it is due.
      Only the host's page does this, and the server decides who it takes. */
-  if (hostToken && game.mode === 'tower' && game.state === 'question') {
+  if (hostToken && game.mode === 'tower' && game.state === 'building') {
     const due = game.monsterAt || 0;
     if (due && Date.now() - drift >= due && Date.now() > monsterTimer + 5000) {
       monsterTimer = Date.now();

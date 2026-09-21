@@ -1197,7 +1197,186 @@
     };
   }
 
-  global.NovaStrike = { start, BLADES, WEAPONS, SHAPE_IDS, shapeFor, bladeFor,
+  /* ── the fight, in a child's hand ──────────────────────
+   *
+   * The phone used to be a button that said STRIKE and a question underneath:
+   * you never saw the thing you were fighting, and putting a knife in felt
+   * exactly like pressing a button, because that is all it was. The board had
+   * the whole fight on it and the child had a form to fill in.
+   *
+   * This is the same boss, drawn on the phone, close enough to hit. You cut it
+   * by dragging across it — a real swipe, with the blade following your thumb
+   * and the boss flinching where the line crossed it — and a tap works too,
+   * because thirty children include some who will not manage a drag with a
+   * phone under a desk.
+   */
+  function duel(opts) {
+    const canvas = opts.canvas;
+    const ctx = canvas.getContext('2d');
+    let boss = { hp: 30, max: 30, name: opts.name || 'The boss' };
+    let loaded = 0, readyAt = 0;
+    let hitUntil = 0, shakeUntil = 0, cutFrom = null, cutTo = null, cutUntil = 0;
+    let raf = null, stopped = false;
+    const born = performance.now();
+
+    function fit() {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(2, (global.devicePixelRatio || 1));
+      const w = Math.max(1, Math.round(box.width * dpr));
+      const h = Math.max(1, Math.round(box.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    }
+
+    const reloading = () => Math.max(0, readyAt - performance.now());
+    const canCut = () => loaded > 0 && reloading() <= 0;
+
+    function frame() {
+      if (stopped) return;
+      fit();
+      const t = performance.now() - born;
+      const w = canvas.width, h = canvas.height;
+      const hit = Math.max(0, (hitUntil - performance.now()) / 220);
+
+      ctx.save();
+      if (performance.now() < shakeUntil) {
+        const n = 7 * ((shakeUntil - performance.now()) / 200);
+        ctx.translate((Math.random() - 0.5) * n, (Math.random() - 0.5) * n);
+      }
+
+      // the pit it is standing in
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, '#150E36');
+      sky.addColorStop(0.62, '#0B0722');
+      sky.addColorStop(1, '#05030F');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      const pool = ctx.createRadialGradient(w / 2, h * 0.88, 4, w / 2, h * 0.88, w * 0.7);
+      pool.addColorStop(0, `rgba(255,110,40,${0.20 + hit * 0.3})`);
+      pool.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(0, 0, w, h);
+
+      // the boss, as tall as the card will take
+      const u = (h * 0.78) / 330;
+      ctx.save();
+      ctx.translate(w / 2, h * 0.92 - hit * h * 0.03);
+      bossArt(ctx, u, performance.now(), {
+        raise: 0, jaw: hit ? 0.8 : 0.12 + Math.sin(t / 900) * 0.06,
+        sag: hit ? 1 : 0, eye: hit ? '#FFD23F' : '#FF3B2F'
+      });
+      if (hit) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = hit * 0.9;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-w, -h, w * 2, h * 2);
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // the cut you just made, still hanging in the air
+      if (cutFrom && cutTo && performance.now() < cutUntil) {
+        const a = (cutUntil - performance.now()) / 260;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#FFF3C4';
+        ctx.lineWidth = Math.max(3, h * 0.016) * a;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#FFC53D';
+        ctx.shadowBlur = 24;
+        ctx.beginPath();
+        ctx.moveTo(cutFrom.x, cutFrom.y);
+        ctx.lineTo(cutTo.x, cutTo.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // its health, along the top, one pip a knife
+      const pad = w * 0.04, barW = w - pad * 2, barH = Math.max(8, h * 0.035);
+      const max = Math.max(1, boss.max);
+      const gap = Math.max(1, barW * 0.004);
+      const pip = (barW - gap * (max - 1)) / max;
+      for (let i = 0; i < max; i++) {
+        ctx.fillStyle = i < boss.hp ? '#F4364C' : 'rgba(255,255,255,.14)';
+        ctx.beginPath();
+        ctx.roundRect(pad + i * (pip + gap), pad, Math.max(1, pip), barH, 3);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.font = `900 ${Math.max(11, h * 0.042)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`${boss.name} — ${boss.hp} left`, pad, pad + barH + h * 0.055);
+
+      // and what this child can do about it right now
+      const wait = reloading();
+      const say = canCut() ? 'SWIPE TO CUT'
+        : wait > 0 ? `RELOADING ${(wait / 1000).toFixed(1)}s`
+        : 'ANSWER TO LOAD YOUR KNIFE';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = canCut() ? '#FFD86B' : 'rgba(255,255,255,.55)';
+      ctx.font = `900 ${Math.max(12, h * 0.05)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillText(say, w / 2, h * 0.97);
+      if (canCut()) {
+        // a pulse round the edge, so a loaded knife is obvious without reading
+        ctx.strokeStyle = `rgba(255,216,107,${0.35 + Math.sin(t / 260) * 0.25})`;
+        ctx.lineWidth = Math.max(2, h * 0.008);
+        ctx.strokeRect(2, 2, w - 4, h - 4);
+      }
+
+      raf = requestAnimationFrame(frame);
+    }
+
+    /* The swipe. Anything that crosses the middle of the card counts, and a tap
+       counts too — the point is to hit the boss, not to perform a gesture. */
+    const at = (e) => {
+      const box = canvas.getBoundingClientRect();
+      const p = (e.touches && e.touches[0]) || e;
+      const dpr = canvas.width / Math.max(1, box.width);
+      return { x: (p.clientX - box.left) * dpr, y: (p.clientY - box.top) * dpr };
+    };
+    let from = null;
+    const down = (e) => { from = at(e); e.preventDefault(); };
+    const up = (e) => {
+      if (!from) return;
+      const to = at(e.changedTouches ? { clientX: e.changedTouches[0].clientX,
+                                         clientY: e.changedTouches[0].clientY } : e);
+      const swung = from;
+      from = null;
+      e.preventDefault();
+      if (!canCut()) { if (opts.onEmpty) opts.onEmpty(reloading() > 0); return; }
+      cutFrom = swung; cutTo = to;
+      // a tap leaves a short flick, so it still looks like a cut
+      if (Math.hypot(to.x - swung.x, to.y - swung.y) < canvas.width * 0.08) {
+        cutFrom = { x: swung.x - canvas.width * 0.12, y: swung.y - canvas.width * 0.12 };
+        cutTo = { x: swung.x + canvas.width * 0.12, y: swung.y + canvas.width * 0.12 };
+      }
+      cutUntil = performance.now() + 260;
+      if (opts.onCut) opts.onCut();
+    };
+    canvas.addEventListener('touchstart', down, { passive: false });
+    canvas.addEventListener('touchend', up, { passive: false });
+    canvas.addEventListener('mousedown', down);
+    canvas.addEventListener('mouseup', up);
+
+    raf = requestAnimationFrame(frame);
+
+    return {
+      /** The boss as the game now says it is. */
+      setBoss(next) { if (next) boss = Object.assign({}, boss, next); },
+      /** How many knives this child has loaded, and when the next one is ready. */
+      setKnife(n, waitMs) {
+        loaded = Math.max(0, Number(n) || 0);
+        if (waitMs !== undefined) readyAt = performance.now() + Math.max(0, waitMs);
+      },
+      /** A knife went in — anybody's. */
+      struck() { hitUntil = performance.now() + 220; shakeUntil = performance.now() + 200; },
+      get ready() { return canCut(); },
+      stop() { stopped = true; if (raf) cancelAnimationFrame(raf); }
+    };
+  }
+
+  global.NovaStrike = { start, duel, BLADES, WEAPONS, SHAPE_IDS, shapeFor, bladeFor,
                         drawWeapon, weaponName, ROUND_MS, WINDUPS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
