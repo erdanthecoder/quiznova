@@ -501,10 +501,100 @@ async function newQuiz() {
         try {
           const quiz = await api('/quizzes', { method: 'POST', body: { title } });
           location.href = '/studio?id=' + quiz.id;
-        } catch (err) { toast(err.message, 'bad'); }
+        } catch (err) {
+          /* A browser with no room left is the one failure a teacher cannot do
+             anything about from a toast. So this opens what is taking the room
+             and lets them clear it here, and then makes the quiz they asked
+             for. */
+          if (err && err.storageFull) { close(); return freeUpRoom(title); }
+          toast(err.message, 'bad');
+        }
       };
       box.querySelector('#go').onclick = create;
       box.querySelector('#t').onkeydown = (e) => { if (e.key === 'Enter') create(); };
+    }
+  });
+}
+
+/* ── making room ─────────────────────────────────────────
+ *
+ * Reported from a classroom: "we cannot generate more quizzes now — even new
+ * accounts with no quizzes cannot make quizzes". Storage belongs to the browser
+ * rather than to the account, so a full one stops everybody, and until now the
+ * only thing the app could do was refuse. This shows what is using the room,
+ * in plain megabytes, and offers the two safe ways to get some back: drop the
+ * pictures, which are almost always the whole problem, or delete a quiz that is
+ * finished with. Nothing goes without being asked.
+ */
+function freeUpRoom(wantedTitle) {
+  const store = window.Nova && Nova.storage;
+  if (!store) return toast('This browser has no room left for more quizzes', 'bad');
+  const items = store.items();
+  const results = store.resultsMb();
+  const rows = items.slice(0, 12).map(q => `
+    <div class="row" data-id="${q.id}" style="justify-content:space-between;gap:10px;
+         padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="min-width:0">
+        <b style="display:block">${esc(q.title)}</b>
+        <span class="muted tiny">${q.questions} question${q.questions === 1 ? '' : 's'}${
+          q.pictures ? ` · ${q.pictures} picture${q.pictures === 1 ? '' : 's'}` : ''}</span>
+      </div>
+      <div class="row" style="gap:8px;flex:none">
+        <span class="muted tiny">${q.mb.toFixed(2)} MB</span>
+        <button class="btn ghost sm" data-del="${q.id}">Delete</button>
+      </div>
+    </div>`).join('');
+
+  modal(`
+    <h2 style="margin-bottom:6px">This browser is full</h2>
+    <p class="muted tiny" style="margin-bottom:16px">
+      Quoldek is using about ${store.used().toFixed(1)}MB here, which is all the room this
+      browser gives a website. Free some up and the quiz will be made.
+      ${results > 0.05 ? `Saved results are ${results.toFixed(2)}MB of it.` : ''}
+    </p>
+    <div id="room-list" style="max-height:46vh;overflow:auto">${rows || '<p class="muted tiny">No quizzes are stored here.</p>'}</div>
+    <div class="row" style="margin-top:18px;gap:10px;flex-wrap:wrap">
+      <button class="btn ghost" id="room-pics">Remove every picture</button>
+      ${results > 0.05 ? '<button class="btn ghost" id="room-res">Clear saved results</button>' : ''}
+      <span style="flex:1"></span>
+      <button class="btn ghost" data-x>Close</button>
+      <button class="btn primary" id="room-again">Try again</button>
+    </div>`, {
+    wide: true,
+    onMount(box, close) {
+      box.querySelector('[data-x]').onclick = close;
+      box.querySelectorAll('[data-del]').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.getAttribute('data-del');
+          btn.disabled = true;
+          try {
+            await api('/quizzes/' + id, { method: 'DELETE' });
+            const row = box.querySelector(`[data-id="${id}"]`);
+            if (row) row.remove();
+            toast('Deleted — there is room for ' + (Nova.storage.used()).toFixed(1) + 'MB used now');
+          } catch (e) { btn.disabled = false; toast(e.message, 'bad'); }
+        };
+      });
+      const pics = box.querySelector('#room-pics');
+      if (pics) pics.onclick = () => {
+        try {
+          const gone = Nova.storage.dropPictures();
+          toast(gone ? `${gone} picture${gone === 1 ? '' : 's'} removed` : 'There were no pictures');
+        } catch (e) { toast(e.message, 'bad'); }
+      };
+      const res = box.querySelector('#room-res');
+      if (res) res.onclick = () => {
+        Nova.storage.clearResults();
+        toast('Saved results cleared');
+      };
+      box.querySelector('#room-again').onclick = async () => {
+        try {
+          const quiz = await api('/quizzes', { method: 'POST', body: { title: wantedTitle || 'Untitled quiz' } });
+          location.href = '/studio?id=' + quiz.id;
+        } catch (e) {
+          toast(e && e.storageFull ? 'Still no room — free a little more' : e.message, 'bad');
+        }
+      };
     }
   });
 }

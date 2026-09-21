@@ -96,7 +96,11 @@ const hasPayload = location.hash.includes('d=');
    or the query, which is the short one a teacher can actually send to a class. */
 const shortCode = (function () {
   const fromQuery = (qs('c') || '').trim();
-  const fromPath = (location.pathname.replace(/^\/+|\/+$/g, '') || '');
+  /* The last piece of the path, not the whole of it. A code only counted when
+     it was the entire path, so hwquoldek.web.app/abc123 worked and anything
+     with a folder in front of it — a preview build, a test mount, a link
+     somebody tidied — quietly became "this link is missing its quiz". */
+  const fromPath = (location.pathname.split('/').filter(Boolean).pop() || '');
   const code = fromQuery || fromPath;
   return /^[a-hjkmnp-z2-9]{6}$/i.test(code) ? code.toLowerCase() : '';
 })();
@@ -283,13 +287,43 @@ async function submit(force) {
   submitting = true;
   clearTimeout(advanceTimer);
   $('#app').innerHTML = '<div class="card pad center" style="min-height:40vh"><div class="thinking">Marking…</div></div>';
+  const seconds = Math.round((Date.now() - startedAt) / 1000);
   try {
-    const result = await api(`/quizzes/${quizId}/submit`, {
-      method: 'POST',
-      body: { name, answers, seconds: Math.round((Date.now() - startedAt) / 1000) }
-    });
+    /* Homework is marked here, on the child's own device.
+     *
+     * The submit used to go to /quizzes/<id>/submit, which looks the quiz up in
+     * this browser's own store — and a child doing homework never had it there:
+     * it arrived from a six-character code or inside the link. So every piece of
+     * homework ever handed in came back "Could not submit: Quiz not found". The
+     * quiz is already on this page, answers and all, so marking it needs nobody
+     * else; only a quiz this device actually owns goes to the store, where the
+     * teacher's results page reads it. */
+    const mine = !shortCode && !hasPayload && quizId;
+    const result = mine
+      ? await api(`/quizzes/${quizId}/submit`,
+                  { method: 'POST', body: { name, answers, seconds } })
+      : markHere();
     showResult(result);
   } catch (err) { submitting = false; fail('Could not submit: ' + err.message); }
+}
+
+/* The same marking the studio does, done on this page against the quiz it is
+   already holding. Every question, what was given, what was wanted, and why. */
+function markHere() {
+  let score = 0, total = 0;
+  const breakdown = quiz.questions.map(q => {
+    const given = answers[q.id];
+    const right = Nova.gradeAnswer ? Nova.gradeAnswer(q, given) : false;
+    total += q.points || 100;
+    if (right) score += q.points || 100;
+    const wanted = (q.choices || []).filter(c => c.correct).map(c => c.id);
+    return { id: q.id, correct: right, given,
+             expected: wanted.length ? wanted : q.answer,
+             explanation: q.explanation || '' };
+  });
+  return { id: 'local', name: name || 'Anonymous', at: Date.now(),
+           score, total, seconds: Math.round((Date.now() - startedAt) / 1000),
+           answers, breakdown };
 }
 
 function showResult(result) {

@@ -57,6 +57,47 @@
     return n / 1048576;
   }
 
+  /* What is taking up the room, so a teacher who cannot save can see it rather
+     than be told to guess. Sizes are what the browser actually stores: the
+     characters of the key and its value. */
+  Nova.storage = {
+    used: () => roomUsed(),
+    /** Every quiz, largest first, with what it costs and what is in it. */
+    items() {
+      const all = read(KEY, {});
+      return Object.values(all).map(q => ({
+        id: q.id, title: q.title || 'Untitled quiz',
+        questions: (q.questions || []).length,
+        pictures: (q.questions || []).filter(x => x.image).length,
+        mb: JSON.stringify(q).length / 1048576
+      })).sort((a, b) => b.mb - a.mb);
+    },
+    /** What the marks of games already played are costing. */
+    resultsMb() {
+      try { return (localStorage.getItem(RESP) || '').length / 1048576; }
+      catch { return 0; }
+    },
+    /** Drop the pictures out of every quiz, keeping every question and answer.
+        A picture is usually the whole of the problem: one photograph pasted in
+        can be bigger than a term of questions. */
+    dropPictures() {
+      const all = read(KEY, {});
+      let gone = 0;
+      for (const q of Object.values(all)) {
+        for (const question of q.questions || []) {
+          if (question.image) { question.image = ''; gone += 1; }
+        }
+      }
+      if (gone) writeOrSay(KEY, all, 'your quizzes');
+      return gone;
+    },
+    /** The marks from games already played, which a teacher may have finished
+        with. Never touched without being asked. */
+    clearResults() {
+      try { localStorage.removeItem(RESP); return true; } catch { return false; }
+    }
+  };
+
   const write = (k, v) => {
     if (writeRaw(k, v)) return true;
     sweepStale();
@@ -133,6 +174,11 @@
     }
     return false;
   }
+
+  /* Marking one answer, for a page that is holding the quiz itself — homework
+     on a child's phone is marked there, because the quiz never reaches that
+     device's store. */
+  Nova.gradeAnswer = (question, given) => grade(question, given);
 
   /* ── share links: the quiz travels inside the URL ───── */
   const toB64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
