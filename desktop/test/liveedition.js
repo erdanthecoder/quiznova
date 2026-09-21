@@ -94,15 +94,23 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
       const list = Array.isArray(body) ? body : [body];
       list.forEach(r => rows.push(Object.assign(
         { created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-          joined_at: new Date().toISOString(), at: new Date().toISOString(), score: 0 }, r)));
+          joined_at: new Date().toISOString(), at: new Date().toISOString(), score: 0,
+          // the live games table carries a revision, and so must this
+          rev: 0 }, r)));
       window.__write(db);
       const minimal = /return=minimal/.test((opts.headers || {}).prefer || '');
       return reply(201, minimal ? undefined : list);
     }
     if (method === 'PATCH') {
-      rows.filter(hit).forEach(r => Object.assign(r, body));
+      /* A conditional write — PATCH with ?rev=eq.N — changes nothing when the
+         row has moved on, and says so by returning no rows. Without that here,
+         the stub would happily let a stale write land and the guard would look
+         like it worked when it did not. */
+      const touched = rows.filter(hit);
+      touched.forEach(r => Object.assign(r, body));
       window.__write(db);
-      return reply(200, undefined);
+      const wants = /return=representation/.test((opts.headers || {}).prefer || '');
+      return reply(200, wants ? touched : undefined);
     }
     if (method === 'DELETE') {
       db[table] = rows.filter(r => !hit(r));
@@ -354,6 +362,97 @@ Object.defineProperty(window, '__db', { get: () => window.__read() });
   ok('and he sits on it there as well', ape.sitting === true, JSON.stringify(ape.marks));
   ok('a block dropped under him lands nowhere on the live site', ape.ape === true,
      ape.ape === undefined ? 'nobody was on his tower' : String(ape.ape));
+
+  /* ── two devices at once, which is what a classroom is ──
+   *
+   * Everything above drives the live engine one caller at a time, and that is
+   * how every one of these modes passed while none of them worked in a room.
+   * The board writes the whole game on every poll; so does a phone every time
+   * it puts a boost in or swings a knife. Whoever wrote last used to erase the
+   * other, so the escape bar never moved and the boss never lost health.
+   *
+   * The phone here is a second page — its own document, its own copy of the
+   * engine — sharing the tables with the board, exactly as in a classroom. */
+  const phone2 = await ctx.newPage({ viewport: { width: 390, height: 820 } });
+  const p2errs = [];
+  phone2.on('pageerror', e => p2errs.push(e.message));
+  await phone2.goto(`${playBase}/`, { waitUntil: 'domcontentloaded' });
+  await phone2.waitForTimeout(800);
+
+  const chase = await board.evaluate(async () => {
+    const L = window.NovaLive;
+    const quiz = { id: 'q4', title: 'Chase', questions: [
+      { id: 'a', type: 'mc', text: 'Two plus two?', points: 100, time: 30,
+        choices: [{ id: 'a1', text: '4', correct: true }, { id: 'a2', text: '5' }] }] };
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q4', quiz, mode: 'robot', map: 'station' });
+    const j = await L.handle(`/games/${game.pin}/join`, 'POST', { name: 'Ana', avatar: 3 });
+    await L.handle(`/games/${game.pin}/start`, 'POST', { hostToken: game.hostToken });
+    return { pin: game.pin, hostToken: game.hostToken, id: j.player ? j.player.id : j.id };
+  });
+
+  /* The board reads the game — a poll beginning — and then the phone boosts
+     while that read is still in the board's hands. The board then writes what
+     it read. Before the guard, the boost was gone. */
+  const stale = await (async () => {
+    const held = await board.evaluate(async (pin) => {
+      // what a poll holds between reading the game and writing it back
+      window.__held = await window.NovaLive.readRaw(pin);
+      return window.__held.escape || 0;
+    }, chase.pin).catch(() => null);
+    if (held === null) return { skipped: true };
+    await phone2.evaluate(async (c) => {
+      await window.NovaLive.handle(`/games/${c.pin}/boost`, 'POST', { playerId: c.id, seq: 1 });
+    }, chase);
+    const wrote = await board.evaluate(async (pin) => {
+      try {
+        await window.NovaLive.writeRaw(pin, window.__held);
+        return 'landed';
+      } catch (err) { return err && err.stale ? 'refused' : 'error: ' + err.message; }
+    }, chase.pin);
+    const after = await board.evaluate(async (pin) =>
+      (await window.NovaLive.readRaw(pin)).escape || 0, chase.pin);
+    return { wrote, after };
+  })();
+  ok('a write made from a game that has moved on is refused, not silently applied',
+     stale.wrote === 'refused', String(stale.wrote));
+  ok("and the phone's boost is still there afterwards",
+     stale.after > 0, `the escape bar is at ${stale.after}`);
+
+  /* And the whole thing together: the phone boosts while the board keeps
+     polling, and every boost has to survive. */
+  const together = await (async () => {
+    const boosts = phone2.evaluate(async (c) => {
+      let sent = 0;
+      for (let n = 2; n <= 9; n++) {
+        try {
+          await window.NovaLive.handle(`/games/${c.pin}/boost`, 'POST',
+                                       { playerId: c.id, seq: n });
+          sent += 1;
+        } catch { /* counted by what the game says, not by what we hoped */ }
+      }
+      return sent;
+    }, chase);
+    const polls = board.evaluate(async (c) => {
+      let n = 0;
+      for (; n < 10; n++) {
+        await window.NovaLive.handle(`/games/${c.pin}`, 'GET', { hostToken: c.hostToken });
+        await new Promise(r => setTimeout(r, 60));
+      }
+      return n;
+    }, chase);
+    const [sent] = await Promise.all([boosts, polls]);
+    const view = await board.evaluate(async (c) =>
+      window.NovaLive.handle(`/games/${c.pin}`, 'GET', { hostToken: c.hostToken }), chase);
+    const ana = (view.players || []).find(p => p.name === 'Ana') || {};
+    return { sent, boosts: ana.boosts || 0, escape: view.escape || 0 };
+  })();
+  ok('every boost put in while the board is polling is still counted',
+     together.boosts === 9, `${together.sent} sent, ${together.boosts} counted`);
+  ok('and the room can actually see the escape bar move',
+     together.escape >= 81, `the bar is at ${together.escape}`);
+  ok('no errors on the phone that was playing', p2errs.length === 0,
+     p2errs.slice(0, 2).join(' | '));
 
   ok('no errors on the live board', berrs.length === 0, berrs.slice(0, 3).join(' | '));
   ok('no errors on the live phone', perrs.length === 0, perrs.slice(0, 3).join(' | '));

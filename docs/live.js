@@ -105,15 +105,53 @@
     return Object.assign({}, game, { players: merged });
   }
 
+  /* ── one game, many writers ────────────────────────────
+   *
+   * The comment further down used to say "only the host reconciles, so there is
+   * exactly one writer". That was never true: a phone writes the game every
+   * time it puts a boost in, swings a knife, drops a block or takes a safe
+   * zone. Every one of those wrote the whole game back, and so did the board on
+   * every poll — so whoever wrote last silently erased what everybody else had
+   * just done. Alone in a test it looks perfect. In a room of thirty it means
+   * the escape bar never moves, the boss never loses health and a tower never
+   * grows, which is exactly what was reported from the classroom.
+   *
+   * So a read now brings back the revision it saw, and a write refuses to land
+   * if the game has moved on since. The caller re-reads and does the work again
+   * on the new state; nothing is lost, and nobody has to take turns.
+   */
+  const gameRev = new WeakMap();      // the game object → the rev it was read at
+
   async function readGame(pin) {
-    const rows = await rest('GET', `/quiznova_live_games?pin=eq.${encodeURIComponent(pin)}&select=data`);
+    const rows = await rest('GET',
+      `/quiznova_live_games?pin=eq.${encodeURIComponent(pin)}&select=data,rev`);
     if (!rows || !rows.length) throw Object.assign(new Error('That game code is not live.'), { status: 404 });
-    return rows[0].data;
+    const data = rows[0].data;
+    if (data && typeof data === 'object') gameRev.set(data, Number(rows[0].rev) || 0);
+    return data;
   }
 
-  const writeGame = (pin, data) =>
-    rest('PATCH', `/quiznova_live_games?pin=eq.${encodeURIComponent(pin)}`,
-         { data, updated_at: new Date().toISOString() }, { prefer: 'return=minimal' });
+  /** Thrown when the game moved under us. Caught by handle(), which tries again. */
+  const STALE = 'nova:stale-game';
+
+  async function writeGame(pin, data) {
+    const seen = gameRev.get(data);
+    /* A game this process never read — the one made a moment ago by /games —
+       has nothing to be stale against, so it is written plainly. */
+    const guard = seen === undefined ? '' : `&rev=eq.${seen}`;
+    const rows = await rest('PATCH',
+      `/quiznova_live_games?pin=eq.${encodeURIComponent(pin)}${guard}`,
+      { data, rev: (seen === undefined ? 0 : seen) + 1, updated_at: new Date().toISOString() },
+      { prefer: 'return=representation' });
+    if (guard && (!rows || !rows.length)) {
+      // somebody else wrote first; our copy is out of date
+      throw Object.assign(new Error(STALE), { stale: true });
+    }
+    if (rows && rows.length && data && typeof data === 'object') {
+      gameRev.set(data, Number(rows[0].rev) || (seen || 0) + 1);
+    }
+    return rows;
+  }
 
   /** The public shape the host and player pages already know how to render. */
   function publicView(game) {
@@ -313,7 +351,28 @@
                                 '/boost', '/place', '/safe',
                                 '/events']);   // read-only, and every device reads it
 
+  /* Every request is one attempt at the work. If the game moved under it, the
+     attempt is thrown away and made again against the game as it now is — which
+     is the only safe way to retry, because the work is written in terms of the
+     state it read. */
   async function handle(path, method, body) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await attemptOnce(path, method, body);
+      } catch (err) {
+        if (!err || !err.stale || attempt >= 6) {
+          if (err && err.stale) {
+            throw new Error('The game is busy — everybody moved at once. Try that again.');
+          }
+          throw err;
+        }
+        // a short, uneven wait, so thirty phones do not all come back together
+        await new Promise(r => setTimeout(r, 40 + Math.random() * 120 * (attempt + 1)));
+      }
+    }
+  }
+
+  async function attemptOnce(path, method, body) {
     if (path === '/modes') {
       return { modes: Object.entries(MODES).map(([id, m]) => Object.assign({ id, maps: mapsFor(id) }, m)) };
     }
@@ -814,6 +873,13 @@
   }
 
   global.NovaLive = { handle, stats, shareQuiz, sharedQuiz, MODES, GOALS,
+                      /* The store itself, one step below the API. A test needs
+                         it to stand where a device stands in the middle of a
+                         poll — holding a game it read a moment ago, about to
+                         write it back — which is the moment the whole room's
+                         work used to disappear. Nothing in the app calls
+                         these. */
+                      readRaw: readGame, writeRaw: writeGame,
                       configured: Boolean(URL_BASE && PUBLISHABLE) };
 })(typeof window !== 'undefined' ? window : globalThis);
 

@@ -14,7 +14,67 @@
   const KEY = 'nova:quizzes';
   const RESP = 'nova:responses';
   const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch { return d; } };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* full or private */ } };
+
+  /* Writing, and knowing whether it worked.
+   *
+   * This used to swallow every storage failure. A browser that had run out of
+   * room for this site would take a new quiz, return it, and save nothing — so
+   * the page opened the studio on an id that did not exist and the teacher was
+   * told "Quiz not found". Signing in with a fresh account changed nothing,
+   * because storage belongs to the browser and not to the account, which is
+   * exactly how it looked from the classroom: nobody could make a quiz at all.
+   *
+   * So a failed write is now a failed write. Before giving up it clears what is
+   * genuinely disposable — the host tokens of games that finished weeks ago —
+   * and tries once more. It never throws away a quiz or a child's marks to make
+   * room for something else; if there is no room, it says so and says what to
+   * do about it. */
+  const writeRaw = (k, v) => {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+    catch { return false; }
+  };
+
+  /** Host tokens for old games: one per game ever hosted on this device, and
+      worthless the moment the game ends. */
+  function sweepStale() {
+    let freed = 0;
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('nova:host:')) { localStorage.removeItem(key); freed += 1; }
+      }
+    } catch { /* storage is off entirely */ }
+    return freed;
+  }
+
+  /** Roughly how much of this site's storage is in use, in whole megabytes. */
+  function roomUsed() {
+    let n = 0;
+    try {
+      for (const key of Object.keys(localStorage)) {
+        n += key.length + (localStorage.getItem(key) || '').length;
+      }
+    } catch { return 0; }
+    return n / 1048576;
+  }
+
+  const write = (k, v) => {
+    if (writeRaw(k, v)) return true;
+    sweepStale();
+    if (writeRaw(k, v)) return true;
+    return false;
+  };
+
+  /** The same write, for the places where losing it silently is not an option. */
+  function writeOrSay(k, v, what) {
+    if (write(k, v)) return;
+    const mb = roomUsed();
+    throw Object.assign(new Error(
+      `This browser has run out of room to keep ${what}`
+      + (mb ? ` — Quoldek is using about ${mb.toFixed(1)}MB here` : '')
+      + '. Delete a quiz you have finished with, or remove a picture from one,'
+      + ' and try again. Nothing already saved has been lost.'),
+      { status: 507, storageFull: true });
+  }
   const rid = (n = 8) => Math.random().toString(36).slice(2, 2 + n);
   const now = () => Date.now();
 
@@ -43,7 +103,9 @@
 
   const allQuizzes = () => read(KEY, {});
   const saveQuizzes = (all) => {
-    write(KEY, all);
+    // loudly, because a quiz that was not written down is a quiz the teacher
+    // is about to lose the next time they close the tab
+    writeOrSay(KEY, all, 'your quizzes');
     // a signed-in teacher gets a copy kept for them; see account.js
     if (window.NovaAccount) window.NovaAccount.pushSoon();
   };
@@ -449,8 +511,14 @@ Rules:
                          score, total, seconds: body.seconds || 0, answers, breakdown };
         const store = allResponses();
         (store[quiz.id] = store[quiz.id] || []).push(record);
-        write(RESP, store);
-        return record;   // note: stored on this device — see README on collecting results
+        /* A child who has just finished should still see their score, so a full
+           browser does not throw here — but the teacher has to know the mark
+           did not get written down, rather than finding an empty results page
+           later and blaming the child. */
+        const kept = write(RESP, store);
+        return kept ? record   // note: stored on this device — see README on collecting results
+          : Object.assign({}, record, { kept: false,
+              warning: 'This device has no room left, so this result was shown but not saved.' });
       }
       if (tail === '/responses') {
         const rows = allResponses()[quiz.id] || [];
