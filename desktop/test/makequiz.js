@@ -82,6 +82,37 @@ function serve(dir) {
   ok('a question written by hand is added and kept', byHand.questions >= 1,
      `${byHand.questions} on the quiz, last one "${byHand.text}"`);
 
+  /* ── 1b. the way the teacher's board sends you ──
+   *
+   * "Write a new quiz" on the teachboard links straight to the studio with no
+   * quiz on the end of it. The studio used to bounce that back to the quiz
+   * list — a flash of "quiz not found" and then the page you came from, which
+   * is exactly what was reported: "I click write a new quiz and it says fastly
+   * quiz not found and then it redirects me back". */
+  const fromBoard = await (async () => {
+    const page2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errs2 = [];
+    page2.on('pageerror', e => errs2.push(e.message));
+    await page2.goto(`${base}/studio.html`, { waitUntil: 'domcontentloaded' });
+    await page2.waitForTimeout(2500);
+    const out = await page2.evaluate(() => ({
+      where: location.pathname + location.search,
+      text: document.body.innerText.replace(/\s+/g, ' ').slice(0, 80),
+      title: (document.getElementById('title') || {}).value
+    }));
+    out.errs = errs2;
+    await page2.close();
+    return out;
+  })();
+  ok('opening the studio with no quiz makes one instead of bouncing back',
+     /studio/.test(fromBoard.where) && /id=/.test(fromBoard.where),
+     `landed on ${fromBoard.where}`);
+  ok('and it is the editor, not a "quiz not found" flash',
+     !/not found/i.test(fromBoard.text) && typeof fromBoard.title === 'string',
+     fromBoard.text);
+  ok('no errors on the way in', fromBoard.errs.length === 0,
+     fromBoard.errs.slice(0, 2).join(' | '));
+
   /* ── 2. by asking for them, which is the AI route ── */
   const asked = await page.evaluate(async (id) => {
     const out = await Nova.api('/ai', { method: 'POST', body: {

@@ -345,8 +345,12 @@ function paintIcons(root = document) {
 document.addEventListener('DOMContentLoaded', () => paintIcons());
 paintIcons();
 
-const quizId = qs('id');
-if (!quizId) location.href = 'index.html';
+/* Arriving with no quiz at all is not a mistake: "Write a new quiz", on the
+   teacher's board and anywhere else, links straight here. It used to bounce
+   the teacher back to the quiz list — a flash of "quiz not found" and then the
+   page they came from, which is exactly what was reported. A studio asked to
+   open nothing makes something to open. */
+let quizId = qs('id');
 
 let quiz = null;
 let focused = null;          // question id being edited
@@ -358,6 +362,12 @@ const myColour = ['#7c5cff','#22d3ee','#34e0a1','#ffc857','#ff5d8f'][Math.abs(cl
 
 /* ── loading & saving ─────────────────────────── */
 async function boot() {
+  if (!quizId) {
+    const made = await api('/quizzes', { method: 'POST', body: { title: 'Untitled quiz' } });
+    quizId = made.id;
+    // so a refresh, a bookmark or the back button all land on the real quiz
+    try { history.replaceState(null, '', 'studio.html?id=' + quizId); } catch { /* old browser */ }
+  }
   quiz = await api('/quizzes/' + quizId);
   $('#title').value = quiz.title;
   $('#desc').value = quiz.description || '';
@@ -1138,7 +1148,16 @@ document.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(true); toast('Saved', 'good'); }
 });
 
-boot().catch(err => { document.body.innerHTML = `<div class="empty" style="padding-top:120px"><span class="em">${Sprite.icon('warn', 40)}</span>${esc(err.message)}<br><a class="btn sm" style="margin-top:16px" href="index.html">Back to quizzes</a></div>`; });
+boot().catch(err => {
+  /* A browser with no room left cannot be helped from here — the panel that
+     shows what is using it lives on the quiz list — so say so and send them
+     there, rather than showing the raw failure twice. */
+  const full = err && err.storageFull;
+  document.body.innerHTML = `<div class="empty" style="padding-top:120px">`
+    + `<span class="em">${Sprite.icon('warn', 40)}</span>${esc(err.message)}<br>`
+    + `<a class="btn sm ${full ? 'primary' : ''}" style="margin-top:16px" href="index.html">`
+    + `${full ? 'Free up room' : 'Back to quizzes'}</a></div>`;
+});
 
 /* The homework link.
  *
