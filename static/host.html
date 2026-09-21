@@ -300,7 +300,10 @@
 /* The towers share the screen with the question, so they take what is left
    rather than a fixed slab — a min-height big enough for a tower is a
    min-height that lands on top of the answers. */
-.towerboard{flex:1 1 auto;min-height:min(30vh,240px);max-height:min(48vh,420px)}
+/* The mode is called Tallest Tower and the towers had a quarter of the
+   screen, which made three proud towers look like three piles of bricks.
+   They get the room now; the question and its answers still sit above. */
+.towerboard{flex:1 1 auto;min-height:min(44vh,380px);max-height:min(62vh,620px)}
 .board .rest:has(.towerboard){overflow:hidden}
 
 /* laser arena */
@@ -517,6 +520,15 @@
 @keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
+/* the boss's health, one pip per knife, across the board's panel */
+.bosspips{flex-basis:100%;display:flex;gap:3px;margin-top:10px}
+.bosspips i{flex:1;height:18px;border-radius:5px;
+  background:linear-gradient(180deg,#FF8A5A,#F4364C);
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18);transition:background .18s ease,opacity .18s ease}
+.bosspips i.gone{background:rgba(20,16,40,.18);box-shadow:none}
+.bosspips i.struck{background:#fff;animation:pipout .4s ease both}
+@keyframes pipout{from{transform:scaleY(1.5);background:#fff}to{transform:scaleY(1)}}
+
 @media (max-width:860px){
   .podium{height:min(38vh,290px)}
   .stand.p1{width:156px;margin-left:-78px;--h:136px}
@@ -1142,7 +1154,8 @@ function strikeView() {
   const panel = el('div', { class: 'ask' });
   panel.innerHTML = `<h1>${esc(boss.name)}</h1>
     <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
-    <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>`;
+    <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>
+    <div class="bosspips" id="bosspips"></div>`;
   root.append(panel);
   root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
   const rest = el('div', { class: 'rest' });
@@ -1181,6 +1194,26 @@ function feedStrike() {
     { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
   const hp = $('#bosshp');
   if (hp) hp.textContent = game.boss.hp;
+  /* Thirty knives, thirty pips, across the whole panel. The number alone is a
+     number; a row of lights going out one at a time is the thing a class counts
+     down out loud, and it is the one part of this board readable from the back
+     of the room. */
+  const pips = $('#bosspips');
+  if (pips) {
+    const max = Math.max(1, game.boss.max || 30);
+    if (pips.childElementCount !== max) {
+      pips.innerHTML = '';
+      for (let i = 0; i < max; i++) pips.append(el('i', {}));
+    }
+    const left = Math.max(0, Math.min(max, game.boss.hp));
+    [...pips.children].forEach((pip, i) => {
+      const gone = i >= left;
+      pip.classList.toggle('gone', gone);
+      // the one that went this time gets a moment of white
+      pip.classList.toggle('struck', gone && i === left && game.boss.hp < (boardStrike.wasHp ?? max));
+    });
+    boardStrike.wasHp = game.boss.hp;
+  }
   const clock = $('#bossclock');
   if (clock) {
     const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));

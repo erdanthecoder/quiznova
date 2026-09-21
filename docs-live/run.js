@@ -476,6 +476,56 @@
     /** Parallax: how far a layer has slid, given how fast it is meant to move. */
     const slide = (t, speed, span) => -((t * speed) % span);
 
+    /* Dust, kicked up behind whoever is running. Spawned by the runners and
+       left behind them, because the one thing the chase was missing was any
+       evidence that the floor was going past. */
+    const dust = [];
+    function kickDust(x, y, hard) {
+      if (dust.length > 90) return;
+      dust.push({ x, y, born: now(), r: (hard ? 14 : 9) + Math.random() * 8,
+                  vx: -(90 + Math.random() * 120) * (hard ? 1.6 : 1) });
+    }
+    function drawDust(t) {
+      const h = canvas.height;
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        const age = (now() - d.born) / 700;
+        if (age >= 1) { dust.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = (1 - age) * 0.30;
+        ctx.fillStyle = '#C9D6E4';
+        ctx.beginPath();
+        ctx.arc(d.x + d.vx * age * 0.6, d.y - age * h * 0.02,
+                d.r * (0.6 + age * 1.4), 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    /* Lines tearing past the camera. They are what says "fast" before anything
+       in the scene has had time to move, and they lengthen when the room spends
+       a boost, so a boost is felt and not merely tallied. */
+    function speedLines(t) {
+      const w = canvas.width, h = canvas.height;
+      const hard = rush();
+      const n = 14 + Math.round(hard * 16);
+      ctx.save();
+      for (let i = 0; i < n; i++) {
+        const seed = i * 977;
+        const y = h * (0.24 + ((seed % 100) / 100) * 0.62);
+        const speed = 900 + (seed % 7) * 260 + hard * 1800;
+        const x = w - (((t * speed / 1000) + seed) % (w + 500));
+        const len = w * (0.05 + (seed % 5) * 0.015 + hard * 0.10);
+        ctx.globalAlpha = 0.07 + (i % 4) * 0.035 + hard * 0.16;
+        ctx.strokeStyle = i % 5 ? '#DCEBFF' : world.tint;
+        ctx.lineWidth = Math.max(1.5, h * (0.0035 + hard * 0.004));
+        ctx.beginPath();
+        ctx.moveTo(x, y); ctx.lineTo(x + len, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function drawScene(t) {
       const w = canvas.width, h = canvas.height;
       const gy = h * GROUND;
@@ -585,9 +635,20 @@
       const lead = Math.min(4, p.boosts || 0) * h * 0.030;
       const spread = (i - (n - 1) / 2) * h * 0.085;
       const x = packX() + lead + spread;
-      const cycle = Math.sin(t / (rush() > 0 ? 58 : 92) + i * 1.7);
-      const bob = Math.abs(cycle) * size * 0.08;
-      const y = gy - size * 0.52 - bob;
+      const hard = rush();
+      // legs go over faster in a boost, and the whole body leans into it
+      const cycle = Math.sin(t / (hard > 0 ? 52 : 86) + i * 1.7);
+      const bob = Math.abs(cycle) * size * (0.08 + hard * 0.05);
+      /* The body rides higher than its own feet so the legs are visible under
+         it. It used to sit with its feet on the floor and the legs drawn behind
+         the sprite, which is why a pack at full sprint looked like a row of
+         blooks standing still. */
+      const y = gy - size * 0.82 - bob;
+      const lean = 0.12 + hard * 0.16;
+      // a foot coming down throws dust; the top of the stride is the moment
+      if (Math.abs(cycle) > 0.92 && Math.random() < 0.4) {
+        kickDust(x - size * 0.2, gy + h * 0.004, hard > 0);
+      }
 
       ctx.save();
       // shadow
@@ -596,14 +657,27 @@
       ctx.ellipse(x, gy + h * 0.012, size * 0.4, size * 0.1, 0, 0, TAU);
       ctx.fill();
 
-      // legs, scissoring under them
+      // legs, scissoring under them — a longer stride the harder they are going
       ctx.strokeStyle = '#1C1530';
-      ctx.lineWidth = Math.max(2.5, size * 0.13);
+      ctx.lineWidth = Math.max(2.5, size * 0.14);
       ctx.lineCap = 'round';
+      const reach = size * (0.42 + hard * 0.22);
+      const hip = y + size * 0.34;
+      [-1, 1].forEach(s => {
+        const foot = x + cycle * s * reach;
+        ctx.beginPath();
+        ctx.moveTo(x, hip);
+        // a knee, so the leg bends rather than hinging like a pair of scissors
+        ctx.quadraticCurveTo(x + cycle * s * reach * 0.55, hip + (gy - hip) * 0.6,
+                             foot, gy - h * 0.004);
+        ctx.stroke();
+      });
+      // arms, pumping against the legs
+      ctx.lineWidth = Math.max(2, size * 0.10);
       [-1, 1].forEach(s => {
         ctx.beginPath();
-        ctx.moveTo(x, y + size * 0.3);
-        ctx.lineTo(x + cycle * s * size * 0.42, gy - h * 0.004);
+        ctx.moveTo(x, y + size * 0.14);
+        ctx.lineTo(x - cycle * s * size * 0.38, y + size * 0.40);
         ctx.stroke();
       });
 
@@ -611,7 +685,14 @@
       if (face && face.ready) {
         ctx.save();
         ctx.translate(x, y);
-        ctx.rotate(0.12);                       // leaning into the run
+        ctx.rotate(lean);                       // leaning harder the faster they go
+        // an afterimage while a boost is going off, so speed is felt
+        if (hard > 0.15) {
+          ctx.save();
+          ctx.globalAlpha = hard * 0.35;
+          ctx.drawImage(face.canvas, -size / 2 - size * 0.45 * hard, -size / 2, size, size);
+          ctx.restore();
+        }
         ctx.drawImage(face.canvas, -size / 2, -size / 2, size, size);
         ctx.restore();
       } else {
@@ -667,7 +748,10 @@
       const close = clamp(1 - (packX() - x) / (w * 0.6), 0, 1);   // how near it is
 
       ctx.save();
-      ctx.translate(x, gy);
+      /* It bobs as it runs. A thing this heavy moving at a constant height
+         reads as a cardboard cut-out being slid across the screen, which is
+         what it looked like. */
+      ctx.translate(x, gy - Math.abs(stride) * h * 0.012);
       ctx.scale(S, S);
 
       const box = (px, py, pw, ph, fillStyle, r) => {
@@ -684,18 +768,26 @@
       ctx.fill();
 
       // the far leg, then the near one, so it strides
+      /* A wider stance and a longer stride: the two legs used to sit fourteen
+         pixels apart on a board and merged into one dark column, so the thing
+         appeared to glide rather than run. */
       [[-1, 0.5], [1, 1]].forEach(([dir, shade]) => {
         ctx.save();
         ctx.globalAlpha = shade;
-        ctx.translate(dir * 26, -180);
-        ctx.rotate(stride * dir * 0.34);
+        ctx.translate(dir * 48, -180);
+        ctx.rotate(stride * dir * 0.62);
         box(-26, 0, 52, 95, '#2E3644', 12);            // thigh, hip to knee
         ctx.translate(0, 95);
-        ctx.rotate(-stride * dir * 0.46 - 0.1);
+        ctx.rotate(-stride * dir * 0.72 - 0.1);
         box(-20, 0, 40, 60, '#3A4454', 10);            // shin, knee to ankle
         box(-32, 56, 72, 24, '#20262F', 8);            // foot, landing on zero
         ctx.restore();
       });
+
+      // a foot coming down shakes dust off the deck
+      if (Math.abs(stride) > 0.94 && Math.random() < 0.5) {
+        kickDust(x + (Math.random() - 0.5) * h * 0.06, gy + h * 0.004, true);
+      }
 
       // the chest: a slab with a lit core and vents
       box(-78, -350, 156, 176, '#39424F', 20);
@@ -1205,9 +1297,13 @@
       }
       drawScene(t);
       drawRobot(t);
+      // dust sits on the floor behind the pack, under everybody's feet
+      drawDust(t);
       // the pack, furthest back first so a runner in front paints over one behind
       [...players].sort((a, b) => (a.boosts || 0) - (b.boosts || 0))
         .forEach((p, i, all) => drawRunner(p, i, all.length, t));
+      // and the speed itself, over the lot of it
+      speedLines(t);
       ctx.restore();
       drawHud(t);
       raf = requestAnimationFrame(frame);

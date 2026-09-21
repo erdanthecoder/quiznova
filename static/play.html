@@ -1495,12 +1495,11 @@ function noteLink(sent) {
     chip.dataset.bad = String(bad);
     chip.hidden = !bad;
     if (bad) {
-      chip.textContent = 'Not connected to the others';
+      chip.textContent = 'offline';
       chip.classList.add('bad');
       if (Date.now() - linkSaidAt > 20000) {
         linkSaidAt = Date.now();
-        toast('This device cannot reach the other players, so your shots will not '
-              + 'land. The school network may be blocking it.', 'bad');
+        toast('Cannot reach the other players — shots will not land', 'bad');
       }
     }
   }

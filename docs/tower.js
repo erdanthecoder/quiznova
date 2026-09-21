@@ -331,7 +331,9 @@
     function drawGorilla(t, ground, floorH, team) {
       const i = Math.max(0, TEAMS.indexOf(team));
       const cx = (canvas.width / 3) * (i + 0.5);
-      const size = Math.max(46, floorH * 4.6);
+      // big enough to be a threat, capped so he does not eat the whole board
+      // now that the towers have been given the room they deserve
+      const size = Math.max(46, Math.min(floorH * 4.6, canvas.height * 0.34));
       const climbing = Math.max(0, 1 - (t - (monster - 1800)) / 1400);
       const y = ground - floorsOf(team) * floorH - size * 0.12
               - climbing * canvas.height * 0.45;

@@ -735,6 +735,8 @@
     // ── a little life on the screen ──
     const sparks = [];
     let shakeUntil = 0, shakeAmt = 0, flashText = '', flashUntil = 0;
+    const HIT_MS = 220;          // how long the boss wears a knife on its face
+    let hitUntil = 0;
     function spark(amount, critical) {
       const v = view(self);
       sparks.push({ x: v.x * 0.5, y: v.y * 0.5, z: BOSS_H * 0.55, born: now(),
@@ -785,6 +787,7 @@
       sky.addColorStop(0.56, '#0C0820'); sky.addColorStop(1, '#06030D');
       ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
 
+      hall(t);
       // the floor: a disc with rings on it, so distance is readable
       floorDisc();
       const s = winding(t);
@@ -802,6 +805,70 @@
       sparkles();
       ctx.restore();
       hud(t);
+    }
+
+    /* The room the fight happens in.
+     *
+     * It used to be a gradient: the boss floated in a dark rectangle with a
+     * purple puddle under it, and a class looking up at the board saw a shape
+     * in a void. Now there are pillars down both walls, braziers burning
+     * between them and a lit archway behind the boss, so the thing is standing
+     * in its own hall and reads as big. Drawn once a frame, all of it flat and
+     * cheap — nothing here is projected, because it is scenery and never moves.
+     */
+    function hall(t) {
+      const w = canvas.width, h = canvas.height;
+      const line = h * 0.52;                  // where the back wall meets the floor
+
+      // the far wall, and the light on it behind the boss
+      const wall = ctx.createLinearGradient(0, 0, 0, line);
+      wall.addColorStop(0, '#120C2C');
+      wall.addColorStop(1, '#1B1240');
+      ctx.fillStyle = wall;
+      ctx.fillRect(0, 0, w, line);
+
+      const glow = ctx.createRadialGradient(w / 2, line, 10, w / 2, line, w * 0.42);
+      glow.addColorStop(0, 'rgba(255,90,40,.26)');
+      glow.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, line);
+
+      // the arch the boss came through
+      ctx.fillStyle = '#0A0620';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.36, line);
+      ctx.lineTo(w * 0.36, h * 0.20);
+      ctx.quadraticCurveTo(w / 2, h * 0.04, w * 0.64, h * 0.20);
+      ctx.lineTo(w * 0.64, line);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(180,160,255,.18)';
+      ctx.lineWidth = Math.max(2, h * 0.006);
+      ctx.stroke();
+
+      // pillars down both sides, and a brazier at the foot of each
+      for (let i = 0; i < 4; i++) {
+        const inset = 0.035 + i * 0.075;
+        [inset, 1 - inset].forEach((fx, side) => {
+          const px = w * fx, pw = w * (0.034 - i * 0.005);
+          const top = h * (0.06 + i * 0.03);
+          ctx.fillStyle = side ? '#1A1238' : '#160F30';
+          ctx.fillRect(px - pw / 2, top, pw, line - top);
+          ctx.fillStyle = 'rgba(255,255,255,.05)';
+          ctx.fillRect(px - pw / 2, top, pw * 0.26, line - top);
+          // the fire on it, breathing
+          const fire = 0.7 + Math.sin(t / 240 + i * 2 + side) * 0.3;
+          const fy = line - h * (0.03 + i * 0.012);
+          const f = ctx.createRadialGradient(px, fy, 1, px, fy, h * 0.055 * fire);
+          f.addColorStop(0, 'rgba(255,220,140,.95)');
+          f.addColorStop(0.45, 'rgba(255,120,40,.55)');
+          f.addColorStop(1, 'rgba(255,60,0,0)');
+          ctx.fillStyle = f;
+          ctx.beginPath();
+          ctx.arc(px, fy, h * 0.055 * fire, 0, TAU);
+          ctx.fill();
+        });
+      }
     }
 
     function floorDisc() {
@@ -914,32 +981,31 @@
       ctx.fill();
 
       ctx.translate(foot.x, foot.y);
+      /* A knife landing has to be visible from the back of a classroom. The
+         boss jerks back, and for a tenth of a second the whole figure is drawn
+         white — the flash is what the eye catches; the number is for afterwards. */
+      const hit = clamp((hitUntil - now()) / HIT_MS, 0, 1);
+      if (hit) ctx.translate(0, -tall * 0.05 * hit);
       bossArt(ctx, u, now(), {
         raise: wind,
         jaw: staggered ? 0.15 : wind * 0.9,
         sag: staggered ? 1 : 0,
         eye: staggered ? '#FFD23F' : '#FF3B2F'
       });
+      if (hit) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = hit * 0.85;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(-tall, -tall * 1.2, tall * 2, tall * 1.4);
+        ctx.restore();
+      }
       ctx.restore();
 
-      // its health, painted on the floor in front of it
-      const bar = project(0, R_RING * 0.42, 6);
-      if (bar) {
-        const width = BOSS_R * foot.k * 2.6, left = bar.x - width / 2, top = bar.y;
-        const tallBar = Math.max(7, 18 * foot.k);
-        ctx.fillStyle = 'rgba(0,0,0,.6)';
-        ctx.beginPath();
-        ctx.roundRect(left - 3, top - 3, width + 6, tallBar + 6, tallBar);
-        ctx.fill();
-        const left2 = width * clamp(boss.hp / Math.max(1, boss.max), 0, 1);
-        const g = ctx.createLinearGradient(left, 0, left + width, 0);
-        g.addColorStop(0, staggered ? '#FFE08A' : '#FF8A5A');
-        g.addColorStop(1, staggered ? '#FFC53D' : '#F4364C');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.roundRect(left, top, Math.max(2, left2), tallBar, tallBar / 2);
-        ctx.fill();
-      }
+      /* Its health used to be painted on the floor here, a bar the width of
+         the boss's feet with children standing in front of it. The board's
+         own panel now carries thirty pips across its whole width, which is
+         readable from the back of a hall; two of them was one too many. */
     }
 
     /* One child in the ring: their own blook, stood on a coloured disc, holding
@@ -1122,7 +1188,11 @@
       setBoss(next) { if (next) { boss.hp = next.hp; boss.max = next.max || boss.max;
                                   boss.name = next.name || boss.name; } },
       /** Somebody put a knife in: flash the boss and shake the room. */
-      struck() { staggerUntil = now() + 260; shakeUntil = now() + 220; shakeAmt = 10; },
+      struck() {
+        staggerUntil = now() + 260;
+        shakeUntil = now() + 220; shakeAmt = 10;
+        hitUntil = now() + HIT_MS;
+      },
       stop() { finished = true; if (raf) cancelAnimationFrame(raf); }
     };
   }
