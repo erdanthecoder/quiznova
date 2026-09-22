@@ -187,6 +187,7 @@
       quiz: (game.state === 'arena' || game.state === 'running' || game.state === 'safe'
              || game.state === 'strike' || game.state === 'building') ? questions : null,
       setup: game.setup || null, rope: game.rope || 0, lava: game.lava || 0,
+      doubleAt: game.doubleAt === undefined ? -1 : game.doubleAt,
       // the world's own state: without these the wind and the shoal are things
       // that happen to the scores with nothing on screen to explain them
       shoal: game.shoal || '', wind: !!game.wind,
@@ -712,6 +713,7 @@
     if (tail === '/start') {
       await reconcile(pin, game);
       game.startedAt = now();
+      game.doubleAt = R.pickDouble((game.questions || []).length);
       /* Monster Run never gathers the class on one question. It starts and then
        * everybody is simply running, answering at their own speed, until the
        * teacher stops it or they get out. */

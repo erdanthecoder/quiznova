@@ -338,5 +338,29 @@ console.log('\n— the modes are not each other —');
      Object.values(g.players).every(p => !p.zone));
 }
 
+/* The double-points question: one swing, somewhere in the middle, that nobody
+   can see coming. A lead that is safe from question three is a game that ended
+   at question three. */
+{
+  const spread = new Set();
+  for (let i = 0; i < 200; i++) spread.add(R.pickDouble(10));
+  ok('some question in the middle is worth double, and never the first',
+     !spread.has(0) && !spread.has(-1) && spread.size > 3,
+     `picked ${[...spread].sort((a, b) => a - b).join(', ')} across 200 games`);
+  ok('a quiz too short for a surprise does not get one',
+     R.pickDouble(3) === -1 && R.pickDouble(0) === -1, 'three questions or fewer: no double');
+
+  const g = newGame('normal', ['Ana']);
+  g.questions = [QUESTION, QUESTION, QUESTION, QUESTION, QUESTION];
+  g.index = 2;
+  const plain = R.pointsFor(g, QUESTION);
+  g.doubleAt = 2;
+  const doubled = R.pointsFor(g, QUESTION);
+  ok('and on that question everything is worth twice as much',
+     doubled === plain * 2, `${plain} → ${doubled}`);
+  g.index = 3;
+  ok('but only on that one', R.pointsFor(g, QUESTION) === plain, 'the next question is normal again');
+}
+
 console.log(`\n${checks - fails}/${checks} passed`);
 process.exit(fails ? 1 : 0);

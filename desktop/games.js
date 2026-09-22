@@ -113,6 +113,8 @@ class Games {
       boss: game.boss || null,
       modeInfo: R.MODES[game.mode] || R.MODES[R.DEFAULT_MODE],
       goal: game.goal, setup: game.setup || null, rope: game.rope || 0,
+      // which question is worth double, so both screens can say so
+      doubleAt: game.doubleAt === undefined ? -1 : game.doubleAt,
       // the world's own state, and the moves this mode offers. Without these the
       // app is playing a different game from the website off the same rules.
       lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
@@ -174,6 +176,7 @@ class Games {
 
   start(game) {
     game.startedAt = now();
+    game.doubleAt = R.pickDouble(game.questions.length);
     if (game.mode === 'laser') {
       game.state = 'arena'; game.index = 0; game.endsAt = null;
       return this.changed(game);

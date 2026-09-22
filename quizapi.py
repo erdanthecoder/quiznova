@@ -990,6 +990,9 @@ def points_for(game, question):
     base = setup.get("points") or (question or {}).get("points") or 100
     if setup.get("doubleLast") and game.get("index") == len(game.get("questions") or []) - 1:
         base *= 2
+    # one question, somewhere in the middle, worth double — mirrors pointsFor
+    if game.get("doubleAt", -1) == game.get("index"):
+        base *= 2
     return base
 
 

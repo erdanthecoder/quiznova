@@ -125,7 +125,21 @@
     let base = chosen || (question && question.points) || 100;
     if (game.setup && game.setup.doubleLast && game.questions
         && game.index === game.questions.length - 1) base *= 2;
+    /* One question, somewhere in the middle, worth double — and nobody knows
+       which until it is on the screen. It is the thing Blooket's best modes all
+       have and this did not: a game where the lead is safe from question three
+       onwards is over at question three, whatever the board says. */
+    if (game.doubleAt !== undefined && game.doubleAt === game.index) base *= 2;
     return base;
+  }
+
+  /** Which question is worth double, decided when the game starts. Never the
+      first — a swing has to be something you can see coming for — and never at
+      all in a quiz too short for it to be a surprise. */
+  function pickDouble(count) {
+    const n = Number(count) || 0;
+    if (n < 4) return -1;
+    return 1 + Math.floor(Math.random() * (n - 1));
   }
 
   /** The multiplier for answering several right in a row, unless it is switched off. */
@@ -769,7 +783,7 @@
     GORILLA_MS, MARK_AHEAD,
     blankTower, floorsOf, towersOf, placeBlock, towerMonster, towerSettle,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
-    readSetup, secondsFor, pointsFor, streakBonus, arrange, modeFinished,
+    readSetup, secondsFor, pointsFor, pickDouble, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
     BOSS_HP_PER_QUESTION, BOSS_HP, BOSS_MS, KNIFE_RELOAD_MS, KNIFE_DAMAGE,
     MAX_PLAYER_HIT, SWAY_LIMIT

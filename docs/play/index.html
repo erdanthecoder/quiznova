@@ -284,6 +284,27 @@
 .chip.warn{border-color:var(--amber);color:var(--amber)}
 /* the arena's link chip: only ever shown when it is bad news */
 .chip.bad{border-color:#F4364C;color:#FFB3BC;font-weight:900}
+/* where you stand, between questions */
+/* the streak badge: the number is the thing children chase */
+.streak{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:8px 16px;
+  border-radius:999px;background:linear-gradient(90deg,#FF9A3D,#FFC53D);color:#2A1B00;
+  animation:streakpop .45s cubic-bezier(.2,1.4,.4,1) both}
+.streak i{display:flex}
+.streak i svg{width:22px;height:22px;fill:#2A1B00}
+.streak b{font-size:1.5rem;font-weight:900;line-height:1}
+.streak span{font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;opacity:.75}
+@keyframes streakpop{from{transform:scale(.4) rotate(-8deg);opacity:0}}
+
+/* the double-points question, said on the phone too */
+.doubler{flex:none;text-align:center;padding:10px;border-radius:14px;margin-bottom:8px;
+  background:linear-gradient(90deg,#FFC53D,#FF8A3D);color:#2A1B00;font-weight:900;
+  letter-spacing:.12em;font-size:.82rem;animation:doublepop .5s ease both}
+@keyframes doublepop{from{transform:scale(.7);opacity:0}}
+.standing{margin-top:12px;flex:none;display:flex;align-items:baseline;justify-content:center;gap:10px;
+  padding:12px 16px;border-radius:18px;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.12)}
+.standing b{font-size:1.7rem;font-weight:900;letter-spacing:-.02em}
+.standing span{font-size:.86rem;font-weight:800;opacity:.8}
 /* the boss, on the phone: a card you can swipe across */
 .duel{position:relative;flex:0 1 auto;aspect-ratio:5/4;min-height:210px;
   border-radius:20px;overflow:hidden;border:2px solid rgba(255,255,255,.10);
@@ -472,8 +493,8 @@
 <script src="/run.js?v=e5461e92"></script>
 <script src="/tower.js?v=a34968e3"></script>
 <script src="/paste.js?v=3032c005"></script>
-<script src="/rules.js?v=b6467175"></script>
-<script src="/live.js?v=0bafc956"></script>
+<script src="/rules.js?v=dad475a9"></script>
+<script src="/live.js?v=360f1f97"></script>
 <script src="/nova-local.js?v=44c67ff9"></script>
 <script src="/account.js?v=1f2bba77"></script>
 <script>
@@ -2075,6 +2096,13 @@ function questionCard(fresh) {
   const q = game.question;
   const card = el('div', { class: 'play' });
 
+  /* The double-points question. A swing nobody can see coming is the thing
+     Blooket's best modes have and a straight quiz does not: a lead that is safe
+     from question three is a game that ended at question three. */
+  if (game.doubleAt === game.index && game.state === 'question') {
+    card.append(el('div', { class: 'doubler' }, 'DOUBLE POINTS'));
+  }
+
   if (me.answered) {
     const shape = SHAPES[(picked && (q.choices || []).findIndex(c => c.id === picked)) % 6] || '';
     card.append(el('div', { class: 'big wait' },
@@ -2160,7 +2188,33 @@ function revealCard() {
       el('h2', {}, ok ? (me.streak >= 3 ? 'On fire' : 'Correct') : 'Not this time'),
       el('p', { class: 'gain' }, line),
       me.chest ? el('p', { class: 'sub' }, me.chest) : '',
-      me.streak >= 2 ? el('p', { class: 'sub' }, `${me.streak} in a row`) : ''));
+      /* The streak, as a badge rather than a sentence. Kahoot's own people
+         found the number itself is the pull — children chase the badge, not the
+         bonus points — and a line of small grey text is not a badge. */
+      me.streak >= 2 ? el('div', { class: 'streak' },
+                          el('i', { html: Sprite.icon('flame', 22) }),
+                          el('b', {}, me.streak),
+                          el('span', {}, 'in a row')) : ''));
+  }
+
+  /* Where you are, and how far off the one in front.
+   *
+   * Kahoot puts this on every player's own screen between questions and it is
+   * most of why a room leans in: "second, two hundred behind" is a reason to
+   * try on the next question, and a score on its own is not. Only for the
+   * modes where a personal score is the game — the team and class modes have
+   * their own board. */
+  const ranked = (game.players || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+  const place = ranked.findIndex(p => p.id === me.id) + 1;
+  if (place && ranked.length > 1 && !['tower', 'robot'].includes(game.mode)) {
+    const above = place > 1 ? ranked[place - 2] : null;
+    const gap = above ? (above.score || 0) - (me.score || 0) : 0;
+    const ordinal = ['', '1st', '2nd', '3rd'][place] || place + 'th';
+    card.append(el('div', { class: 'standing' },
+      el('b', {}, ordinal),
+      el('span', {}, place === 1
+        ? (ranked[1] ? `${(me.score || 0) - (ranked[1].score || 0)} ahead` : 'out in front')
+        : `${gap} behind ${String(above.name || '').slice(0, 12)}`)));
   }
 
   const right = q.type === 'short' ? q.answer : (q.choices || []).filter(c => c.correct).map(c => c.text).join(', ');

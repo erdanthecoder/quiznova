@@ -520,6 +520,14 @@
 @keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
+/* The one question worth double, announced where nobody can miss it */
+.doubler{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-2deg);
+  padding:8px 22px;border-radius:999px;background:linear-gradient(90deg,#FFC53D,#FF8A3D);
+  color:#2A1B00;font-weight:900;letter-spacing:.14em;font-size:.86rem;
+  box-shadow:0 6px 0 rgba(0,0,0,.18);animation:doublepop .5s var(--ease) both}
+@keyframes doublepop{from{transform:translateX(-50%) rotate(-2deg) scale(.6);opacity:0}}
+.ask{position:relative}
+
 /* Laser Tag's scoreboard: two totals and the ground between them */
 .arena-panel{padding:14px 22px}
 .teamscore{display:flex;align-items:center;gap:22px;width:100%}
@@ -1337,7 +1345,8 @@ function questionView(fresh) {
       <div class="num" id="tnum">&ndash;</div>
     </div>
     <h1>${esc(q.text || 'Question')}</h1>
-    <div class="tally"><b>${answered}/${game.players.length}</b><span>answered</span></div>`;
+    <div class="tally"><b>${answered}/${game.players.length}</b><span>answered</span></div>
+    ${game.doubleAt === game.index ? '<div class="doubler">DOUBLE POINTS</div>' : ''}`;
   root.append(ask);
 
   const grid = el('div', { class: 'grid4' });
