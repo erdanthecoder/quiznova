@@ -603,6 +603,28 @@
       ctx.fillRect(0, 0, w, h);
     }
 
+    /* The near edge of the world, going past faster than anything else. Every
+       layer behind this one is far enough away to drift; a girder crossing the
+       whole screen in half a second is what the eye reads as speed, and it was
+       the one thing the chase had nothing of. */
+    function foreground(t) {
+      const w = canvas.width, h = canvas.height;
+      const run = t * (0.35 + rush() * 0.5);
+      const span = h * 1.35;
+      ctx.save();
+      ctx.fillStyle = 'rgba(6,4,16,.82)';
+      for (let x = slide(run, 1.15, span); x < w + span; x += span) {
+        ctx.beginPath();                    // a girder, leaning with the corridor
+        ctx.moveTo(x, h);
+        ctx.lineTo(x + h * 0.05, h * 0.60);
+        ctx.lineTo(x + h * 0.13, h * 0.60);
+        ctx.lineTo(x + h * 0.09, h);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     /* Where the pack runs, and where the robot is behind it. The gap is the
        room's escape bar: an empty bar and the thing is on top of them. */
     const packX = () => canvas.width * 0.72;
@@ -620,6 +642,14 @@
       if (!room.endsAt) return 1;
       return clamp((room.endsAt - Date.now()) / Math.max(1, room.roundMs || 75000), 0, 1);
     }
+    /* How much trouble the room is in, 0 to 1. The chase had the robot moving
+       and nothing else: no matter how close it got, the board looked the same,
+       so a class three seconds from losing a life had no idea. */
+    function danger() {
+      const gap = (packX() - robotX()) / Math.max(1, canvas.width);
+      return clamp(1 - gap / 0.30, 0, 1);
+    }
+    let lastFoot = 0, stompUntil = 0, stompAmt = 0;
     function robotX() {
       const frac = clamp((room.escape || 0) / Math.max(1, room.target || 100), 0, 1);
       const clock = timeLeft();
@@ -660,7 +690,7 @@
          it. It used to sit with its feet on the floor and the legs drawn behind
          the sprite, which is why a pack at full sprint looked like a row of
          blooks standing still. */
-      const y = gy - size * 0.82 - bob;
+      const y = gy - size * 0.96 - bob;
       const lean = 0.12 + hard * 0.16;
       // a foot coming down throws dust; the top of the stride is the moment
       if (Math.abs(cycle) > 0.92 && Math.random() < 0.4) {
@@ -674,12 +704,28 @@
       ctx.ellipse(x, gy + h * 0.012, size * 0.4, size * 0.1, 0, 0, TAU);
       ctx.fill();
 
-      // legs, scissoring under them — a longer stride the harder they are going
+      /* A body between the head and the legs. Without one the blook was a head
+         balanced on a pair of scissors: nothing connected the face to the
+         stride, so a pack at full sprint read as faces hovering over twitching
+         sticks. The torso leans with them and carries their own colour. */
       ctx.strokeStyle = '#1C1530';
       ctx.lineWidth = Math.max(2.5, size * 0.14);
       ctx.lineCap = 'round';
-      const reach = size * (0.42 + hard * 0.22);
-      const hip = y + size * 0.34;
+      const reach = size * (0.34 + hard * 0.20);
+      const hip = y + size * 0.58;
+      ctx.save();
+      ctx.translate(x, y + size * 0.46);
+      ctx.rotate(lean * 0.7);
+      ctx.fillStyle = p.colour || world.tint;
+      ctx.beginPath();
+      ctx.roundRect(-size * 0.20, -size * 0.12, size * 0.40, size * 0.32, size * 0.15);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(12,8,28,.65)';
+      ctx.lineWidth = Math.max(1.5, size * 0.045);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = '#1C1530';
+      ctx.lineWidth = Math.max(2.5, size * 0.14);
       [-1, 1].forEach(s => {
         const foot = x + cycle * s * reach;
         ctx.beginPath();
@@ -693,8 +739,8 @@
       ctx.lineWidth = Math.max(2, size * 0.10);
       [-1, 1].forEach(s => {
         ctx.beginPath();
-        ctx.moveTo(x, y + size * 0.14);
-        ctx.lineTo(x - cycle * s * size * 0.38, y + size * 0.40);
+        ctx.moveTo(x, y + size * 0.40);
+        ctx.lineTo(x - cycle * s * size * 0.36, y + size * 0.66);
         ctx.stroke();
       });
 
@@ -763,6 +809,21 @@
       const x = robotX();
       const stride = Math.sin(t / (rush() > 0 ? 130 : 180));
       const close = clamp(1 - (packX() - x) / (w * 0.6), 0, 1);   // how near it is
+
+      /* Every footfall. A thing this size putting a foot down and the room not
+         feeling it was the whole reason it read as scenery: now the board
+         jolts, harder the nearer it is, and the floor throws grit where the
+         foot landed. */
+      const foot = Math.sign(stride) || 1;
+      if (foot !== lastFoot) {
+        lastFoot = foot;
+        stompUntil = t + 260;
+        stompAmt = h * (0.004 + danger() * 0.016);
+        for (let k = 0; k < 4; k++) {
+          kickDust(x + foot * h * 0.05 + (Math.random() - 0.5) * h * 0.04,
+                   gy + h * 0.004, danger() > 0.4);
+        }
+      }
 
       ctx.save();
       /* It bobs as it runs. A thing this heavy moving at a constant height
@@ -1285,6 +1346,32 @@
       ctx.restore();
     }
 
+    /* What it feels like when it is nearly on you. Drawn outside the shake so
+       the red edge stays put while the room rattles — a vignette that jitters
+       reads as a broken screen rather than as fear. */
+    function dread(t) {
+      const d = danger();
+      if (d < 0.12) return;
+      const w = canvas.width, h = canvas.height;
+      const pulse = 0.55 + Math.sin(t / (260 - d * 120)) * 0.45;
+      const edge = ctx.createRadialGradient(w * 0.5, h * 0.5, h * 0.25,
+                                            w * 0.5, h * 0.5, h * 0.95);
+      edge.addColorStop(0, 'rgba(0,0,0,0)');
+      edge.addColorStop(1, `rgba(158,8,26,${(d * 0.55) * (0.6 + pulse * 0.4)})`);
+      ctx.save();
+      ctx.fillStyle = edge;
+      ctx.fillRect(0, 0, w, h);
+      if (d > 0.75) {                       // and the one word that matters
+        const fs = Math.max(14, h * 0.055);
+        ctx.globalAlpha = 0.35 + pulse * 0.55;
+        ctx.font = `900 ${fs}px ui-sans-serif,system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FF6A78';
+        ctx.fillText('RUN', w * 0.5, h * 0.20);
+      }
+      ctx.restore();
+    }
+
     function frame() {
       if (stopped) return;
       const t = now();
@@ -1296,6 +1383,10 @@
       if (t < shakeUntil) {
         const n = 12 * ((shakeUntil - t) / 600);
         ctx.translate((Math.random() - 0.5) * n, (Math.random() - 0.5) * n);
+      }
+      if (t < stompUntil) {                 // the floor, under something heavy
+        const n = stompAmt * ((stompUntil - t) / 260);
+        ctx.translate((Math.random() - 0.5) * n * 0.5, (Math.random() - 0.5) * n);
       }
       /* Three things the board can be showing: the lift between decks, which
          wins because it is the reward and it is over in two seconds; the
@@ -1321,7 +1412,9 @@
         .forEach((p, i, all) => drawRunner(p, i, all.length, t));
       // and the speed itself, over the lot of it
       speedLines(t);
+      foreground(t);
       ctx.restore();
+      dread(t);
       drawHud(t);
       raf = requestAnimationFrame(frame);
     }
