@@ -1509,6 +1509,12 @@ function paintStrikeHud() {
     duel.setBoss({ hp: boss.hp, max: boss.max || 30,
                    name: boss.name || 'The boss' });
     duel.setKnife(me.loaded || 0, Math.max(0, strikeReload - Date.now()));
+    /* Two things the fight now does to you rather than the other way round: it
+       winds up where you can see it, and it puts you on the floor if it catches
+       you without a knife. */
+    const swingIn = (game.bossSwingAt || 0) - (Date.now() + drift);
+    duel.setSwing(game.bossSwingAt ? swingIn : null, game.bossTell || 2200);
+    duel.setDown(Math.max(0, (me.downUntil || 0) - (Date.now() + drift)));
     // somebody else's knife landing shakes this screen too, so the fight feels
     // like thirty children hitting the same thing rather than thirty solitaires
     if (duelHp === null) duelHp = boss.hp;

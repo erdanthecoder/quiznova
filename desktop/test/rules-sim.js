@@ -362,5 +362,50 @@ console.log('\n— the modes are not each other —');
   ok('but only on that one', R.pointsFor(g, QUESTION) === plain, 'the next question is normal again');
 }
 
+/* The boss hits back. Before this it was a sandbag: thirty children tapping a
+   thing that could not touch them. Now it winds up on a clock, a held knife
+   turns it aside, and an empty hand ends up on the floor. */
+{
+  const g = newGame('boss', ['Ana', 'Ben', 'Cal']);
+  g.state = 'strike';
+  g.boss = { name: 'Sir Slipsalot', hp: 30, max: 30 };
+  g.players.Ana.loaded = 1;          // ready, and keeping it that way
+  g.players.Ben.loaded = 0;          // spent it on the boss a moment ago
+  g.players.Cal.loaded = 2;
+  g.players.Ben.streak = 4;
+
+  const out = R.bossSwing(g);
+  ok('a knife held ready turns the swing aside',
+     out.blocked === 2 && g.players.Ana.loaded === 0 && g.players.Ana.blocks === 1,
+     `${out.blocked} blocked, Ana has ${g.players.Ana.loaded} left`);
+  ok('and an empty hand ends up on the floor',
+     out.caught === 1 && R.bossDown(g.players.Ben) && !R.bossDown(g.players.Ana),
+     `${out.caught} caught: ${g.lastEvents.slice(-1)[0]}`);
+  ok('being caught costs the run you were on',
+     g.players.Ben.streak === 0, 'the streak is gone');
+  ok('the room is told who it got',
+     /Sir Slipsalot caught Ben/.test(g.lastEvents.join(' ')), g.lastEvents.slice(-1)[0]);
+  ok('and the next one is already on the clock',
+     g.boss.nextSwing > Date.now(), `${Math.round((g.boss.nextSwing - Date.now()) / 1000)}s away`);
+
+  ok('it comes half again as often once it is hurt',
+     R.bossPace({ hp: 30 }) === R.BOSS_SWING_MS
+     && R.bossPace({ hp: 18 }) < R.BOSS_SWING_MS
+     && R.bossPace({ hp: 6 }) === Math.round(R.BOSS_SWING_MS / 2),
+     `${R.bossPace({ hp: 30 })} / ${R.bossPace({ hp: 18 })} / ${R.bossPace({ hp: 6 })}`);
+  ok('and the room can see what it has become',
+     R.bossMood({ hp: 30 }) === 'calm' && R.bossMood({ hp: 15 }) === 'angry'
+     && R.bossMood({ hp: 4 }) === 'furious',
+     'calm / angry / furious');
+
+  g.players.Ben.downUntil = Date.now() - 1;
+  ok('four seconds later you are back up',
+     !R.bossDown(g.players.Ben), 'up again');
+
+  /* And it only swings at a boss fight — no gorilla was ever knocked over. */
+  const other = newGame('tower', ['Ana']);
+  ok('nothing swings in the other modes', R.bossSwing(other) === null);
+}
+
 console.log(`\n${checks - fails}/${checks} passed`);
 process.exit(fails ? 1 : 0);

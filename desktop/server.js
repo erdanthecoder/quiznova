@@ -324,6 +324,12 @@ class Server {
         const hit = this.games.forceMonster(game);
         return this.send(res, 200, { ok: true, hit, view: this.games.publicView(game) });
       }
+      if (tail === 'swing' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        const out = R.bossSwing(game);
+        this.games.changed(game);
+        return this.send(res, 200, { ok: true, swing: out, view: this.games.publicView(game) });
+      }
       if (tail === 'settle' && method === 'POST') {
         if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
         // whatever clock has run out: the gorilla climbing down, or the hatch shutting

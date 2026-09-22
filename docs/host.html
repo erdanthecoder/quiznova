@@ -520,6 +520,15 @@
 @keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
+/* The boss winding up to swing: the bar fills, and when it is full it lands */
+.bosswarn{flex-basis:100%;margin-top:8px;position:relative;height:0;overflow:hidden;
+  border-radius:12px;background:rgba(244,54,76,.14);transition:height .18s ease}
+.bosswarn.on{height:34px}
+.bosswarn i{position:absolute;inset:0;width:calc(var(--wind,0) * 100%);
+  background:linear-gradient(90deg,#FF8A5A,#F4364C)}
+.bosswarn b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;letter-spacing:.1em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+
 /* The one question worth double, announced where nobody can miss it */
 .doubler{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-2deg);
   padding:8px 22px;border-radius:999px;background:linear-gradient(90deg,#FFC53D,#FF8A3D);
@@ -607,12 +616,12 @@
 <script src="quizbank.js?v=f18e8cbc"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=411430fc"></script>
-<script src="strike.js?v=929760cb"></script>
+<script src="strike.js?v=8caabc4c"></script>
 <script src="run.js?v=e5461e92"></script>
 <script src="tower.js?v=a34968e3"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=dad475a9"></script>
-<script src="live.js?v=360f1f97"></script>
+<script src="rules.js?v=c9cda209"></script>
+<script src="live.js?v=c4be3dd3"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -1201,6 +1210,7 @@ function watchRun() {
 }
 
 let settleTimer = 0;   // the safe phase is only ever settled once per deck
+let swingTimer = 0;    // and the boss swings once, not once per poll
 /* Kept out here rather than on the engine. A change of state repaints, a
    repaint builds a new canvas and a new engine, and anything remembered on the
    old one goes with it — which is exactly the moment the deck number changes,
@@ -1268,7 +1278,8 @@ function strikeView() {
   panel.innerHTML = `<h1>${esc(boss.name)}</h1>
     <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
     <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>
-    <div class="bosspips" id="bosspips"></div>`;
+    <div class="bosspips" id="bosspips"></div>
+    <div class="bosswarn" id="bosswarn"><i></i><b>IT IS WINDING UP — HOLD A KNIFE</b></div>`;
   root.append(panel);
   root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
   const rest = el('div', { class: 'rest' });
@@ -1327,6 +1338,25 @@ function feedStrike() {
     });
     boardStrike.wasHp = game.boss.hp;
   }
+  /* The swing coming. A boss that hits back is only frightening if the room can
+     see it winding up — and on the live site nothing but this board is awake to
+     make it land, the same as the gorilla and the scramble. */
+  const swingAt = game.bossSwingAt || 0;
+  const tell = game.bossTell || 2200;
+  const left = swingAt ? swingAt - (Date.now() + drift) : 0;
+  const warn = document.getElementById('bosswarn');
+  if (warn) {
+    const winding = swingAt && left <= tell && left > -600;
+    warn.classList.toggle('on', !!winding);
+    warn.style.setProperty('--wind', winding ? String(1 - Math.max(0, left) / tell) : '0');
+  }
+  if (hostToken && swingAt && left <= 0 && Date.now() > swingTimer + 3000) {
+    swingTimer = Date.now();
+    api(`/games/${pin}/swing`, { method: 'POST', body: { hostToken } })
+      .then(out => { if (out && out.view) apply(out.view); if (out && out.swing && boardStrike) boardStrike.struck(); })
+      .catch(() => {});
+  }
+
   const clock = $('#bossclock');
   if (clock) {
     const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));

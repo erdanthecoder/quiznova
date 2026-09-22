@@ -1215,6 +1215,9 @@
     const ctx = canvas.getContext('2d');
     let boss = { hp: 30, max: 30, name: opts.name || 'The boss' };
     let loaded = 0, readyAt = 0;
+    /* The two things the boss does to you: it winds up where you can see it,
+       and it puts you on the floor if it catches you with nothing in hand. */
+    let swingIn = null, tellMs = 2200, downFor = 0;
     let hitUntil = 0, shakeUntil = 0, cutFrom = null, cutTo = null, cutUntil = 0;
     let raf = null, stopped = false;
     const born = performance.now();
@@ -1228,7 +1231,7 @@
     }
 
     const reloading = () => Math.max(0, readyAt - performance.now());
-    const canCut = () => loaded > 0 && reloading() <= 0;
+    const canCut = () => loaded > 0 && reloading() <= 0 && downFor <= 0;
 
     function frame() {
       if (stopped) return;
@@ -1308,13 +1311,31 @@
       ctx.textAlign = 'left';
       ctx.fillText(`${boss.name} — ${boss.hp} left`, pad, pad + barH + h * 0.055);
 
+      /* It is winding up. A red band climbs the card and the words change to
+         the only thing that matters: have something in your hand when it lands
+         or you are going down. */
+      if (swingIn !== null && swingIn <= tellMs && swingIn > -700) {
+        const wind = 1 - Math.max(0, swingIn) / tellMs;
+        ctx.save();
+        ctx.fillStyle = `rgba(244,54,76,${0.14 + wind * 0.3})`;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#F4364C';
+        ctx.fillRect(0, h - Math.max(4, h * 0.018), w * wind, Math.max(4, h * 0.018));
+        ctx.restore();
+      }
+
       // and what this child can do about it right now
       const wait = reloading();
-      const say = canCut() ? 'SWIPE TO CUT'
+      const winding = swingIn !== null && swingIn <= tellMs && swingIn > -700;
+      const say = downFor > 0 ? `DOWN — ANSWER TO GET UP (${(downFor / 1000).toFixed(1)}s)`
+        : winding ? (loaded > 0 ? 'HOLD IT — YOU WILL BLOCK' : 'NO KNIFE — YOU WILL GO DOWN')
+        : canCut() ? 'SWIPE TO CUT'
         : wait > 0 ? `RELOADING ${(wait / 1000).toFixed(1)}s`
         : 'ANSWER TO LOAD YOUR KNIFE';
       ctx.textAlign = 'center';
-      ctx.fillStyle = canCut() ? '#FFD86B' : 'rgba(255,255,255,.55)';
+      ctx.fillStyle = downFor > 0 ? '#FF8A96'
+        : winding ? (loaded > 0 ? '#9CF0D3' : '#FF8A96')
+        : canCut() ? '#FFD86B' : 'rgba(255,255,255,.55)';
       ctx.font = `900 ${Math.max(12, h * 0.05)}px ui-sans-serif,system-ui,sans-serif`;
       ctx.fillText(say, w / 2, h * 0.97);
       if (canCut()) {
@@ -1364,6 +1385,10 @@
     return {
       /** The boss as the game now says it is. */
       setBoss(next) { if (next) boss = Object.assign({}, boss, next); },
+      /** How long until the boss swings, so the card can wind up with it. */
+      setSwing(ms, tell) { swingIn = ms; if (tell) tellMs = tell; },
+      /** How long this child is on the floor for, if they were caught. */
+      setDown(ms) { downFor = Math.max(0, Number(ms) || 0); },
       /** How many knives this child has loaded, and when the next one is ready. */
       setKnife(n, waitMs) {
         loaded = Math.max(0, Number(n) || 0);

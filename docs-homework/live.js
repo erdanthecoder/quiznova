@@ -193,6 +193,8 @@
       shoal: game.shoal || '', wind: !!game.wind,
       // Boss Battle's fight: the script every device runs, and how long is left
       strikeSeed: game.strikeSeed || 0, strikeMs: R.BOSS_MS,
+      bossSwingAt: (game.boss && game.boss.nextSwing) || 0,
+      bossTell: R.BOSS_TELL_MS, bossMood: R.bossMood(game.boss),
       knifeReload: R.KNIFE_RELOAD_MS,
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
@@ -498,6 +500,7 @@
         const fast = Math.max(0, Math.min(1, Number(body.speed) || 0));
         p.correct = right;
         SCORERS.boss(game, p, q, right, fast);
+        if (right) p.downUntil = 0;         // a right answer gets you up
         game.lastEvents = game.lastEvents.slice(-6);
         await writeGame(pin, game);
         return { ok: true, correct: right, loaded: p.loaded || 0, blade: p.blade,
@@ -556,6 +559,10 @@
       if (!p) return { error: 'Not in this game.' };
       if (game.mode !== 'boss' || !game.boss) return { ok: false, why: 'Not that kind of game.' };
       if (game.state !== 'strike') return { ok: false, why: 'The fight is over.' };
+      if (R.bossDown(p)) {
+        return { ok: false, why: 'Knocked down — answer to get back up.',
+                 wait: p.downUntil - now(), down: true };
+      }
       if ((p.loaded || 0) <= 0) return { ok: false, why: 'Answer to load your knife.' };
       const since = now() - (p.swungAt || 0);
       if (since < R.KNIFE_RELOAD_MS) {
@@ -630,6 +637,18 @@
 
     /* The safe phase has its own clock, and the board runs it — the same way it
      * runs the monster in Tallest Tower, because nothing else is awake to. */
+    /* The boss's swing. On the desktop edition the server's own clock runs it;
+       here the board asks, because nothing else in the room is awake. */
+    if (tail === '/swing') {
+      if (game.mode !== 'boss' || game.state !== 'strike' || !game.boss) return { ok: false };
+      if (game.boss.nextSwing && now() < game.boss.nextSwing) {
+        return { ok: true, early: true, view: publicView(game) };
+      }
+      const out = R.bossSwing(game);
+      await writeGame(pin, game);
+      return { ok: true, swing: out, view: publicView(game) };
+    }
+
     if (tail === '/settle') {
       /* Tallest Tower's gorilla climbs down on a clock too. On the desktop
          edition the server's own timer does both; here nothing is awake but
@@ -776,6 +795,7 @@
         game.boss = { hp: R.BOSS_HP, max: R.BOSS_HP, name: pickBossName() };
         game.strikeSeed = Math.floor(Math.random() * 0xffffff);
         game.endsAt = now() + R.BOSS_MS;
+        game.boss.nextSwing = now() + R.BOSS_SWING_MS;
         for (const p of Object.values(game.players)) {
           p.loaded = 0; p.hits = 0; p.swungAt = 0; p.score = 0; p.blade = 'stick';
         }

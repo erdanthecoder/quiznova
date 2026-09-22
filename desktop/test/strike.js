@@ -101,6 +101,53 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok('a knife nobody loaded does nothing', out.ok === false && /load/i.test(out.why || ''),
      JSON.stringify(out));
 
+  /* ── it hits back ──
+     The mode's real fault was that the boss could not do anything to anybody:
+     thirty children tapping a sandbag. Now it winds up where the room can see
+     it, a held knife turns it aside, and an empty hand is on the floor for four
+     seconds and cannot cut while it is there. */
+  view = await look();
+  ok('the room can see the next swing coming', (view.bossSwingAt || 0) > view.serverNow,
+     `${Math.round(((view.bossSwingAt || 0) - view.serverNow) / 1000)}s away`);
+
+  await post(`/api/games/${pin}/answer`,
+    { playerId: anaId, questionId: qs[3].id, answer: right(qs[3]), speed: 0.5 });
+  const guard = await look();
+  const anaLoaded = guard.players.find(p => p.id === anaId);
+  ok('Ana is holding one ready and Ben is empty-handed',
+     (anaLoaded.loaded || 0) > 0, `${anaLoaded.loaded} in hand`);
+
+  const swung = await post(`/api/games/${pin}/swing`, { hostToken: ht });
+  ok('the boss swings when the board says it is time',
+     swung.ok === true && swung.swing && swung.swing.blocked === 1 && swung.swing.caught === 1,
+     JSON.stringify(swung.swing));
+  view = await look();
+  const anaNow = view.players.find(p => p.id === anaId);
+  const benNow = view.players.find(p => p.id === benId);
+  ok('the knife she was holding is spent turning it aside, and she stays up',
+     (anaNow.loaded || 0) === 0 && !(anaNow.downUntil > view.serverNow),
+     `Ana: ${anaNow.loaded} left, blocks ${anaNow.blocks}`);
+  ok('and the one with nothing in hand is knocked down',
+     (benNow.downUntil || 0) > view.serverNow,
+     `Ben is down for ${Math.round(((benNow.downUntil || 0) - view.serverNow) / 100) / 10}s`);
+
+  await post(`/api/games/${pin}/answer`,
+    { playerId: benId, questionId: qs[4].id, answer: wrong(qs[4]), speed: 0.5 });
+  out = await post(`/api/games/${pin}/strike`, { playerId: benId });
+  ok('a child on the floor cannot cut until they are up',
+     out.ok === false && out.down === true, JSON.stringify(out));
+
+  out = await post(`/api/games/${pin}/answer`,
+    { playerId: benId, questionId: qs[6].id, answer: right(qs[6]), speed: 0.5 });
+  view = await look();
+  ok('answering right is what gets you back on your feet',
+     !((view.players.find(p => p.id === benId).downUntil || 0) > view.serverNow),
+     'Ben is up');
+
+  out = await post(`/api/games/${pin}/swing`, { playerId: anaId });
+  ok('and a child cannot make the boss swing at the class',
+     out.error !== undefined, JSON.stringify(out).slice(0, 60));
+
   // ── the fight ends when the health does ──
   const spend = async (who) => {
     for (let i = 0; i < 8; i++) {

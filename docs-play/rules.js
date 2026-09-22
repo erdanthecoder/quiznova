@@ -449,6 +449,68 @@
   const BOSS_HP = 30;                  // the whole class against thirty
   const BOSS_MS = 3 * 60 * 1000;       // three minutes on the clock
   const KNIFE_RELOAD_MS = 2000;        // between one swing and the next
+
+  /* ── the boss hits back ────────────────────────────────
+   *
+   * Thirty children queuing up to tap a thing that never moves is not a fight,
+   * it is a raffle with extra steps: the boss had no way to do anything to
+   * anybody, so nothing that happened in three minutes could go wrong for the
+   * room. Now it swings, on a clock everyone can see coming.
+   *
+   * A knife held ready blocks it — which is the whole tactic: stay loaded
+   * rather than spending the moment you can. Anybody caught empty-handed is
+   * knocked down for four seconds and loses their run. It gets angrier as it
+   * goes: below twenty it swings half again as often, below ten it is twice.
+   */
+  const BOSS_SWING_MS = 16000;         // how often it comes, at full health
+  const BOSS_TELL_MS = 2200;           // how long the wind-up is before it lands
+  const BOSS_DOWN_MS = 4000;           // how long being caught keeps you down
+  const BOSS_ANGRY = 20, BOSS_FURIOUS = 10;
+
+  /** How often it swings right now: the lower it goes, the harder it fights. */
+  function bossPace(boss) {
+    const hp = (boss && boss.hp) || 0;
+    if (hp <= BOSS_FURIOUS) return Math.round(BOSS_SWING_MS / 2);
+    if (hp <= BOSS_ANGRY) return Math.round(BOSS_SWING_MS / 1.5);
+    return BOSS_SWING_MS;
+  }
+
+  /** What it is: calm, angry or furious. The board paints it and the room can
+      hear the difference in what the class is shouting. */
+  function bossMood(boss) {
+    const hp = (boss && boss.hp) || 0;
+    return hp <= BOSS_FURIOUS ? 'furious' : hp <= BOSS_ANGRY ? 'angry' : 'calm';
+  }
+
+  /* The swing itself. Everybody with a knife ready spends it blocking; anybody
+     without one goes down, loses their streak, and cannot swing until they are
+     up again. Returns what happened, for the board to say out loud. */
+  function bossSwing(game) {
+    if (!game || game.mode !== 'boss' || !game.boss) return null;
+    const everyone = Object.values(game.players || {});
+    const blocked = [], caught = [];
+    everyone.forEach(p => {
+      if ((p.loaded || 0) > 0) {
+        p.loaded -= 1;              // the knife is spent turning it aside
+        p.blocks = (p.blocks || 0) + 1;
+        blocked.push(p.name);
+      } else {
+        p.downUntil = now() + BOSS_DOWN_MS;
+        p.streak = 0;
+        caught.push(p.name);
+      }
+    });
+    game.boss.swungAt = now();
+    game.boss.nextSwing = now() + bossPace(game.boss);
+    game.lastEvents.push(caught.length
+      ? `${game.boss.name} caught ${caught.length === 1 ? caught[0] : caught.length + ' of them'}`
+      : 'Everybody blocked it');
+    game.lastEvents = game.lastEvents.slice(-6);
+    return { blocked: blocked.length, caught: caught.length };
+  }
+
+  /** Is this player on the floor right now? */
+  const bossDown = (p) => !!(p && p.downUntil && now() < p.downUntil);
   const KNIFE_DAMAGE = 1;              // every knife, the same
 
   const BOSS_HP_PER_QUESTION = 55;     // kept: older saved games still hold it
@@ -747,6 +809,7 @@
     blocks: 0, ready: 0, placed: 0,           // tallest tower: earned, and put up
     boosts: 0, safe: true, zone: '',          // robot run: boosts in, and the zone
     loaded: 0, hits: 0, swungAt: 0,           // boss battle: knives loaded, and used
+    downUntil: 0, blocks: 0,                  // and knocked down, and swings turned aside
     shielded: false, exposed: false,          // laser tag
     // the move, and whatever it was aimed at
     move: '', on: ''
@@ -786,6 +849,8 @@
     readSetup, secondsFor, pointsFor, pickDouble, streakBonus, arrange, modeFinished,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
     BOSS_HP_PER_QUESTION, BOSS_HP, BOSS_MS, KNIFE_RELOAD_MS, KNIFE_DAMAGE,
+    BOSS_SWING_MS, BOSS_TELL_MS, BOSS_DOWN_MS, BOSS_ANGRY, BOSS_FURIOUS,
+    bossPace, bossMood, bossSwing, bossDown,
     MAX_PLAYER_HIT, SWAY_LIMIT
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -119,6 +119,8 @@ class Games {
       // app is playing a different game from the website off the same rules.
       lava: game.lava || 0, shoal: game.shoal || '', wind: !!game.wind,
       strikeSeed: game.strikeSeed || 0, strikeMs: R.BOSS_MS,
+      bossSwingAt: (game.boss && game.boss.nextSwing) || 0,
+      bossTell: R.BOSS_TELL_MS, bossMood: R.bossMood(game.boss),
       knifeReload: R.KNIFE_RELOAD_MS,
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
       towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
@@ -194,8 +196,10 @@ class Games {
       game.boss = { hp: R.BOSS_HP, max: R.BOSS_HP, name: R.pickBossName() };
       game.strikeSeed = Math.floor(Math.random() * 0xffffff);
       game.endsAt = now() + R.BOSS_MS;
+      game.boss.nextSwing = now() + R.BOSS_SWING_MS;
       for (const p of Object.values(game.players)) {
         p.loaded = 0; p.hits = 0; p.swungAt = 0; p.score = 0; p.blade = 'stick';
+        p.downUntil = 0; p.blocks = 0;
       }
       return this.changed(game);
     }
@@ -354,6 +358,10 @@ class Games {
     if (!p) throw Object.assign(new Error('Not in this game.'), { status: 404 });
     if (game.mode !== 'boss' || !game.boss) return { ok: false, why: 'Not that kind of game.' };
     if (game.state !== 'strike') return { ok: false, why: 'The fight is over.' };
+    if (R.bossDown(p)) {
+      return { ok: false, why: 'Knocked down — answer to get back up.',
+               wait: p.downUntil - now(), down: true };
+    }
     if ((p.loaded || 0) <= 0) return { ok: false, why: 'Answer to load your knife.' };
     const since = now() - (p.swungAt || 0);
     if (since < R.KNIFE_RELOAD_MS) {
@@ -401,6 +409,8 @@ class Games {
       const speed = Math.max(0, Math.min(1, Number(body.speed) || 0));
       player.correct = right;
       R.SCORERS.boss(game, player, q, right, speed);
+      // getting one right is how you get up off the floor
+      if (right) player.downUntil = 0;
       game.lastEvents = game.lastEvents.slice(-6);
       this.changed(game);
       return player;
@@ -501,6 +511,12 @@ class Games {
         ? `The robot caught up — ${game.lives} live${game.lives === 1 ? '' : 's'} left`
         : 'The robot got them');
       if (!game.lives) { game.state = 'over'; game.endsAt = null; }
+      return this.changed(game);
+    }
+    /* The boss swings on its own clock, faster the more hurt it is. */
+    if (game.state === 'strike' && game.boss && game.boss.nextSwing
+        && now() >= game.boss.nextSwing) {
+      R.bossSwing(game);
       return this.changed(game);
     }
     if (game.state === 'strike' && game.endsAt && now() >= game.endsAt) {

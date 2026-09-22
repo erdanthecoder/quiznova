@@ -489,12 +489,12 @@
 <script src="/quizbank.js?v=f18e8cbc"></script>
 <script src="/realtime.js?v=75e1623c"></script>
 <script src="/arena.js?v=411430fc"></script>
-<script src="/strike.js?v=929760cb"></script>
+<script src="/strike.js?v=8caabc4c"></script>
 <script src="/run.js?v=e5461e92"></script>
 <script src="/tower.js?v=a34968e3"></script>
 <script src="/paste.js?v=3032c005"></script>
-<script src="/rules.js?v=dad475a9"></script>
-<script src="/live.js?v=360f1f97"></script>
+<script src="/rules.js?v=c9cda209"></script>
+<script src="/live.js?v=c4be3dd3"></script>
 <script src="/nova-local.js?v=44c67ff9"></script>
 <script src="/account.js?v=1f2bba77"></script>
 <script>
@@ -1529,6 +1529,12 @@ function paintStrikeHud() {
     duel.setBoss({ hp: boss.hp, max: boss.max || 30,
                    name: boss.name || 'The boss' });
     duel.setKnife(me.loaded || 0, Math.max(0, strikeReload - Date.now()));
+    /* Two things the fight now does to you rather than the other way round: it
+       winds up where you can see it, and it puts you on the floor if it catches
+       you without a knife. */
+    const swingIn = (game.bossSwingAt || 0) - (Date.now() + drift);
+    duel.setSwing(game.bossSwingAt ? swingIn : null, game.bossTell || 2200);
+    duel.setDown(Math.max(0, (me.downUntil || 0) - (Date.now() + drift)));
     // somebody else's knife landing shakes this screen too, so the fight feels
     // like thirty children hitting the same thing rather than thirty solitaires
     if (duelHp === null) duelHp = boss.hp;
