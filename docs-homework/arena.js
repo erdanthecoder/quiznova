@@ -461,6 +461,9 @@
           capsules.splice(at, 1);
         }
         takeCapsule(data.slot, data.gen);
+      } else if (event === 'back') {
+        beams.push({ x: data.x, y: data.y, born: now(),
+                     colour: teamColour(data.team) });
       } else if (event === 'gone') {
         others.delete(data.id);
       }
@@ -486,6 +489,11 @@
        just happened to whom. None of them is expensive; together they are most
        of what "it feels good" means. */
     let hitMark = 0, kickUntil = 0, kickAmt = 0;
+    /* Three more, because a shot that leaves no mark on the world is a number
+       changing: a flash at the barrel, a shove backwards off it, and a column
+       of light where somebody answered their way back into the game. */
+    let flashAt = 0, flashAngle = 0, recoil = 0;
+    const beams = [];                       // { x, y, born, colour }
     const kick = (n) => { kickUntil = now() + 180; kickAmt = n; };
     const lines = [];
     function feed(text, colour) {
@@ -572,6 +580,7 @@
       const gap = self.power === 'rapid' ? FIRE_GAP * 0.42 : FIRE_GAP;
       if (now() - lastFire < gap) return;
       lastFire = now();
+      flashAt = now(); flashAngle = self.angle; recoil = 1;
       self.energy = clamp(self.energy - SHOT_COST, 0, 100);
       const angles = self.power === 'spread' ? [-0.22, 0, 0.22] : [0];
       angles.forEach(off => {
@@ -594,6 +603,7 @@
     /* ── the loop ──────────────────────────────────────── */
     function step(dt) {
       const t = now();
+      if (recoil > 0) recoil = Math.max(0, recoil - dt * 7);   // the shove wears off
 
       if (self.alive && !watching) {
         let dx = stickX, dy = stickY;
@@ -1214,8 +1224,12 @@
 
       if (!watching) {
         solids.push({ depth: self.y + 0.5, paint: () => {
-          body(self.x, self.y, self.angle, teamColour(self.team), self.alive,
-               '', true, self.avatar);
+          /* Kicked back off your own shot. It is a few pixels and it lasts a
+             seventh of a second, and it is most of why firing feels like
+             anything at all. */
+          const back = PLAYER_R * 0.34 * recoil;
+          body(self.x - Math.cos(self.angle) * back, self.y - Math.sin(self.angle) * back,
+               self.angle, teamColour(self.team), self.alive, '', true, self.avatar);
           if (self.alive && self.power) aura(self.x, self.y, self.power);
           if (self.shield) {
             const p = project(self.x, self.y, 0);
@@ -1264,6 +1278,59 @@
           ctx.restore();
         } });
       });
+
+      /* The column somebody comes back in. It rises and widens as it fades, so
+         the eye catches the place rather than the moment. */
+      for (let i = beams.length - 1; i >= 0; i--) {
+        const b = beams[i];
+        const age = (now() - b.born) / 900;
+        if (age >= 1) { beams.splice(i, 1); continue; }
+        const at = project(b.x, b.y, 0);
+        solids.push({ depth: 1e8 + 2, paint: () => {
+          const r = PLAYER_R * cam.scale * (1.1 + age * 1.6);
+          const up = 240 * cam.scale * (0.3 + age);
+          ctx.save();
+          ctx.globalAlpha = (1 - age) * 0.8;
+          const col = ctx.createLinearGradient(0, at.y - up, 0, at.y);
+          col.addColorStop(0, 'rgba(255,255,255,0)');
+          col.addColorStop(1, b.colour);
+          ctx.fillStyle = col;
+          ctx.fillRect(at.x - r, at.y - up, r * 2, up);
+          ctx.strokeStyle = b.colour;
+          ctx.lineWidth = Math.max(2, 5 * cam.scale) * (1 - age);
+          ctx.beginPath();
+          ctx.ellipse(at.x, at.y, r * 1.5, r * 0.62, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } });
+      }
+
+      /* The flash off your own barrel, and the shove it gives you. A shot that
+         leaves nothing behind at the muzzle is a number changing. */
+      const since = now() - flashAt;
+      if (since < 110 && self.alive) {
+        const at = project(self.x + Math.cos(flashAngle) * PLAYER_R * 2.1,
+                           self.y + Math.sin(flashAngle) * PLAYER_R * 2.1, 0);
+        const fade = 1 - since / 110;
+        solids.push({ depth: 1e8 + 3, paint: () => {
+          ctx.save();
+          ctx.globalAlpha = fade;
+          ctx.translate(at.x, at.y);
+          ctx.rotate(flashAngle);
+          const r = PLAYER_R * cam.scale * (0.55 + (1 - fade) * 0.5);
+          ctx.fillStyle = '#FFF6D8';
+          ctx.shadowColor = '#FFC53D';
+          ctx.shadowBlur = 22 * cam.scale;
+          ctx.beginPath();                      // a four-pointed star at the muzzle
+          ctx.moveTo(r * 1.9, 0);
+          ctx.lineTo(0, r * 0.62);
+          ctx.lineTo(-r * 0.5, 0);
+          ctx.lineTo(0, -r * 0.62);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        } });
+      }
 
       solids.sort((a, b) => a.depth - b.depth);
       solids.forEach(item => item.paint());
@@ -1393,6 +1460,15 @@
         self.alive = true; self.energy = 100; self.shield = false; self.power = '';
         const spot = freeSpot(cover, 200, PLAYER_R);
         self.x = spot.x; self.y = spot.y;
+        /* Nobody is ever out of this game: you are tagged, you answer, you are
+           back. Reappearing somewhere else without a sound made that read as a
+           glitch, so you come back inside a column of light and the room can
+           see where. */
+        beams.push({ x: spot.x, y: spot.y, born: now(),
+                     colour: teamColour(self.team) });
+        boom(spot.x, spot.y, '#EAF2FF');
+        feed('You are back in', '#9CF0D3');
+        send('back', { id: meId, x: spot.x, y: spot.y, team: self.team });
       },
       stop() {
         running = false;
