@@ -618,7 +618,7 @@
 <script src="arena.js?v=411430fc"></script>
 <script src="strike.js?v=6ede3fbc"></script>
 <script src="run.js?v=e5461e92"></script>
-<script src="tower.js?v=a34968e3"></script>
+<script src="tower.js?v=ad293ebc"></script>
 <script src="paste.js?v=3032c005"></script>
 <script src="rules.js?v=c9cda209"></script>
 <script src="live.js?v=c4be3dd3"></script>
@@ -1529,7 +1529,7 @@ function feedTower() {
     .sort((a, b) => b[1] - a[1]);
   const lead = document.getElementById('towerlead');
   if (lead && floors.length) {
-    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'level' : names[floors[0][0]];
+    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'Level' : names[floors[0][0]];
   }
   const blocks = document.getElementById('towerblocks');
   if (blocks) {

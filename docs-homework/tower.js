@@ -87,6 +87,18 @@
     let slots = opts.slots || SLOTS;
     let monster = 0, monsterTeam = '', shake = 0, gift = {};
     let drift = 0;                    // the board's clock against the game's
+    /* Blocks used to appear. A block that appears is a number going up; a block
+       that falls, lands, squashes and throws dust is a thing being built, and
+       that is the whole difference between watching a tally and watching a
+       race. `seen` is how many have landed per team, `air` is what is still
+       coming down, and `puffs` is the dust it kicks up. */
+    const FALL_MS = 420;
+    const seen = { red: 0, blue: 0, green: 0 };
+    const air = new Map();            // "team:index" -> { at, neat }
+    let puffs = [];                   // { x, y, r, at, team }
+    let notes = [];                   // the word that rises off a neat drop
+    let lead = '', leadAt = 0;        // who is in front, and since when
+    let started = false;              // the first paint places what is already up
     let raf = null, stopped = false;
     const faces = new Map();
 
@@ -170,9 +182,28 @@
          towers always fit on the screen however high the room builds. */
       const top = tallest();
       const room = ground - h * 0.16;
-      const floorH = clamp(room / Math.max(4, top + 1), h * 0.018, h * 0.075);
+      const floorH = clamp(room / Math.max(4, top + 1), h * 0.018, h * 0.092);
       const colW = w / 3;
       const blockW = Math.min(colW * 0.17, floorH * 1.5);
+
+      /* How high they are, marked up the wall. Without it a tower of forty
+         floors and a tower of twenty look the same once the scale shrinks to
+         fit them both, and the class loses the one number the mode is about. */
+      ctx.save();
+      const rung = Math.max(5, Math.ceil(6 / Math.max(1, floorH / (h * 0.03))) * 5);
+      const fsR = Math.max(9, h * 0.022);
+      ctx.font = `800 ${fsR}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.textAlign = 'left';
+      for (let f = rung; f <= top + rung; f += rung) {
+        const y = ground - f * floorH;
+        if (y < h * 0.06) break;
+        ctx.strokeStyle = 'rgba(255,255,255,.10)';
+        ctx.lineWidth = Math.max(1, h * 0.002);
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.34)';
+        ctx.fillText(String(f), w * 0.006, y - fsR * 0.28);
+      }
+      ctx.restore();
 
       TEAMS.forEach((team, i) => {
         const cx = colW * (i + 0.5);
@@ -191,7 +222,36 @@
           const o = (b && typeof b.o === 'number') ? b.o : 0;
           const x = cx + (slot - (slots - 1) / 2) * blockW * 1.04 + o * blockW * 0.5;
           const y = ground - floor * floorH;
-          drawBlock(ctx, x, y, blockW, floorH * 0.94, team, b);
+
+          /* Still coming down. It falls from above the screen, eases in, and
+             squashes on the beat it lands — and the landing is where the dust
+             comes from, so the eye is pulled to the top of the tower rather
+             than to a number at the bottom. */
+          const flying = air.get(team + ':' + n);
+          let dy = 0, squash = 1;
+          if (flying) {
+            const p = (t - flying.at) / FALL_MS;
+            if (p < 0) return;                       // not thrown yet
+            if (p < 1) {
+              const e = p * p;                       // gathering speed, the way a fall does
+              dy = -(1 - e) * (y + floorH * 4);
+              ctx.save();
+              ctx.globalAlpha = clamp(p * 3, 0, 1);
+            } else {
+              air.delete(team + ':' + n);
+              puffs.push({ x, y, r: blockW * 0.5, at: t, team });
+              /* One word per team at a time. A team placing four blocks in a
+                 burst was covering its own tower in text. */
+              if (flying.neat && !notes.some(nn => nn.team === team && t - nn.at < 620)) {
+                notes = notes.filter(nn => nn.team !== team);
+                notes.push({ x, y, at: t, say: 'NEAT', team });
+              }
+            }
+            const land = (t - flying.at - FALL_MS) / 150;
+            if (land >= 0 && land < 1) squash = 1 - Math.sin(land * Math.PI) * 0.28;
+          }
+          drawBlock(ctx, x, y + dy, blockW, floorH * 0.94 * squash, team, b);
+          if (flying && (t - flying.at) / FALL_MS < 1) ctx.restore();
         });
 
         // the gift box, waiting at the next fifth floor
@@ -293,6 +353,74 @@
         }
       });
 
+      /* The dust a landing throws up, and the word a neat drop earns. Both
+         live for well under a second: long enough to catch, short enough that
+         a room building fast is not covered in text. */
+      puffs = puffs.filter(d => t - d.at < 480);
+      puffs.forEach(d => {
+        const a = 1 - (t - d.at) / 480;
+        ctx.save();
+        ctx.globalAlpha = a * 0.55;
+        ctx.fillStyle = '#E9DCC6';
+        for (let k = 0; k < 4; k++) {
+          const dir = k < 2 ? -1 : 1;
+          const push = (1 - a) * d.r * (2.2 + k * 0.4);
+          ctx.beginPath();
+          ctx.arc(d.x + dir * push, d.y - (1 - a) * d.r * 0.8,
+                  d.r * (0.30 + (1 - a) * 0.45), 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+
+      notes = notes.filter(n => t - n.at < 900);
+      notes.forEach(n => {
+        const p = (t - n.at) / 900;
+        const fs = Math.max(11, h * 0.030);
+        ctx.save();
+        ctx.globalAlpha = 1 - p * p;
+        ctx.font = `900 ${fs}px ui-sans-serif,system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.lineWidth = Math.max(2, fs * 0.22);
+        ctx.strokeStyle = INK;
+        ctx.strokeText(n.say, n.x, n.y - floorH - p * h * 0.06);
+        ctx.fillStyle = '#FFD23F';
+        ctx.fillText(n.say, n.x, n.y - floorH - p * h * 0.06);
+        ctx.restore();
+      });
+
+      /* Who is in front. Three towers of roughly the same height read as a
+         draw from the back of a hall; a flag on top of one does not. It only
+         flies on a clear lead, because a flag that flickers between two teams
+         every few seconds tells the room nothing. */
+      const heights = TEAMS.map(t2 => ({ t: t2, n: floorsOf(t2) }))
+                           .sort((a, b) => b.n - a.n);
+      const front = (heights[0].n > heights[1].n && heights[0].n > 0) ? heights[0].t : '';
+      if (front !== lead) { lead = front; leadAt = t; }
+      if (lead) {
+        const i = TEAMS.indexOf(lead);
+        const fx = colW * (i + 0.5);
+        const fy = ground - floorsOf(lead) * floorH - floorH * 2.9;
+        const fresh = clamp(1 - (t - leadAt) / 700, 0, 1);
+        const size = Math.max(14, floorH * (1.1 + fresh * 0.7));
+        ctx.save();
+        ctx.translate(fx, fy + Math.sin(t / 380) * size * 0.12);
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = Math.max(1.6, size * 0.12);
+        ctx.fillStyle = '#FFD23F';
+        ctx.beginPath();                       // a crown, five points
+        ctx.moveTo(-size * 0.62, size * 0.34);
+        ctx.lineTo(-size * 0.72, -size * 0.40);
+        ctx.lineTo(-size * 0.28, -size * 0.02);
+        ctx.lineTo(0, -size * 0.52);
+        ctx.lineTo(size * 0.28, -size * 0.02);
+        ctx.lineTo(size * 0.72, -size * 0.40);
+        ctx.lineTo(size * 0.62, size * 0.34);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+
       /* He arrives with the smash and then stays, because the tower he is
          sitting on cannot build while he is there — a cameo would leave the
          team frozen with nothing on screen to explain why. */
@@ -333,9 +461,12 @@
       const cx = (canvas.width / 3) * (i + 0.5);
       // big enough to be a threat, capped so he does not eat the whole board
       // now that the towers have been given the room they deserve
-      const size = Math.max(46, Math.min(floorH * 4.6, canvas.height * 0.34));
+      const size = Math.max(40, Math.min(floorH * 3.4, canvas.height * 0.27));
       const climbing = Math.max(0, 1 - (t - (monster - 1800)) / 1400);
-      const y = ground - floorsOf(team) * floorH - size * 0.12
+      /* He sits ON the tower he took. Perched a little way above it he read as
+         a picture of a gorilla hung over the game rather than as something
+         that had climbed up there and would not get off. */
+      const y = ground - floorsOf(team) * floorH + size * 0.04
               - climbing * canvas.height * 0.45;
       const thump = Math.pow(Math.max(0, Math.sin(t / 620)), 8);   // the chest beat
 
@@ -432,7 +563,24 @@
 
     function update(next) {
       if (!next) return;
-      if (next.towers) towers = next.towers;
+      if (next.towers) {
+        towers = next.towers;
+        /* Whatever is already up when the board opens is standing, not falling:
+           a class joining halfway through should not watch forty blocks rain. */
+        TEAMS.forEach(team => {
+          const n = ((towers[team] && towers[team].blocks) || []).length;
+          if (!started) { seen[team] = n; return; }
+          if (n > seen[team]) {
+            const list = towers[team].blocks;
+            for (let i = seen[team]; i < n; i++) {
+              air.set(team + ':' + i, { at: now() + (i - seen[team]) * 90,
+                                        neat: !!(list[i] && list[i].neat) });
+            }
+          }
+          seen[team] = n;             // a crushed floor takes its blocks with it
+        });
+        started = true;
+      }
       if (next.players) players = next.players;
       if (next.slots) slots = next.slots;
       if (typeof next.drift === 'number') drift = next.drift;

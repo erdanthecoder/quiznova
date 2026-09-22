@@ -1509,7 +1509,7 @@ function feedTower() {
     .sort((a, b) => b[1] - a[1]);
   const lead = document.getElementById('towerlead');
   if (lead && floors.length) {
-    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'level' : names[floors[0][0]];
+    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'Level' : names[floors[0][0]];
   }
   const blocks = document.getElementById('towerblocks');
   if (blocks) {
