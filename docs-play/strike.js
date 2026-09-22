@@ -292,15 +292,23 @@
   const BONE = { dark: '#9A917C', mid: '#D9D2BE', lit: '#F3EEDF' };
 
   function bossArt(ctx, u, t, mood) {
-    const breath = Math.sin(t / 760) * 0.022;
+    /* How far gone it is: 0 while it is fresh, 1 on its last few health. A
+       cornered animal does not stand there breathing evenly — it breathes
+       fast, burns brighter and cannot hold still, and the room should be able
+       to read all three from the back of the hall without a number. */
+    const rage = clamp(mood.rage || 0, 0, 1);
+    const breath = Math.sin(t / (760 - rage * 430)) * (0.022 + rage * 0.030);
     const raise = mood.raise || 0;          // 0 resting, 1 arms up to strike
     const jaw = mood.jaw || 0;              // 0 shut, 1 roaring
     const sag = mood.sag || 0;              // 0 upright, 1 reeling
-    const eye = mood.eye || '#FF3B2F';
-    const heat = 0.55 + Math.sin(t / 240) * 0.2 + raise * 0.45;
+    const eye = mood.eye || (rage > 0.66 ? '#FFE14D' : rage > 0.33 ? '#FF8A2F' : '#FF3B2F');
+    const heat = 0.55 + Math.sin(t / (240 - rage * 120)) * 0.2 + raise * 0.45 + rage * 0.5;
 
     ctx.save();
     ctx.scale(u, u);
+    if (rage > 0.02) {                      // the tremor of something furious
+      ctx.translate((Math.random() - 0.5) * rage * 4.5, (Math.random() - 0.5) * rage * 3);
+    }
     ctx.translate(0, sag * 26);
     ctx.rotate(sag * Math.sin(t / 110) * 0.05);
     ctx.lineJoin = 'round';
@@ -951,6 +959,10 @@
       return spot;
     }
 
+    /* How far gone it is, 0 to 1. The rules turn the same fall in health into a
+       faster swing; this turns it into something the room can see. */
+    const rageNow = () => clamp(1 - (boss.hp || 0) / Math.max(1, boss.max || 1), 0, 1);
+
     function bossFigure(t) {
       const foot = project(0, 0, 0);
       const head = project(0, 0, BOSS_H);
@@ -990,7 +1002,8 @@
         raise: wind,
         jaw: staggered ? 0.15 : wind * 0.9,
         sag: staggered ? 1 : 0,
-        eye: staggered ? '#FFD23F' : '#FF3B2F'
+        rage: rageNow(),
+        eye: staggered ? '#FFD23F' : undefined
       });
       if (hit) {
         ctx.save();
@@ -1245,6 +1258,12 @@
         const n = 7 * ((shakeUntil - performance.now()) / 200);
         ctx.translate((Math.random() - 0.5) * n, (Math.random() - 0.5) * n);
       }
+      if (downFor > 0) {                    // looking up at it from the floor
+        const tip = clamp(downFor / 4000, 0, 1) * 0.06;
+        ctx.translate(w / 2, h);
+        ctx.rotate(tip);
+        ctx.translate(-w / 2, -h);
+      }
 
       // the pit it is standing in
       const sky = ctx.createLinearGradient(0, 0, 0, h);
@@ -1263,9 +1282,16 @@
       const u = (h * 0.78) / 330;
       ctx.save();
       ctx.translate(w / 2, h * 0.92 - hit * h * 0.03);
+      /* The wind-up on the phone was only a red wash over the card, which told
+         you a swing was coming without showing you the thing doing it. Now the
+         arms come up, the jaw opens, and you can see it land. */
+      const windIn = (swingIn !== null && swingIn <= tellMs && swingIn > -700)
+        ? clamp(1 - Math.max(0, swingIn) / tellMs, 0, 1) : 0;
+      const rage = clamp(1 - boss.hp / Math.max(1, boss.max || 1), 0, 1);
       bossArt(ctx, u, performance.now(), {
-        raise: 0, jaw: hit ? 0.8 : 0.12 + Math.sin(t / 900) * 0.06,
-        sag: hit ? 1 : 0, eye: hit ? '#FFD23F' : '#FF3B2F'
+        raise: hit ? 0 : windIn,
+        jaw: hit ? 0.8 : Math.max(windIn * 0.9, 0.12 + Math.sin(t / 900) * 0.06),
+        sag: hit ? 1 : 0, rage, eye: hit ? '#FFD23F' : undefined
       });
       if (hit) {
         ctx.save();
@@ -1321,6 +1347,22 @@
         ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = '#F4364C';
         ctx.fillRect(0, h - Math.max(4, h * 0.018), w * wind, Math.max(4, h * 0.018));
+        ctx.restore();
+      }
+
+      /* On the floor. Being knocked down said so in words and nothing else, so
+         it read as a message rather than as something that happened to you: the
+         card goes dark, the world tips, and you are looking up at it. */
+      if (downFor > 0) {
+        ctx.save();
+        const deep = clamp(downFor / 4000, 0, 1);
+        const dark = ctx.createRadialGradient(w / 2, h * 0.55, h * 0.1, w / 2, h * 0.55, h * 0.85);
+        dark.addColorStop(0, 'rgba(0,0,0,0)');
+        dark.addColorStop(1, `rgba(0,0,0,${0.55 + deep * 0.3})`);
+        ctx.fillStyle = dark;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = `rgba(160,10,24,${0.10 + deep * 0.14})`;
+        ctx.fillRect(0, 0, w, h);
         ctx.restore();
       }
 
