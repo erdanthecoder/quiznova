@@ -1258,6 +1258,7 @@ function strikeView() {
   panel.innerHTML = `<h1>${esc(boss.name)}</h1>
     <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
     <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>
+    <div class="tally" style="margin-left:18px"><b id="bossmood">Calm</b><span>its temper</span></div>
     <div class="bosspips" id="bosspips"></div>
     <div class="bosswarn" id="bosswarn"><i></i><b>IT IS WINDING UP — HOLD A KNIFE</b></div>`;
   root.append(panel);
@@ -1335,6 +1336,16 @@ function feedStrike() {
     api(`/games/${pin}/swing`, { method: 'POST', body: { hostToken } })
       .then(out => { if (out && out.view) apply(out.view); if (out && out.swing && boardStrike) boardStrike.struck(); })
       .catch(() => {});
+  }
+
+  /* What it has become. The rules turn falling health into a faster swing and
+     the drawing shows it, but a word on the panel is what a teacher reads out
+     to a room that has stopped looking at the screen. */
+  const moodEl = $('#bossmood');
+  if (moodEl) {
+    const mood = game.bossMood || 'calm';
+    moodEl.textContent = mood === 'furious' ? 'Furious' : mood === 'angry' ? 'Angry' : 'Calm';
+    moodEl.style.color = mood === 'furious' ? '#FFE14D' : mood === 'angry' ? '#FF8A2F' : '';
   }
 
   const clock = $('#bossclock');

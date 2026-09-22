@@ -798,6 +798,7 @@
         game.boss.nextSwing = now() + R.BOSS_SWING_MS;
         for (const p of Object.values(game.players)) {
           p.loaded = 0; p.hits = 0; p.swungAt = 0; p.score = 0; p.blade = 'stick';
+          p.downUntil = 0; p.blocks = 0;   // nobody starts a fight on the floor
         }
         await writeGame(pin, game);
         return publicView(game);
