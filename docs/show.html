@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quoldek — the trailer</title>
+<link rel="icon" href="logo.svg?v=662a6df7">
+<link rel="stylesheet" href="fonts.css?v=40a238ef">
+<style>
+  /* The whole page is the film. Nothing else is on screen, because a trailer
+     with a navigation bar above it is a web page playing a video. */
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#05030F;overflow:hidden;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}
+  #reel{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  /* The one thing between a teacher and the film. A browser will not let a page
+     make a sound until somebody has touched it, so the trailer asks for that
+     touch rather than playing silently and being blamed for it. */
+  #gate{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:26px;background:radial-gradient(circle at 50% 45%,#1E1148,#05030F 70%);
+    z-index:5;text-align:center;padding:24px}
+  #gate h1{margin:0;font-size:clamp(2.6rem,9vw,6rem);letter-spacing:-.03em;
+    text-shadow:0 0 60px rgba(139,92,246,.7)}
+  #gate p{margin:0;opacity:.72;font-size:clamp(.95rem,2.4vw,1.2rem);max-width:30ch;line-height:1.5}
+  #go{border:0;cursor:pointer;padding:20px 52px;border-radius:999px;
+    font-size:clamp(1.1rem,3vw,1.5rem);font-weight:900;letter-spacing:.04em;color:#fff;
+    background:linear-gradient(135deg,#8B5CF6,#4F6BFF);
+    box-shadow:0 18px 46px rgba(79,107,255,.45);transition:transform .16s ease}
+  #go:hover{transform:translateY(-2px) scale(1.03)}
+  #gate.gone{opacity:0;pointer-events:none;transition:opacity .45s ease}
+
+  /* After it has played: a way to run it again without hunting for the address. */
+  #again{position:fixed;left:50%;bottom:5.5vh;transform:translateX(-50%);z-index:4;
+    display:none;gap:12px}
+  #again.on{display:flex}
+  #again button,#again a{border:0;cursor:pointer;padding:13px 26px;border-radius:999px;
+    font-size:1rem;font-weight:800;text-decoration:none;color:#0B0720;background:#FFC53D;
+    box-shadow:0 10px 28px rgba(0,0,0,.45)}
+  #again a{background:rgba(255,255,255,.92)}
+  /* The bar and the button both sit inside the letterbox, so they never cover
+     anything the film is doing. */
+</style>
+</head>
+<body>
+<canvas id="reel"></canvas>
+
+<div id="gate">
+  <h1>QUOLDEK</h1>
+  <p>Put this on the big screen and turn the sound up.</p>
+  <button id="go">Play the trailer</button>
+</div>
+
+<div id="again">
+  <button id="replay">Play it again</button>
+  <a href="index.html">Start a game</a>
+</div>
+
+<script src="sprites.js?v=4399d8b0"></script>
+<script src="music.js?v=7aa3d8a6"></script>
+<script src="/show.js"></script>
+<script>
+window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
+  : 'https://playquoldek.web.app/?pin=';
+window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : 'https://quoldek.web.app/quiz';
+window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
+  : 'https://hwquoldek.web.app/';
+(function () {
+  const canvas = document.getElementById('reel');
+  const gate = document.getElementById('gate');
+  const again = document.getElementById('again');
+  let reel = null;
+
+  /* The app's own tunes, scored to the picture. The class already knows these
+     eight bars, which is the point: they hear them and they know what is
+     about to happen. A browser will not make a sound until the page has been
+     touched, so the button below is what buys it. */
+  const SCORE = {
+    open: 'countdown', promise: 'board', boss: 'question', tower: 'board',
+    run: 'countdown', laser: 'question', more: 'board', finale: 'podium'
+  };
+  let track = '';
+  function cue(scene) {
+    const want = SCORE[scene] || 'board';
+    if (want === track) return;
+    track = want;
+    try { if (window.NovaMusic) NovaMusic.play(want); } catch { /* silent is fine */ }
+  }
+  function hush() {
+    track = '';
+    try { if (window.NovaMusic) NovaMusic.stop(); } catch { /* already quiet */ }
+  }
+
+  function start() {
+    gate.classList.add('gone');
+    again.classList.remove('on');
+    if (reel) reel.stop();
+    reel = NovaShow.play({
+      canvas,
+      onScene: cue,
+      onDone() { again.classList.add('on'); }
+    });
+  }
+
+  document.getElementById('go').onclick = start;
+  document.getElementById('replay').onclick = start;
+
+  /* A key or a tap anywhere starts it too, because a teacher at a laptop
+     plugged into a projector should not have to find a button with a mouse. */
+  addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); start(); }
+    if (e.key === 'Escape' && reel) { reel.stop(); hush(); gate.classList.remove('gone'); }
+  });
+
+  /* And ?auto=1 plays it with no click at all, for a screen that is already
+     showing and has nobody standing at it. It stays silent until somebody
+     touches the page, which is the browser's rule, not ours. */
+  if (new URLSearchParams(location.search).get('auto')) {
+    gate.classList.add('gone');
+    reel = NovaShow.play({ canvas, onScene: cue, onDone() { again.classList.add('on'); } });
+  }
+})();
+</script>
+</body>
+</html>

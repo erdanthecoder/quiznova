@@ -51,9 +51,9 @@ BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", 
                 "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
-PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html",
+PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
