@@ -43,6 +43,7 @@ const GLOBALS = new Set([
   'AudioContext', 'webkitAudioContext', 'EventSource', 'WebSocket', 'XMLHttpRequest',
   'MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'CustomEvent', 'Event',
   'DOMParser', 'TextEncoder', 'TextDecoder', 'atob', 'btoa', 'crypto', 'performance',
+  'indexedDB', 'IDBKeyRange', 'DataTransfer',
   'alert', 'confirm', 'prompt', 'parseInt', 'parseFloat', 'isNaN', 'isFinite',
   'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI', 'NaN',
   'Infinity', 'undefined', 'require', 'module', 'exports', 'process', 'Buffer',

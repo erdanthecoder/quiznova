@@ -520,6 +520,26 @@
 @keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
+/* The music menu: a sheet that drops from the buttons beside the PIN. Kept
+   narrow and scrollable, because a teacher with thirty records on the shelf
+   should not get a list that runs off the bottom of a projector. */
+.musicmenu{position:fixed;top:64px;right:18px;width:min(340px,calc(100vw - 36px));
+  max-height:min(70vh,560px);overflow:auto;z-index:60;padding:8px;border-radius:18px;
+  background:rgba(16,12,38,.97);border:1px solid rgba(255,255,255,.13);
+  box-shadow:0 24px 60px rgba(0,0,0,.6);display:none}
+.musicmenu.on{display:block}
+.mm-head{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  opacity:.5;padding:12px 12px 6px}
+.mm-row{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;
+  padding:10px 12px;border:0;border-radius:12px;background:transparent;color:#fff;
+  cursor:pointer;font:inherit}
+.mm-row:hover{background:rgba(255,255,255,.08)}
+.mm-row b{font-size:.93rem;font-weight:800}
+.mm-row span{font-size:.76rem;opacity:.55}
+.mm-row.on{background:rgba(139,92,246,.26);box-shadow:inset 0 0 0 1px rgba(139,92,246,.6)}
+.mm-row.add b{color:#FFC53D}
+.mm-row.rec span{color:#FF8A96;opacity:.8}
+
 /* The boss winding up to swing: the bar fills, and when it is full it lands */
 .bosswarn{flex-basis:100%;margin-top:8px;position:relative;height:0;overflow:hidden;
   border-radius:12px;background:rgba(244,54,76,.14);transition:height .18s ease}
@@ -600,6 +620,8 @@
     <span class="chip" id="goal" hidden></span>
     <span class="chip mono" id="pinchip">------</span>
     <button class="btn sm" id="music" title="Music on the big screen"></button>
+    <button class="btn sm" id="musicpick" title="Choose the music">Music</button>
+    <input type="file" id="musicfiles" accept="audio/*" multiple hidden>
     <button class="btn sm danger" id="end">End game</button>
   </div>
 </header>
@@ -607,7 +629,7 @@
 <main class="stage" id="stage"></main>
 
 <script src="sprites.js?v=4399d8b0"></script>
-<script src="music.js?v=7aa3d8a6"></script>
+<script src="music.js?v=f6c013ee"></script>
 
 
 
@@ -741,6 +763,7 @@ if (musicBtn) {
   else try { const saved = localStorage.getItem('nova:music'); if (saved !== null) musicWanted = !!saved; }
   catch { /* private mode */ }
   musicBtn.onclick = (e) => { e.stopPropagation(); musicUnlocked = true; musicShould(!musicWanted); };
+  buildMusicMenu();
   // the first click anywhere is the permission a browser is waiting for
   document.addEventListener('click', () => {
     if (musicUnlocked) return;
@@ -828,6 +851,102 @@ function paintGoal() {
   paint();
   goalTicker = setInterval(paint, 500);
 }
+/* ── choosing the music ───────────────────────────────────
+ *
+ * The board had one button and it turned the sound off. That is the only
+ * control a teacher had over a soundtrack that played for a whole afternoon,
+ * which is why the answer to "the music is annoying" was "turn it off".
+ *
+ * So: a menu. Where the music comes from, which of the six styles the written
+ * pieces are in, and a shelf the teacher puts their own records on. Their
+ * files stay on this machine — they go into this browser and nowhere else,
+ * which is the difference between playing music in your own room and putting
+ * it on a web address.
+ */
+function buildMusicMenu() {
+  const open = document.getElementById('musicpick');
+  const files = document.getElementById('musicfiles');
+  if (!open || !files || !window.NovaMusic) return;
+
+  const sheet = el('div', { class: 'musicmenu', id: 'musicmenu' });
+  document.body.append(sheet);
+
+  const shut = () => sheet.classList.remove('on');
+  document.addEventListener('click', (e) => {
+    if (!sheet.contains(e.target) && e.target !== open) shut();
+  });
+
+  async function draw() {
+    const source = NovaMusic.source();
+    const style = NovaMusic.style();
+    const mine = await NovaMusic.records();
+    sheet.innerHTML = '';
+
+    const group = (title) => {
+      sheet.append(el('div', { class: 'mm-head' }, title));
+    };
+    const row = (label, say, on, go) => {
+      const b = el('button', { class: 'mm-row' + (on ? ' on' : '') },
+        el('b', {}, label), say ? el('span', {}, say) : '');
+      b.onclick = (e) => { e.stopPropagation(); musicUnlocked = true; go(); };
+      sheet.append(b);
+      return b;
+    };
+
+    group('Where it comes from');
+    row('Made as you play', 'a different piece for each part of a game', source === 'made',
+        () => { NovaMusic.source('made'); if (musicWanted) musicNow(); draw(); });
+    row('The Quoldek theme', 'the one track, looping', source === 'theme',
+        () => { NovaMusic.source('theme'); if (musicWanted) musicNow(); draw(); });
+    row('My own music', mine.length ? `${mine.length} on the shelf, shuffled` : 'nothing on the shelf yet',
+        source === 'mine',
+        () => { NovaMusic.source('mine'); if (musicWanted) musicNow(); draw(); });
+
+    if (source === 'made') {
+      group('Style');
+      NovaMusic.styles.forEach(st => {
+        row(st.name, st.say, st.id === style, () => { NovaMusic.style(st.id); draw(); });
+      });
+    }
+
+    group('My own music');
+    const add = el('button', { class: 'mm-row add' }, el('b', {}, 'Add music from this computer'),
+      el('span', {}, 'stays on this machine — nothing is uploaded'));
+    add.onclick = (e) => { e.stopPropagation(); files.click(); };
+    sheet.append(add);
+
+    mine.forEach(r => {
+      const line = el('button', { class: 'mm-row rec' }, el('b', {}, r.name), el('span', {}, 'remove'));
+      line.onclick = async (e) => { e.stopPropagation(); await NovaMusic.dropRecord(r.id); draw(); };
+      sheet.append(line);
+    });
+    if (source === 'mine' && mine.length > 1) {
+      const skip = el('button', { class: 'mm-row' }, el('b', {}, 'Next track'), '');
+      skip.onclick = (e) => { e.stopPropagation(); NovaMusic.skip(); };
+      sheet.append(skip);
+    }
+  }
+
+  files.onchange = async () => {
+    const n = await NovaMusic.addRecords(files.files);
+    files.value = '';
+    if (n) {
+      NovaMusic.source('mine');
+      musicUnlocked = true;
+      if (musicWanted) musicNow();
+      toast(n === 1 ? 'One track added' : `${n} tracks added`, 'good');
+    } else toast('No audio files in that', 'bad');
+    draw();
+  };
+
+  open.onclick = (e) => {
+    e.stopPropagation();
+    musicUnlocked = true;
+    sheet.classList.toggle('on');
+    if (sheet.classList.contains('on')) draw();
+  };
+}
+
 const sting = (kind) => { if (musicUnlocked && musicWanted) NovaMusic.sting(kind); };
 
 /* A poll every second used to throw the whole board away and build a new one.

@@ -20,13 +20,40 @@
 (function (global) {
   'use strict';
 
-  // A pentatonic scale has no interval in it that can clash, so a tune wandering
-  // about inside one stays pleasant however long it is left running.
-  const SCALE = [0, 2, 4, 7, 9];
-  const ROOT = 220;                                   // A3
-  const note = (step) => ROOT * Math.pow(2, (SCALE[((step % 5) + 5) % 5] + 12 * Math.floor(step / 5)) / 12);
+  /* ── styles ───────────────────────────────────────────────
+   *
+   * There were fourteen pieces here and they all sat in the same five notes of
+   * the same key, which is why an afternoon of Quoldek slowly turns into one
+   * very patient song. A style changes the ground they are all built on: where
+   * the key is, which notes are in it, whether the beat leans, and how bright
+   * the instruments are. The same piece in two styles is two pieces.
+   *
+   * Every scale here is five notes with no interval in it that can clash, so a
+   * tune left wandering about inside one stays pleasant however long a lesson
+   * runs. What changes between them is the mood of those five.
+   */
+  const STYLES = {
+    quoldek:    { name: 'Quoldek',    say: 'the one you know',
+                  root: 220.0, scale: [0, 2, 4, 7, 9],  swing: 0,    warm: 2600, lift: 1 },
+    night:      { name: 'Night',      say: 'low and cool',
+                  root: 174.6, scale: [0, 3, 5, 7, 10], swing: 0.13, warm: 1700, lift: 0.86 },
+    arcade:     { name: 'Arcade',     say: 'bright and busy',
+                  root: 277.2, scale: [0, 2, 4, 7, 9],  swing: 0,    warm: 5400, lift: 1.22, edge: true },
+    playground: { name: 'Playground', say: 'skipping along',
+                  root: 293.7, scale: [0, 2, 5, 7, 9],  swing: 0.18, warm: 3400, lift: 1.08 },
+    storm:      { name: 'Storm',      say: 'dark, for a boss',
+                  root: 146.8, scale: [0, 1, 5, 7, 8],  swing: 0,    warm: 1500, lift: 0.9, edge: true },
+    sunrise:    { name: 'Sunrise',    say: 'wide and warm',
+                  root: 196.0, scale: [0, 2, 4, 7, 11], swing: 0.09, warm: 3100, lift: 1.04 }
+  };
+  let style = STYLES.quoldek;
+  const note = (step) => {
+    const sc = style.scale;
+    return style.root * Math.pow(2,
+      (sc[((step % 5) + 5) % 5] + 12 * Math.floor(step / 5)) / 12);
+  };
 
-  let ctx = null, out = null, noise = null, timer = null;
+  let ctx = null, out = null, noise = null, timer = null, soften = null;
   let playing = false, step = 0, bar = 0;
   let wanted = false;                                 // what the teacher asked for
   let urge = 0;                                       // 0 → 1 as a question runs out
@@ -39,10 +66,10 @@
     out = ctx.createGain();
     out.gain.value = 0;
     // a gentle low-pass takes the glassy edge off, so it sits under a room
-    const soft = ctx.createBiquadFilter();
-    soft.type = 'lowpass';
-    soft.frequency.value = 2600;
-    out.connect(soft).connect(ctx.destination);
+    soften = ctx.createBiquadFilter();
+    soften.type = 'lowpass';
+    soften.frequency.value = style.warm;
+    out.connect(soften).connect(ctx.destination);
 
     // half a second of noise, which every shaker and brush is cut out of
     noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
@@ -64,7 +91,9 @@
     g.connect(out);
 
     const body = ctx.createOscillator();
-    body.type = 'triangle';
+    /* A square rings harder than a triangle, which is the difference between a
+       marimba and an arcade cabinet — so the style picks which it is. */
+    body.type = style.edge ? 'square' : 'triangle';
     body.frequency.value = freq;
     body.connect(g);
     body.start(at); body.stop(at + length + 0.05);
@@ -317,6 +346,21 @@
   let name = 'menu';
   let level = track.level;
 
+  /** Move the whole soundtrack to another style, without stopping it. */
+  function setStyle(id) {
+    if (!STYLES[id] || style === STYLES[id]) return;
+    style = STYLES[id];
+    if (soften && ctx) {
+      soften.frequency.setTargetAtTime(style.warm, ctx.currentTime, 0.3);
+    }
+    try { localStorage.setItem('quoldek.music.style', id); } catch { /* fine */ }
+  }
+  const styleNow = () => Object.keys(STYLES).find(k => STYLES[k] === style) || 'quoldek';
+  try {
+    const kept = localStorage.getItem('quoldek.music.style');
+    if (kept && STYLES[kept]) style = STYLES[kept];
+  } catch { /* a browser with no storage still gets the default */ }
+
   function schedule() {
     if (!playing) return;
     const at = ctx.currentTime + 0.06;
@@ -325,14 +369,19 @@
     // as a question runs down, the tune climbs an octave and leans on every beat
     const lift = hot > 0.72 ? 5 : 0;
 
+    /* Swing: every second step lands a little late. It is the whole difference
+       between a tune that marches and one a class nods along to, and it costs
+       one number. */
+    const lean = (i % 2 === 1) ? track.beat * style.swing : 0;
     if (track.mel[i] !== null && track.mel[i] !== undefined) {
-      pluck(note(track.mel[i] + 5 + lift), at, 0.16 + hot * 0.05, 1.5);
+      pluck(note(track.mel[i] + 5 + lift), at + lean,
+            (0.16 + hot * 0.05) * style.lift, 1.5);
     }
     if (track.bass[i] !== null && track.bass[i] !== undefined) {
       pluck(note(track.bass[i]), at, 0.13, 2.2);
     }
     if (track.kick.includes(i)) kick(at, 0.34 + hot * 0.16);
-    if (track.shake.includes(i)) shake(at, 0.06 + hot * 0.05);
+    if (track.shake.includes(i)) shake(at + lean, 0.06 + hot * 0.05);
     // the last few seconds of a question put a shake on every step, which is what
     // a room hears as "hurry up" without anything shouting at it
     else if (hot > 0.55) shake(at, 0.05);
@@ -377,7 +426,101 @@
    * question runs down, so the board leans on its own countdown instead.
    */
   const TRACK_FILE = 'theme.mp3';
-  let audio = null, audioReady = false, audioDead = false;
+  let audio = null, audioDead = false;
+
+  /* ── the teacher's own records ────────────────────────────
+   *
+   * One file on a loop is one file on a loop: by the third game of an
+   * afternoon a class has heard it eleven times and it is the thing they
+   * complain about. So the board keeps a shelf of records instead, and the
+   * teacher puts their own on it.
+   *
+   * Their files stay in their browser. They are held in IndexedDB on the
+   * machine that is plugged into the projector and they are never sent
+   * anywhere — not to this app's server, not into the site. That is not a
+   * technicality: music somebody owns a copy of is theirs to play in their own
+   * room, and publishing it to a web address anybody can open is a different
+   * thing entirely. This does the first and cannot do the second.
+   */
+  const SHELF = 'quoldek-music', BIN = 'records';
+  let shelf = null;
+
+  function openShelf() {
+    if (shelf) return shelf;
+    shelf = new Promise((done) => {
+      try {
+        const req = indexedDB.open(SHELF, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(BIN)) db.createObjectStore(BIN, { keyPath: 'id' });
+        };
+        req.onsuccess = () => done(req.result);
+        req.onerror = () => done(null);
+      } catch { done(null); }
+    });
+    return shelf;
+  }
+
+  const inBin = async (mode, run) => {
+    const db = await openShelf();
+    if (!db) return null;
+    return new Promise((done) => {
+      try {
+        const tx = db.transaction(BIN, mode);
+        const req = run(tx.objectStore(BIN));
+        if (req) { req.onsuccess = () => done(req.result); req.onerror = () => done(null); }
+        else tx.oncomplete = () => done(true);
+      } catch { done(null); }
+    });
+  };
+
+  /** Everything on the shelf, without the audio itself. */
+  async function records() {
+    const all = await inBin('readonly', (bin) => bin.getAll());
+    return (all || []).map(r => ({ id: r.id, name: r.name }));
+  }
+
+  /** Put files on the shelf. Returns how many went on. */
+  async function addRecords(files) {
+    const list = Array.from(files || []).filter(f => /^audio\//.test(f.type) || /\.(mp3|m4a|ogg|wav|aac)$/i.test(f.name));
+    for (const file of list) {
+      await inBin('readwrite', (bin) => bin.put({
+        id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        name: file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').slice(0, 60),
+        blob: file
+      }));
+    }
+    await buildQueue();
+    return list.length;
+  }
+
+  /** Take one off again. */
+  async function dropRecord(id) {
+    await inBin('readwrite', (bin) => bin.delete(id));
+    await buildQueue();
+  }
+
+  /* ── the queue ────────────────────────────────────────────
+     What is actually going to play, in order, with the needle somewhere in it.
+     Shuffled, because a fixed order is the same complaint one remove. */
+  let queue = [], at = -1, spinning = false;
+
+  async function buildQueue() {
+    const mine = await inBin('readonly', (bin) => bin.getAll());
+    queue = (mine || []).map(r => ({ id: r.id, name: r.name, blob: r.blob }));
+    for (let i = queue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [queue[i], queue[j]] = [queue[j], queue[i]];
+    }
+    if (at >= queue.length) at = -1;
+  }
+
+  /** The next record, wrapping round, and nothing if the shelf is empty. */
+  function cue() {
+    if (!queue.length) return null;
+    at = (at + 1) % queue.length;
+    return queue[at];
+  }
 
   function theme() {
     if (audio || audioDead) return audio;
@@ -386,12 +529,33 @@
       audio.loop = true;
       audio.preload = 'auto';
       audio.volume = 0;
-      audio.addEventListener('canplay', () => { audioReady = true; });
       // no file, or a browser that will not have it: fall back to the synth
       audio.addEventListener('error', () => { audioDead = true; audio = null; });
     } catch { audioDead = true; audio = null; }
     return audio;
   }
+
+  /** Play whatever is next off the shelf, and move on when it finishes. */
+  function spin() {
+    const rec = cue();
+    if (!rec) { spinning = false; return false; }
+    try {
+      if (audio) { try { audio.pause(); } catch { /* already stopped */ } }
+      audio = new Audio(URL.createObjectURL(rec.blob));
+      audio.loop = false;                    // a shelf plays through, it does not repeat
+      audio.volume = 0;
+      audio.addEventListener('ended', () => { if (spinning) spin(); });
+      audio.addEventListener('error', () => { if (spinning) spin(); });
+      audioDead = false;
+      spinning = true;
+      playingName = rec.name;
+      const go = audio.play();
+      if (go && go.catch) go.catch(() => { /* blocked until a click; unlock() retries */ });
+      ride(Math.min(1, level * 2.2), 0.8);
+      return true;
+    } catch { spinning = false; return false; }
+  }
+  let playingName = '';
 
   /** Bring the track up or down over a couple of seconds, like the synth does. */
   function ride(to, secs) {
@@ -406,21 +570,60 @@
     }, 60);
   }
 
+  /* ── where the music comes from ───────────────────────────
+   *
+   * This used to be settled rather than chosen: if theme.mp3 was there it
+   * played on a loop and the fourteen written pieces never sounded at all. One
+   * file for a whole afternoon is the complaint that got this rewritten. Now
+   * it is a choice, and it is remembered:
+   *
+   *   made   the pieces this app writes as it goes — a different one for the
+   *          lobby, the question, the answer and the podium, in any of six
+   *          styles. Works with the wifi out.
+   *   theme  the single bundled track, looping, which is what it did before.
+   *   mine   the teacher's own records, shuffled, from their own machine.
+   */
+  let source = 'made';
+  try {
+    const kept = localStorage.getItem('quoldek.music.source');
+    if (kept === 'made' || kept === 'theme' || kept === 'mine') source = kept;
+  } catch { /* the default is the one that always works */ }
+
+  function setSource(which) {
+    if (source === which) return;
+    source = which;
+    try { localStorage.setItem('quoldek.music.source', which); } catch { /* fine */ }
+    spinning = false;
+    if (audio) { try { audio.pause(); } catch { /* already stopped */ } audio = null; }
+    audioDead = false;
+    if (playing || wanted) play(name);
+  }
+
   function play(which, opts) {
     wanted = true;
     const next = TRACKS[which] || TRACKS.menu;
     const loud = (opts && typeof opts.level === 'number') ? opts.level : next.level;
+    level = loud;
 
-    /* The track, if there is one. Each piece still sets a level, so the
-       lobby is quieter than the podium exactly as it was. */
-    const file = theme();
-    if (file && !audioDead) {
+    /* The teacher's own shelf. Each piece still sets a level, so the lobby is
+       quieter than the podium exactly as it was. */
+    if (source === 'mine') {
       name = which;
       playing = true;
-      const go = file.play();
-      if (go && go.catch) go.catch(() => { /* blocked until a click; unlock() retries */ });
-      ride(Math.min(1, loud * 2.2), playing ? 0.8 : 2);
-      return;
+      if (spinning && audio) { ride(Math.min(1, loud * 2.2), 0.8); return; }
+      if (spin()) return;
+      // nothing on the shelf yet: the written pieces rather than silence
+    }
+    if (source === 'theme') {
+      const file = theme();
+      if (file && !audioDead) {
+        name = which;
+        playing = true;
+        const go = file.play();
+        if (go && go.catch) go.catch(() => { /* blocked until a click; unlock() retries */ });
+        ride(Math.min(1, loud * 2.2), 0.8);
+        return;
+      }
     }
 
     if (!build()) return;
@@ -449,6 +652,7 @@
   }
 
   function stop() {
+    spinning = false;
     if (audio) { ride(0, 0.5); playing = false; }
     wanted = false;
     if (!playing) return;
@@ -494,9 +698,36 @@
     if (playing) fade(level, 1.2);
   }
 
+  buildQueue();      // so a board knows what is on the shelf before it is asked
+
   global.NovaMusic = {
     play, start, stop, sting, tension, tuneFor,
     get tracks() { return Object.keys(TRACKS); },
+
+    /* ── the selection ─────────────────────────────────────
+       Everything a board needs to put a menu in front of a teacher. */
+    /** The six styles, for a list: [{ id, name, say }]. */
+    get styles() {
+      return Object.keys(STYLES).map(id => ({
+        id, name: STYLES[id].name, say: STYLES[id].say
+      }));
+    },
+    /** Which style is on, or move to another one without stopping. */
+    style(id) { if (id === undefined) return styleNow(); setStyle(id); return styleNow(); },
+    /** Where the music comes from: 'made', 'theme' or 'mine'. */
+    source(which) { if (which === undefined) return source; setSource(which); return source; },
+    /** What is on the teacher's own shelf: [{ id, name }]. */
+    records,
+    /** Put files on it, from an <input type="file"> or a drop. */
+    addRecords,
+    /** Take one off. */
+    dropRecord,
+    /** Straight to the next record. Only means anything on the shelf. */
+    skip() { if (source === 'mine' && spinning) spin(); },
+    /** The name of the record playing, if it is one of theirs. */
+    get playingName() { return (source === 'mine' && spinning) ? playingName : ''; },
+    /** How many records are on the shelf, without waiting for a read. */
+    get shelved() { return queue.length; },
     get on() { return playing; },
     get wanted() { return wanted; },
     get track() { return playing ? name : null; },
@@ -511,7 +742,7 @@
         if (go && go.catch) go.catch(() => {});
       }
     },
-    /** True when the teacher's own track is what is playing. */
+    /** True when a recording rather than the synth is what is playing. */
     get usingTrack() { return !!audio && !audioDead; }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
