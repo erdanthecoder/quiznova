@@ -165,9 +165,12 @@ const doing = (m) => !want.length || want.includes(m);
           await Nova.api(`/games/${game.pin}/answer`, { method: 'POST',
             body: { playerId: me.id, questionId: q.id, answer: right, speed: 0.7 } });
           await new Promise(r2 => setTimeout(r2, 250));
-          // and place the block where the slider happens to be
+          /* And place the block where the slider happens to be. The seq rises
+             with every drop: it is what stops a retried request putting the
+             same block up twice, and without one nothing lands at all. */
+          window.__seq = (window.__seq || 0) + 1;
           await Nova.api(`/games/${game.pin}/place`, { method: 'POST',
-            body: { playerId: me.id, offset: (Math.random() - 0.5) * 0.5 } });
+            body: { playerId: me.id, offset: (Math.random() - 0.5) * 0.5, seq: window.__seq } });
         }).catch(() => {});
       }
       await sleep(1100);
@@ -191,8 +194,9 @@ const doing = (m) => !want.length || want.includes(m);
         await rights(p.page).catch(() => {});
         await p.page.evaluate(async () => {
           await new Promise(r2 => setTimeout(r2, 200));
+          window.__seq = (window.__seq || 0) + 1;
           await Nova.api(`/games/${game.pin}/boost`, { method: 'POST',
-            body: { playerId: me.id } }).catch(() => {});
+            body: { playerId: me.id, seq: window.__seq } }).catch(() => {});
         }).catch(() => {});
       }
       await sleep(1000);
