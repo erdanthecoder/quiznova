@@ -817,7 +817,7 @@ const sting = (kind) => { if (musicUnlocked && musicWanted) NovaMusic.sting(kind
  * copy only the differences onto the live one: unchanged nodes are never touched,
  * and a changed style is a real change to an existing element, which is what CSS
  * transitions need to animate. Nodes marked data-static (the QR code, the
- * countdown ring) own themselves and are left alone entirely. */
+ * countdown ring, and every game canvas) own themselves and are left alone entirely. */
 function morph(cur, next) {
   if (cur.hasAttribute && cur.hasAttribute('data-static')) return;
   for (const a of Array.from(cur.attributes)) if (!next.hasAttribute(a.name)) cur.removeAttribute(a.name);
@@ -1084,7 +1084,7 @@ function arenaView() {
       <div class="side blue"><b id="score-blue">0</b><span id="name-blue">Cobalt</span></div>
     </div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena' })));
+  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena', 'data-static': '' })));
   // the arena is the thing worth watching, so the table stays short
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 4, title: 'Top of the arena' }));
@@ -1138,7 +1138,7 @@ function runView() {
      nobody could see it. */
   const root = el('div', { class: 'board' });
   root.append(el('div', { class: 'arena-board runboard' },
-                el('canvas', { id: 'board-run' })));
+                el('canvas', { id: 'board-run', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 6, title: 'Boosts put in' }));
   root.append(rest);
@@ -1157,7 +1157,7 @@ function towerView() {
     <div class="tally"><b id="towerlead">—</b><span>in front</span></div>
     <div class="tally" style="margin-left:18px"><b id="towerblocks">0</b><span>blocks up</span></div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower' })));
+  root.append(el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 6, title: 'Blocks placed' }));
   root.append(rest);
@@ -1262,7 +1262,7 @@ function strikeView() {
     <div class="bosspips" id="bosspips"></div>
     <div class="bosswarn" id="bosswarn"><i></i><b>IT IS WINDING UP — HOLD A KNIFE</b></div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike' })));
+  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 6, title: 'Knives in' }));
   root.append(rest);
@@ -1274,11 +1274,23 @@ function stopRun() { if (boardRun) { boardRun.stop(); boardRun = null; } }
 
 function watchStrike() {
   const canvas = document.getElementById('board-strike');
-  if (!canvas || boardStrike) return;
+  if (!canvas) return;
+  /* A repaint builds a new canvas and throws the old one away. Keeping the
+     engine across that leaves it drawing on a canvas nobody can see, and the
+     board goes black in the middle of the fight — which is exactly what it did,
+     because the boss's own health changing is enough to repaint. Robot Run and
+     Tallest Tower already guarded this; the fight and the arena never did. So:
+     the engine is kept only while it still owns the canvas on the screen. */
+  if (boardStrike) {
+    if (boardStrike.canvas === canvas) return;
+    boardStrike.stop();
+    boardStrike = null;
+  }
   boardStrike = NovaStrike.start({
     canvas, watching: true, send: () => {},
     boss: game.boss || null, seed: game.strikeSeed || 1
   });
+  boardStrike.canvas = canvas;
   (game.players || []).forEach(p => boardStrike.add(
     { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
   if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => boardStrike && boardStrike.heard(e, p));
@@ -1358,10 +1370,16 @@ function feedStrike() {
 
 function watchArena() {
   const canvas = document.getElementById('board-arena');
-  if (!canvas || boardArena) return;
+  if (!canvas) return;
+  if (boardArena) {                       // the same guard the chase has
+    if (boardArena.canvas === canvas) return;
+    boardArena.stop();
+    boardArena = null;
+  }
   // the board is a spectator: it draws everyone and controls nobody
   boardArena = NovaArena.start({ canvas, watching: true, map: game.map || 'arena',
                                 room: pin, send: () => {} });
+  boardArena.canvas = canvas;
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => boardArena && boardArena.heard(event, payload));
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
@@ -1474,7 +1492,7 @@ function extraInto(host) {
      a leaderboard of numbers and no tower was drawn on any screen at all. */
   if (game.mode === 'tower') {
     host.append(el('div', { class: 'arena-board towerboard' },
-                   el('canvas', { id: 'board-tower' })));
+                   el('canvas', { id: 'board-tower', 'data-static': '' })));
     setTimeout(watchTower, 0);
     return;
   }

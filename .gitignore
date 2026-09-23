@@ -16,3 +16,6 @@ desktop/out/
 
 # built app binaries: they are made by the Windows workflow, not committed
 desktop/dist/
+
+# films: real gameplay recordings, made on demand, too big to keep in history
+desktop/test/films/
