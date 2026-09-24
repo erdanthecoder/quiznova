@@ -594,6 +594,23 @@
    * One flat style: 24x24, filled, no strokes to go thin when scaled down. */
   const ICON = {
     play:     '<path d="M8 5.5v13l11-6.5z"/>',
+    /* The teacher's dashboard needs a name for each of the four things they
+       came to do, and an unknown name draws nothing at all — so these are
+       spelled out rather than borrowed from the nearest shape that fits. */
+    home:     '<path d="M12 2.6 1.8 11h3v10.4h5.2V15h4v6.4h5.2V11h3z"/>',
+    search:   '<circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="currentColor" stroke-width="2.6"/>' +
+              '<path d="M15.4 15.4 21 21" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" fill="none"/>',
+    book:     '<path d="M4 3.4h6.2a2.4 2.4 0 0 1 1.8.9v15.4a2.4 2.4 0 0 0-1.8-.9H4z"/>' +
+              '<path d="M20 3.4h-6.2a2.4 2.4 0 0 0-1.8.9v15.4a2.4 2.4 0 0 1 1.8-.9H20z" opacity=".55"/>',
+    chart:    '<rect x="3" y="13" width="4.4" height="8" rx="1.4"/>' +
+              '<rect x="9.8" y="8" width="4.4" height="13" rx="1.4"/>' +
+              '<rect x="16.6" y="3.4" width="4.4" height="17.6" rx="1.4"/>',
+    plus:     '<path d="M10.6 3h2.8v7.6H21v2.8h-7.6V21h-2.8v-7.6H3v-2.8h7.6z"/>',
+    pencil:   '<path d="M3 17.3 14.6 5.7l3.7 3.7L6.7 21H3z"/>' +
+              '<path d="M16 4.3 17.7 2.6a1.9 1.9 0 0 1 2.7 0l1 1a1.9 1.9 0 0 1 0 2.7L19.7 8z"/>',
+    screen:   '<rect x="2.2" y="4" width="19.6" height="12.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/>' +
+              '<path d="M8.4 20h7.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+              '<path d="M12 16.6V20" stroke="currentColor" stroke-width="2.4" fill="none"/>',
     sound:    '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>' +
               '<path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" stroke="currentColor" ' +
               'stroke-width="2" fill="none" stroke-linecap="round"/>',

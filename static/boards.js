@@ -47,11 +47,16 @@
       : el('a', { class: 'btn ghost sm', href: 'https://quoldek.web.app/?stay=1',
                   title: 'Your quizzes and your account live there' }, 'Quoldek');
 
-    return el('header', { class: 'bar' },
-      el('a', { class: 'brand', href: 'https://quoldek.web.app/?stay=1' },
-        el('span', { style: 'line-height:0', html: global.Sprite.logo(34) }), el('b', {}, 'Quoldek')),
-      el('div', { class: 'grow' }),
-      purse, level, who, out);
+    /* The dashboard already carries the mark at the top of its rail, and two
+       Quoldek logos an inch apart reads as a page that has been assembled
+       rather than designed. A board that has no rail still wants one. */
+    const bar = el('header', { class: 'bar' });
+    if (!o.bare) {
+      bar.append(el('a', { class: 'brand', href: 'https://quoldek.web.app/?stay=1' },
+        el('span', { style: 'line-height:0', html: global.Sprite.logo(34) }), el('b', {}, 'Quoldek')));
+    }
+    bar.append(el('div', { class: 'grow' }), purse, level, who, out);
+    return bar;
   }
 
   /* A level track with the next few rungs on it, so what is coming is visible

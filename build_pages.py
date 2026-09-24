@@ -47,13 +47,13 @@ TEACH_OUT = os.path.join(ROOT, "docs-teach")
 TEACH_HOST = "teachboard-quoldek.web.app"
 STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
-BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
+BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
                 "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["theme.mp3", "nova.css", "boards.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -111,6 +111,7 @@ def build():
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')
         html = html.replace('href="/boards.css"', 'href="boards.css"')
+        html = html.replace('href="/dash.css"', 'href="dash.css"')
         html = html.replace('<script src="/boards.js"></script>', '<script src="boards.js"></script>')
         # the bundle inserted at /nova.js already carries these two
         html = html.replace('<script src="/rules.js"></script>', '')

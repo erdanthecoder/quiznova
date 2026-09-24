@@ -44,6 +44,8 @@ const GLOBALS = new Set([
   'MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'CustomEvent', 'Event',
   'DOMParser', 'TextEncoder', 'TextDecoder', 'atob', 'btoa', 'crypto', 'performance',
   'indexedDB', 'IDBKeyRange', 'DataTransfer',
+  'addEventListener', 'removeEventListener', 'dispatchEvent', 'scrollTo', 'scrollBy',
+  'matchMedia', 'getComputedStyle', 'open', 'close', 'focus', 'blur', 'print',
   'alert', 'confirm', 'prompt', 'parseInt', 'parseFloat', 'isNaN', 'isFinite',
   'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI', 'NaN',
   'Infinity', 'undefined', 'require', 'module', 'exports', 'process', 'Buffer',
