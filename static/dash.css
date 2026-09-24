@@ -103,10 +103,29 @@
   border: var(--line-w) solid var(--line); border-radius: var(--r-md);
   background: var(--card); box-shadow: var(--pop-2); overflow: hidden;
 }
-.card2:hover { transform: translateY(-2px); }
+.card2 { transition: transform .22s cubic-bezier(.2,.9,.25,1), box-shadow .22s ease; }
+.card2:hover { transform: translateY(-4px); box-shadow: 0 9px 0 var(--ink); }
 .card2 .cover { height: 104px; display: flex; align-items: center; justify-content: center;
-  position: relative; border-bottom: var(--line-w) solid var(--line); }
+  position: relative; overflow: hidden; border-bottom: var(--line-w) solid var(--line); }
 .card2 .cover b { font-size: 2rem; color: rgba(255, 255, 255, .95); font-weight: 900; letter-spacing: -.03em; }
+
+/* The drawn picture fills the cover. It leans in a touch when the card is
+   hovered, which is the whole of the animation: a shelf where nothing moves is
+   a shelf, and a shelf where everything moves is a fairground. */
+.card2 .cover.art { padding: 0; }
+/* The picture's own wrapper, named rather than picked out as "the span in
+   there" — the badges are spans in there too, and a rule that filled every one
+   of them to 100% blew the Free badge up to the size of the whole cover and
+   painted it over the artwork. */
+.card2 .cover .art-in { display: block; width: 100%; height: 100%; line-height: 0;
+  transition: transform .35s cubic-bezier(.2,.9,.25,1); }
+.card2 .cover .art-in svg { width: 100%; height: 100%; display: block; }
+.card2:hover .cover .art-in { transform: scale(1.07); }
+
+/* The year, in the corner, quiet enough not to argue with the picture. */
+.card2 .yr { position: absolute; left: 9px; bottom: 9px; padding: 3px 10px; border-radius: 99px;
+  background: rgba(10, 6, 24, .74); color: #fff; font-size: .7rem; font-weight: 900;
+  letter-spacing: .04em; backdrop-filter: blur(3px); }
 .card2 .body { padding: 13px 14px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .card2 .body b { font-size: .97rem; line-height: 1.3; }
 .card2 .body small { color: var(--faint); font-size: .79rem; }

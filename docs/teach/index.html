@@ -11,13 +11,14 @@
 <meta name="category" content="Education">
 <link rel="stylesheet" href="/nova.css?v=7e90b24f">
 <link rel="stylesheet" href="/boards.css?v=f6f648d2">
-<link rel="stylesheet" href="/dash.css?v=08d1289e">
+<link rel="stylesheet" href="/dash.css?v=a3b951df">
 </head>
 <body class="light">
 
 <div id="app"></div>
 
 <script src="/sprites.js?v=fd1e42f6"></script>
+<script src="/covers.js"></script>
 <script src="/progress.js?v=4849abb2"></script>
 <script src="/launch.js?v=61b7828a"></script>
 <script src="/nova.js?v=9fa1dfb0"></script>
@@ -186,10 +187,17 @@ const initials = (t) => String(t || '?').trim().split(/\s+/).slice(0, 2)
 /** One quiz, as a card, with whatever a teacher can do to it underneath. */
 function quizCard(q, acts) {
   const n = countOf(q);
+  /* A picture, worked out from the title — "Quick times tables test" gets the
+     array of dots. A shelf of cards with a letter on each one is a filing
+     cabinet; a shelf with pictures is something a child leans over to look at.
+     A title that matches nothing keeps the coloured cover with its initials,
+     which is still better than a blank. */
+  const art = Sprite.coverNameFor(q.title);
   return el('div', { class: 'card2' },
-    el('div', { class: 'cover', style: 'background:' + skin(q.id || q.title) },
-      el('b', {}, initials(q.title)),
-      acts.free ? el('span', { class: 'free' }, 'Free') : ''),
+    art
+      ? el('div', { class: 'cover art' }, el('span', { class: 'art-in', html: Sprite.cover(art, 300) }))
+      : el('div', { class: 'cover', style: 'background:' + skin(q.id || q.title) },
+          el('b', {}, initials(q.title))),
     el('div', { class: 'body' },
       el('b', {}, q.title || 'Untitled'),
       el('small', {}, `${n} ${n === 1 ? 'question' : 'questions'}${acts.note ? ' · ' + acts.note : ''}`),
@@ -281,16 +289,23 @@ const SUBJECT_OF = {};
 function catalogue() {
   const out = [];
   const subjects = QuizBank.SUBJECTS || {};
-  Object.keys(subjects).forEach(sub => {
-    subjects[sub].forEach(topicId => {
-      const topic = (QuizBank.TOPICS || []).find(t => t.id === topicId);
-      if (!topic) return;
-      SUBJECT_OF[topicId] = sub;
-      YEARS.forEach(y => out.push({
-        id: topicId + '-y' + y, topic, subject: sub, year: y,
-        title: cap(topic.label) + ' · Year ' + y,
-        count: 12
-      }));
+  /* Year first, then topic. Ordered the other way round the shelf opened with
+     six addition quizzes in a row whose pictures were identical and whose only
+     difference was a small tag in the corner — which is exactly the thing the
+     pictures were drawn to stop. This way the first screen is thirty different
+     drawings, and picking a year still gives that year's whole shelf. */
+  YEARS.forEach(y => {
+    Object.keys(subjects).forEach(sub => {
+      subjects[sub].forEach(topicId => {
+        const topic = (QuizBank.TOPICS || []).find(t => t.id === topicId);
+        if (!topic) return;
+        SUBJECT_OF[topicId] = sub;
+        out.push({
+          id: topicId + '-y' + y, topic, subject: sub, year: y,
+          title: cap(topic.label) + ' · Year ' + y,
+          count: 12
+        });
+      });
     });
   });
   return out;
@@ -303,16 +318,17 @@ function readyCard(p) {
   play.onclick = () => take(p, true, play);
   const save = el('button', { class: 'btn ghost sm' }, 'Save');
   save.onclick = () => take(p, false, save);
-  /* The cover carries the year rather than the topic's first letter. Six
-     addition quizzes in a row all began with A, which told a teacher scanning
-     the shelf nothing at all — the year is the thing they are actually
-     looking for, and the topic is already written underneath. */
+  /* Every topic has its own drawn picture. It is what makes a shelf of a
+     hundred and sixty-eight of these scannable at all: a teacher finds the
+     fractions one by the pizza before they have read a word. The year sits in
+     a corner tag, where it can be seen without shouting over the art. */
   return el('div', { class: 'card2' },
-    el('div', { class: 'cover', style: 'background:' + skin(p.id) },
-      el('b', {}, 'Y' + p.year),
-      el('span', { class: 'free' }, 'Free')),
+    el('div', { class: 'cover art' },
+      el('span', { class: 'art-in', html: Sprite.cover(p.topic.id, 300) }),
+      el('span', { class: 'free' }, 'Free'),
+      el('span', { class: 'yr' }, 'Year ' + p.year)),
     el('div', { class: 'body' },
-      el('b', {}, p.title),
+      el('b', {}, cap(p.topic.label)),
       el('small', {}, SUBJECT_NAME[p.subject] + ' · ' + p.count + ' questions'),
       el('div', { class: 'acts' }, play, save)));
 }
@@ -339,6 +355,10 @@ async function take(p, andPlay, button) {
         choices: q.options.map(o => ({ text: o, correct: o === q.correct }))
       } }))
     } });
+    /* A quiz appearing in a list is a number going up. Twenty questions have
+       just been written for this teacher in about a second, and the moment is
+       worth marking. */
+    if (!andPlay && Nova.confetti) Nova.confetti();
     Nova.toast(andPlay ? 'Ready — opening it now' : 'Saved to your library', 'good');
     if (andPlay) { location.href = HUB + '/studio.html?id=' + encodeURIComponent(id) + '&host=1'; return; }
     button.textContent = 'Saved';
@@ -386,8 +406,16 @@ function discover() {
            || (p.topic.words || []).some(w => w.includes(want))
            || SUBJECT_NAME[p.subject].toLowerCase().includes(want)));
 
+  /* One button that picks for you. A hundred and sixty-eight is enough choice
+     to be a decision, and a teacher with four minutes before the bell does not
+     want to make one. */
+  const lucky = el('button', { class: 'btn sm' }, 'Surprise me');
+  lucky.onclick = () => {
+    const pool = shown.length ? shown : catalogue();
+    take(pool[Math.floor(Math.random() * pool.length)], true, lucky);
+  };
   wrap.append(el('div', { class: 'block-head' },
-    el('h2', {}, shown.length + (shown.length === 1 ? ' quiz' : ' quizzes'))));
+    el('h2', {}, shown.length + (shown.length === 1 ? ' quiz' : ' quizzes')), lucky));
 
   if (!shown.length) {
     wrap.append(el('div', { class: 'empty' },

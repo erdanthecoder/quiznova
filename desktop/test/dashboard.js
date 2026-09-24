@@ -17,6 +17,10 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
                           else console.log(`ok    ${n}${d ? '  — ' + d : ''}`); };
 
 (async () => {
+  /* A fresh shelf every run. Without this each run inherited the last one's
+     quizzes, so the library grew by one every time and any count in here would
+     have been measuring the test's own history. */
+  require('fs').rmSync('/tmp/claude-0/dashtest', { recursive: true, force: true });
   const srv = new Server({ root: path.join(ROOT, 'static'),
                            dataDir: '/tmp/claude-0/dashtest', port: 0 });
   const started = await srv.listen();
@@ -53,6 +57,26 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   const free = await page.locator('.card2 .free').count();
   ok('every single card is marked free, with nothing locked', free === cards, `${free} of ${cards}`);
 
+  /* Pictures. A shelf of cards with a letter on each one is a filing cabinet,
+     and the whole point of drawing thirty-eight of these is that a teacher
+     finds the fractions quiz by the pizza before they read a word. */
+  const art = await page.locator('.card2 .cover.art svg').count();
+  ok('every card has a drawn picture on it', art === cards, `${art} of ${cards}`);
+  /* "A drawing, not a coloured box" is the claim worth testing, and shape count
+     is a poor proxy for it — the human body cover is a heart and a heartbeat
+     trace, which is four shapes and unmistakable. So: every cover has to carry
+     something drawn, not only rectangles. */
+  const drawn = await page.evaluate(() =>
+    [...document.querySelectorAll('.card2 .cover.art svg')]
+      .map(s => s.querySelectorAll('path,circle,ellipse').length));
+  ok('and every picture is drawn, not just coloured rectangles',
+     drawn.length && drawn.every(n => n >= 2), `fewest drawn marks in one: ${Math.min(...drawn)}`);
+  const distinct = await page.evaluate(() => new Set(
+    [...document.querySelectorAll('.card2 .cover.art svg')].map(s => s.innerHTML)).size);
+  ok('different topics get different pictures', distinct >= 8, `${distinct} different ones on screen`);
+  ok('and the year is on the card without covering the art',
+     await page.locator('.card2 .yr').count() === cards);
+
   // the filters
   await page.locator('.chip', { hasText: 'Science' }).first().click();
   await page.waitForTimeout(400);
@@ -61,9 +85,10 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
      sci.length && sci.every(t => t.startsWith('Science')), sci[0]);
   await page.locator('.chip', { hasText: 'Year 3' }).first().click();
   await page.waitForTimeout(400);
-  const y3 = await page.locator('.card2 .body b').allTextContents();
+  // the year moved off the title and onto the tag over the picture
+  const y3 = await page.locator('.card2 .yr').allTextContents();
   ok('and picking a year narrows it again',
-     y3.length && y3.every(t => /Year 3$/.test(t)), y3[0]);
+     y3.length && y3.every(t => t === 'Year 3'), y3[0] + ' ×' + y3.length);
 
   // search
   await page.locator('.chip', { hasText: 'Everything' }).first().click();
@@ -102,12 +127,20 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   ok('each with answers to pick from and one of them right',
      after.choices >= 2 && after.hasRight, `${after.choices} choices`);
 
+  ok('and there is one button that picks for you',
+     await page.locator('.block-head .btn', { hasText: 'Surprise me' }).count() === 1);
+
   // ── Library ──
   await page.locator('.seek input').fill('');
   await page.locator('.rail-link', { hasText: 'Library' }).click();
   await page.waitForTimeout(600);
   const lib = await page.locator('.card2 .body b').allTextContents();
   ok('the quiz is in the library straight away', lib.includes(after.title), lib.join(' · '));
+  ok("a teacher's own quiz gets a picture worked out from its title",
+     await page.locator('.card2 .cover.art svg').count() >= 1,
+     'title was ' + after.title);
+  ok('and a title that matches nothing still gets a cover rather than a gap',
+     await page.evaluate(() => !!Sprite.cover(Sprite.coverNameFor('My own thing'), 100).includes('<svg')));
   await page.locator('.seek input').fill('nothing called this');
   await page.waitForTimeout(500);
   ok('and the library can be searched',

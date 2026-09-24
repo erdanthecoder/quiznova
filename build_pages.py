@@ -18,7 +18,7 @@ OUT = os.path.join(ROOT, "docs")
 # so a class types playquoldek.web.app rather than a path with a filename on it.
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
-PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
+PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
                "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
@@ -47,13 +47,13 @@ TEACH_OUT = os.path.join(ROOT, "docs-teach")
 TEACH_HOST = "teachboard-quoldek.web.app"
 STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
-BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "progress.js",
+BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "progress.js",
                 "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
