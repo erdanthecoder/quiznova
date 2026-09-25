@@ -650,6 +650,12 @@
       return clamp(1 - gap / 0.30, 0, 1);
     }
     let lastFoot = 0, stompUntil = 0, stompAmt = 0;
+    /* The moment it gets them. Until now a deck running out took a heart off a
+       row of hearts and started the deck again, which is the same amount of
+       nothing as a page reloading — the one event the whole mode is built
+       around went past without the room noticing. */
+    let grabbedAt = 0;
+    const GRAB_MS = 2000;
     function robotX() {
       const frac = clamp((room.escape || 0) / Math.max(1, room.target || 100), 0, 1);
       const clock = timeLeft();
@@ -1393,6 +1399,92 @@
       ctx.restore();
     }
 
+    /* It comes for the camera.
+     *
+     * Not a cutaway and not a caption: the head it has been wearing all game
+     * rushes the screen until it is the screen, the eye opens, and the whole
+     * board shakes. Two seconds, then the deck starts again — long enough to
+     * make a class shout, short enough that it does not become the game. */
+    function grab(t) {
+      const w = canvas.width, h = canvas.height;
+      const k = clamp((t - grabbedAt) / GRAB_MS, 0, 1);
+      // it closes fast and then holds, rather than drifting in at one speed
+      const rush = k < 0.34 ? Math.pow(k / 0.34, 0.55) : 1;
+      const out = k > 0.8 ? (k - 0.8) / 0.2 : 0;
+
+      ctx.save();
+      if (k < 0.06) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.restore(); return; }
+
+      // the corridor behind it, drained of everything but red
+      ctx.fillStyle = '#12040A';
+      ctx.fillRect(0, 0, w, h);
+      const wash = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, h * 1.1);
+      wash.addColorStop(0, `rgba(158,8,26,${0.5 * rush})`);
+      wash.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = wash;
+      ctx.fillRect(0, 0, w, h);
+
+      // it will not hold still this close
+      const shake = h * 0.02 * rush * (1 - out);
+      ctx.translate(w / 2 + (Math.random() - 0.5) * shake,
+                    h * 0.52 + (Math.random() - 0.5) * shake);
+      const S = (h / 300) * (0.25 + rush * 2.6);
+      ctx.scale(S, S);
+      ctx.rotate((Math.random() - 0.5) * 0.02 * rush);
+      ctx.globalAlpha = 1 - out;
+
+      const plate = (x, y, w2, h2, c, r) => {
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.roundRect(x, y, w2, h2, r === undefined ? 10 : r);
+        ctx.fill();
+        ctx.strokeStyle = '#0A0812'; ctx.lineWidth = 7; ctx.stroke();
+      };
+      // the same head, at the size of a room
+      plate(-92, -58, 184, 96, '#5A6578', 20);
+      plate(-58, -84, 116, 34, '#3E4757', 12);
+      // horns
+      ctx.fillStyle = '#E8E2F0';
+      [-1, 1].forEach(sx => {
+        ctx.beginPath();
+        ctx.moveTo(sx * 44, -84); ctx.lineTo(sx * 70, -136); ctx.lineTo(sx * 78, -80);
+        ctx.closePath(); ctx.fill();
+      });
+      // the eye, opening as it arrives
+      const eye = 14 + rush * 20;
+      ctx.fillStyle = '#FF2A1E';
+      ctx.shadowColor = '#FF2A1E';
+      ctx.shadowBlur = 60 * rush;
+      ctx.beginPath(); ctx.arc(0, -10, eye, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#FFF0C4';
+      ctx.beginPath(); ctx.arc(0, -10, eye * 0.42, 0, TAU); ctx.fill();
+      ctx.shadowBlur = 0;
+      // and a mouth of teeth, which is what makes it a face rather than a box
+      ctx.fillStyle = '#12040A';
+      ctx.beginPath(); ctx.roundRect(-64, 6, 128, 26, 8); ctx.fill();
+      ctx.fillStyle = '#FFF6E0';
+      for (let i = -3; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 18 - 7, 6); ctx.lineTo(i * 18, 24); ctx.lineTo(i * 18 + 7, 6);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+
+      if (k > 0.3 && k < 0.92) {
+        const fs = Math.max(18, h * 0.085);
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, (k - 0.3) * 6) * (1 - out);
+        ctx.font = `900 ${fs}px ui-sans-serif,system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = fs * 0.2;
+        ctx.strokeStyle = '#2A0006';
+        ctx.strokeText('IT GOT YOU', w / 2, h * 0.9);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('IT GOT YOU', w / 2, h * 0.9);
+        ctx.restore();
+      }
+    }
+
     function frame() {
       if (stopped) return;
       const t = now();
@@ -1412,6 +1504,14 @@
       /* Three things the board can be showing: the lift between decks, which
          wins because it is the reward and it is over in two seconds; the
          scramble for a safe zone; or the chase itself. */
+      /* Nothing else is on screen while it has them. A jumpscare with a deck
+         and a scoreboard behind it is a picture of a robot. */
+      if (grabbedAt && t - grabbedAt < GRAB_MS) {
+        grab(t);
+        ctx.restore();
+        raf = requestAnimationFrame(frame);
+        return;
+      }
       if (liftFrom && t - liftFrom < LIFT_MS) {
         drawLift(t);
         ctx.restore();
@@ -1454,6 +1554,10 @@
       say,
       /** The hatch shut and the deck fell away: play the ride to the next one. */
       liftOff,
+      /** It reached them. Two seconds of it, and then the deck starts again. */
+      caught() { grabbedAt = now(); shakeUntil = now() + 900; },
+      /** Whether it is on screen, which is the one thing a test can ask. */
+      get grabbing() { return !!grabbedAt && now() - grabbedAt < GRAB_MS; },
       /** Whether the ride is playing, which is the board's business and the
           one thing a test can ask without reading pixels. */
       get lifting() { return !!liftFrom && now() - liftFrom < LIFT_MS; },

@@ -141,6 +141,49 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   } else {
     ok('the chase could be measured', false, 'no reading came back');
   }
+  /* ── and then what happens ──
+     A deck whose clock runs out costs the class a life. Up to now that was a
+     heart quietly leaving a row, which is the same amount of nothing as a page
+     reloading — so the one event the mode is built around went past without
+     the room noticing. */
+  const live = [...srv.games.games.values()].find(x => x.pin === pin) || null;
+  ok('the class still has lives to lose', live && live.lives > 0, live ? live.lives + ' left' : 'no game');
+  const livesBefore = live ? live.lives : 0;
+  if (live) { live.roundEndsAt = Date.now() - 10; }
+  await post(`/api/games/${pin}/tick`, { hostToken: ht });
+  await sleep(500);
+  ok('running out of clock costs the class a life',
+     live && live.lives === livesBefore - 1, live ? `${livesBefore} → ${live.lives}` : '');
+  const scare = await board.evaluate(() => {
+    const c = document.getElementById('board-run');
+    if (!c) return null;
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let red = 0, bright = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4 * 17) {
+      n++;
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (r > 150 && g < 90 && b < 90) red++;
+      if (r + g + b > 600) bright++;
+    }
+    return { red: red / n, bright: bright / n,
+             says: document.body.innerText.includes('IT GOT YOU') };
+  });
+  ok('and it comes for the camera rather than taking a heart quietly',
+     scare && scare.red > 0.02, scare ? `${(scare.red * 100).toFixed(1)}% of the board is its eye` : 'nothing');
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'chase-jumpscare.png') });
+  await sleep(2200);
+  const after = await board.evaluate(() => {
+    const c = document.getElementById('board-run');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let red = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4 * 17) {
+      n++; if (d[i] > 150 && d[i + 1] < 90 && d[i + 2] < 90) red++;
+    }
+    return red / n;
+  });
+  ok('and then it lets go and the deck starts again',
+     after < (scare ? scare.red : 1), `${((scare ? scare.red : 0) * 100).toFixed(1)}% → ${(after * 100).toFixed(1)}%`);
+
   ok('no errors on the board', errs.length === 0, errs.slice(0, 2).join(' | '));
 
   for (const { page } of phones) await page.close();

@@ -658,7 +658,7 @@
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=5dd682fe"></script>
 <script src="strike.js?v=0d07d142"></script>
-<script src="run.js?v=e5235c7c"></script>
+<script src="run.js?v=963fd974"></script>
 <script src="tower.js?v=ad293ebc"></script>
 <script src="paste.js?v=3032c005"></script>
 <script src="rules.js?v=c9cda209"></script>
@@ -1378,7 +1378,7 @@ let swingTimer = 0;    // and the boss swings once, not once per poll
    repaint builds a new canvas and a new engine, and anything remembered on the
    old one goes with it — which is exactly the moment the deck number changes,
    so the ride to the next deck was never played. */
-let lastDeck = 0, lastEscape = 0;
+let lastDeck = 0, lastEscape = 0, lastLives = null;
 
 /** Hand the board the room and the class, every time the game changes. */
 function feedRun() {
@@ -1410,6 +1410,17 @@ function feedRun() {
      server because the board is the only thing that can show it. */
   const deck = game.round || 1;
   if (lastDeck && deck > lastDeck && game.state === 'running') boardRun.liftOff(deck);
+
+  /* A heart went. The server takes one when a deck's clock runs out, and up to
+     now that was the whole of it — a heart quietly left the row and the deck
+     started again, which is the same amount of nothing as a page reloading.
+     The one event the mode is built around now happens to the room. */
+  const lives = game.lives === undefined ? 3 : game.lives;
+  if (lastLives !== null && lives < lastLives && game.state === 'running') {
+    boardRun.caught();
+    sting('ouch');
+  }
+  lastLives = lives;
   lastDeck = deck;
 
   /* The safe phase has its own clock, and on the live edition there is no
