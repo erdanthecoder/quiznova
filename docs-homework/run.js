@@ -653,8 +653,16 @@
     function robotX() {
       const frac = clamp((room.escape || 0) / Math.max(1, room.target || 100), 0, 1);
       const clock = timeLeft();
-      // both have to be going well for the room to be comfortable
-      const gap = 0.08 + (0.20 + frac * 0.34) * (0.35 + clock * 0.65);
+      /* The gap used to be 0.08 + (0.20 + frac*0.34) * (0.35 + clock*0.65), which
+         never went below 0.15 of the screen however badly it was going — and
+         danger() is scaled against 0.30, so the red edge could not pass half and
+         the word RUN, which needs three quarters, could not appear at all. A
+         warning that cannot fire is a warning that is not there.
+         The comment above this has always said it: boosts shove it back, the
+         clock brings it in whatever the bar says, and running out of clock is
+         the moment it is on top of the room. So the clock owns the distance and
+         the bar buys time against it. */
+      const gap = 0.05 + (0.22 + frac * 0.32) * clock;
       return packX() - canvas.width * gap;
     }
     /** How hard the room is boosting right now, 0 to 1. */
@@ -1361,13 +1369,26 @@
       ctx.save();
       ctx.fillStyle = edge;
       ctx.fillRect(0, 0, w, h);
-      if (d > 0.75) {                       // and the one word that matters
-        const fs = Math.max(14, h * 0.055);
-        ctx.globalAlpha = 0.35 + pulse * 0.55;
+      if (d > 0.75) {
+        /* The one word that matters, and it has to beat the red wash it is
+           printed on — thin pink letters on a dark red screen were the colour
+           of the screen. White, outlined, and big enough to read from the back
+           of a hall. */
+        const fs = Math.max(20, h * 0.12);
+        ctx.globalAlpha = 0.55 + pulse * 0.45;
         ctx.font = `900 ${fs}px ui-sans-serif,system-ui,sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#FF6A78';
-        ctx.fillText('RUN', w * 0.5, h * 0.20);
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = fs * 0.2;
+        ctx.strokeStyle = '#2A0006';
+        ctx.strokeText('RUN', w * 0.5, h * 0.22);
+        ctx.shadowColor = '#FF2740';
+        ctx.shadowBlur = fs * 0.7;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('RUN', w * 0.5, h * 0.22);
+        ctx.shadowBlur = 0;
+        ctx.textBaseline = 'alphabetic';
       }
       ctx.restore();
     }
@@ -1437,6 +1458,13 @@
           one thing a test can ask without reading pixels. */
       get lifting() { return !!liftFrom && now() - liftFrom < LIFT_MS; },
       get state() { return { charged: me.charged, spent: me.spent, streak: me.streak }; },
+      /* Where the robot is and where the pack is, as a fraction of the screen.
+         The chase's whole claim is that it closes when a class stops answering,
+         and that claim is worth being able to read off rather than squint at. */
+      get chase() {
+        return { robot: robotX() / canvas.width, pack: packX() / canvas.width,
+                 gap: (packX() - robotX()) / canvas.width, danger: danger() };
+      },
       stop() { stopped = true; if (raf) cancelAnimationFrame(raf); }
     };
   }

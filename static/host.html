@@ -1342,6 +1342,10 @@ function watchRun() {
   }
   boardRun = NovaRun.start({ canvas, world: game.map || 'station' });
   boardRun.canvas = canvas;
+  /* Where the robot is, readable from outside. The mode's whole claim is that
+     it closes on a class that stops answering, and a claim that can only be
+     checked by squinting at a video is a claim nobody checks. */
+  canvas.__chase = () => boardRun && boardRun.chase;
   feedRun();
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
