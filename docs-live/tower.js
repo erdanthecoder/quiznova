@@ -86,6 +86,7 @@
     let players = opts.players || [];
     let slots = opts.slots || SLOTS;
     let monster = 0, monsterTeam = '', shake = 0, gift = {};
+    let target = opts.target || 0;      // the height that wins it
     let drift = 0;                    // the board's clock against the game's
     /* Blocks used to appear. A block that appears is a number going up; a block
        that falls, lands, squashes and throws dust is a thing being built, and
@@ -180,7 +181,7 @@
 
       /* One floor's height is worked out from the tallest tower, so three
          towers always fit on the screen however high the room builds. */
-      const top = tallest();
+      const top = Math.max(tallest(), target ? Math.min(target, tallest() + 4) : 0);
       const room = ground - h * 0.16;
       const floorH = clamp(room / Math.max(4, top + 1), h * 0.018, h * 0.092);
       const colW = w / 3;
@@ -389,6 +390,30 @@
         ctx.restore();
       });
 
+      /* The finish line. A race with no line on the floor is three teams
+         stacking bricks for as long as a teacher lets them — the height that
+         wins has to be somewhere a class can see it and count towards. */
+      if (target && ground - target * floorH > h * 0.08) {
+        const fy = ground - target * floorH;
+        ctx.save();
+        ctx.setLineDash([16, 12]);
+        ctx.lineDashOffset = -t / 22;
+        ctx.strokeStyle = '#FFC53D';
+        ctx.lineWidth = Math.max(2, h * 0.007);
+        ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(w, fy); ctx.stroke();
+        ctx.setLineDash([]);
+        const fs = Math.max(11, h * 0.032);
+        ctx.font = `900 ${fs}px ui-sans-serif,system-ui,sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = fs * 0.22;
+        ctx.strokeStyle = '#1B1330';
+        ctx.strokeText(target + ' FLOORS WINS', w * 0.012, fy - fs * 0.5);
+        ctx.fillStyle = '#FFC53D';
+        ctx.fillText(target + ' FLOORS WINS', w * 0.012, fy - fs * 0.5);
+        ctx.restore();
+      }
+
       /* Who is in front. Three towers of roughly the same height read as a
          draw from the back of a hall; a flag on top of one does not. It only
          flies on a clear lead, because a flag that flickers between two teams
@@ -584,6 +609,7 @@
       if (next.players) players = next.players;
       if (next.slots) slots = next.slots;
       if (typeof next.drift === 'number') drift = next.drift;
+      if (typeof next.target === 'number') target = next.target;
     }
 
     /** Whose tower the gorilla is sitting on, if he is on one at all. */

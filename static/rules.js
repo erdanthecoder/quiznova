@@ -832,8 +832,43 @@
   /* Some modes end themselves before the questions run out — a boss dies.
    * Asked in one place so the website, the app and
    * the Flask edition cannot drift apart on it. */
+  /* What a team has between them. Laser Tag scores per player — a tag is worth
+     a hundred — and the two sides are simply those added up. */
+  function teamTotal(game, side) {
+    return Object.values(game.players || {})
+      .filter(p => (p.team === 'blue' ? 'blue' : 'red') === side || p.team === side)
+      .reduce((n, p) => n + Math.max(0, p.score || 0), 0);
+  }
+
+  /* Which side is ahead in Laser Tag, and by how much. The board, the phones
+     and the ending all have to agree, so they all ask here. */
+  function laserStanding(game) {
+    const red = teamTotal(game, 'red'), blue = teamTotal(game, 'blue');
+    return { red, blue, lead: Math.abs(red - blue),
+             ahead: red === blue ? '' : (red > blue ? 'red' : 'blue') };
+  }
+
+  /* How tall a tower has to be to win, and who has got there. */
+  const TOWER_TARGET = 10;              // floors
+  function towerWinner(game) {
+    const towers = (game && game.towers) || {};
+    return TOWER_TEAMS.find(t => towers[t] && floorsOf(towers[t]) >= TOWER_TARGET) || '';
+  }
+
+  /* Has the mode itself ended?
+   *
+   * Two of the five could not. Laser Tag and Tallest Tower ran until a teacher
+   * pressed the button, which is not an ending — it is being switched off, and
+   * it is why both of them trail away rather than finish. A game a class can
+   * win is a game a class plays differently. */
+  const LASER_TARGET = 2000;            // points for a side, which is twenty tags
   function modeFinished(game) {
     if (game.mode === 'boss') return !!game.boss && (game.boss.hp === 0 || game.boss.classHp === 0);
+    if (game.mode === 'tower') return !!towerWinner(game);
+    if (game.mode === 'laser') {
+      const { red, blue } = laserStanding(game);
+      return red >= LASER_TARGET || blue >= LASER_TARGET;
+    }
     return false;
   }
 
@@ -843,7 +878,7 @@
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
     SAFE_MS, FIELD_W, FIELD_H, safeZones, zoneCounts, claimZone, settleSafe,
     TOWER_TEAMS, TOWER_NAMES, SLOTS, PERFECT, GIFT_EVERY, MONSTER_EVERY, MONSTER_FLOOR,
-    GORILLA_MS, MARK_AHEAD,
+    GORILLA_MS, MARK_AHEAD, TOWER_TARGET, towerWinner, LASER_TARGET, teamTotal, laserStanding,
     blankTower, floorsOf, towersOf, placeBlock, towerMonster, towerSettle,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
     readSetup, secondsFor, pointsFor, pickDouble, streakBonus, arrange, modeFinished,

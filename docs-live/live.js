@@ -198,7 +198,9 @@
       knifeReload: R.KNIFE_RELOAD_MS,
       // Robot Run's shared escape: one bar, one set of lives, for the whole room
       escape: game.escape || 0, escapeTarget: ESCAPE_TARGET,
-      towers: game.towers || null, towerSlots: R.SLOTS, monsterAt: game.monsterAt || 0,
+      towers: game.towers || null, towerSlots: R.SLOTS, towerTarget: R.TOWER_TARGET,
+      laserTarget: R.LASER_TARGET,
+      monsterAt: game.monsterAt || 0,
       gorillaMs: R.GORILLA_MS,
       safeEndsAt: game.safeEndsAt || 0, safeMs: R.SAFE_MS,
       zones: game.state === 'safe'

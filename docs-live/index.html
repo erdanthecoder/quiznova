@@ -659,10 +659,10 @@
 <script src="arena.js?v=5dd682fe"></script>
 <script src="strike.js?v=0d07d142"></script>
 <script src="run.js?v=963fd974"></script>
-<script src="tower.js?v=ad293ebc"></script>
+<script src="tower.js?v=fbdb38cb"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=c9cda209"></script>
-<script src="live.js?v=6198f5c9"></script>
+<script src="rules.js?v=a58d4258"></script>
+<script src="live.js?v=ee2902a9"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
 <script src="account.js?v=1f2bba77"></script>
 <script src="qr.js?v=b8307384"></script>
@@ -1296,9 +1296,17 @@ function feedArena() {
   /* A sentence, not a sum: a class reads "Crimson by 300" across a hall and a
      pair of numbers it has to subtract, it does not. */
   const gap = Math.abs(sides.red - sides.blue);
-  set('tug-say', !total ? 'First blood'
-    : gap === 0 ? 'Level'
-    : `${sides.red > sides.blue ? 'Crimson' : 'Cobalt'} by ${gap}`);
+  /* And what they are actually racing to. The mode had no finish at all — it
+     ran until a teacher pressed the button — so neither side had any reason to
+     push. A number to get to changes how a round is played. */
+  const target = game.laserTarget || 2000;
+  const best = Math.max(sides.red, sides.blue);
+  const nearly = best >= target * 0.75;
+  set('tug-say', !total ? `First to ${target}`
+    : gap === 0 ? `Level · first to ${target}`
+    : `${sides.red > sides.blue ? 'Crimson' : 'Cobalt'} by ${gap} · ${Math.max(0, target - best)} to win`);
+  const say = document.getElementById('tug-say');
+  if (say) say.classList.toggle('warn', nearly);
 }
 
 /* Robot Run's board: the shared escape, the shared lives, and who is putting
@@ -1723,7 +1731,7 @@ function feedTower() {
   });
   boardTower.lastFloors = nowFloors;
   boardTower.update({ towers: game.towers, players: game.players,
-                      slots: game.towerSlots || 4, drift });
+                      slots: game.towerSlots || 4, target: game.towerTarget || 10, drift });
 
   // who is in front, and how much is standing up between the three of them
   const names = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
@@ -2034,17 +2042,41 @@ function overView() {
 
   let headline = 'Final scores', sub = game.quizTitle;
   if (game.mode === 'laser') {
-    const red = game.teams.red, blue = game.teams.blue;
-    const winner = red.hp === blue.hp ? null : (red.hp > blue.hp ? red : blue);
-    headline = winner ? `${winner.name} wins` : 'A draw';
-    sub = `${red.name} ${Math.max(0, red.hp)} HP · ${blue.name} ${Math.max(0, blue.hp)} HP`;
+    /* This used to compare game.teams.red.hp with game.teams.blue.hp. Those
+       start at zero and are only ever subtracted from, so both were always
+       zero and every laser game in the app's history ended "A draw · Crimson
+       0 HP · Cobalt 0 HP" however it had actually gone. The score that works
+       is the one the board has been showing all game: what the side scored. */
+    /* Worked out the same way the scoreboard has been working it out all game:
+       what each side scored. The board does not load the rules, so this adds
+       the two sides up here rather than importing a file for one sum. */
+    const sides = { red: 0, blue: 0 };
+    (game.players || []).forEach(p => {
+      sides[p.team === 'blue' ? 'blue' : 'red'] += Math.max(0, p.score || 0);
+    });
+    const name = (t) => (game.teams && game.teams[t] && game.teams[t].name)
+      || (t === 'red' ? 'Crimson' : 'Cobalt');
+    const ahead = sides.red === sides.blue ? '' : (sides.red > sides.blue ? 'red' : 'blue');
+    headline = ahead ? `${name(ahead)} wins` : 'A draw';
+    sub = `${name('red')} ${sides.red} · ${name('blue')} ${sides.blue}`;
+  } else if (game.mode === 'tower') {
+    const towers = game.towers || {};
+    const slots = game.towerSlots || 4;
+    const tall = ['red', 'blue', 'green']
+      .map(t => ({ t, n: Math.floor((((towers[t] || {}).blocks || []).length) / slots) }))
+      .sort((a, b) => b.n - a.n);
+    const label = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
+    const drawn = tall[1] && tall[0].n === tall[1].n;
+    headline = drawn ? 'A draw' : `${label[tall[0].t]} wins`;
+    sub = drawn ? `${tall[0].n} floors each`
+      : `${tall[0].n} floor${tall[0].n === 1 ? '' : 's'} up` +
+        (tall[1] ? ` · ${label[tall[1].t]} ${tall[1].n}` : '');
   } else if (game.mode === 'boss') {
     const boss = game.boss || { hp: 0, name: 'The boss' };
     headline = boss.hp === 0 ? `The class beat ${boss.name}` : `${boss.name} survived`;
     sub = boss.hp === 0 ? 'Every right answer landed a blow.' : `${boss.hp} HP left. Closer next lesson.`;
   } else if (top[0]) {
-    const win = { tower: `${top[0].blocks} blocks high`,
-                  volcano: `${Math.round(top[0].height || 0)} up the wall` }[game.mode];
+    const win = { volcano: `${Math.round(top[0].height || 0)} up the wall` }[game.mode];
     headline = `${top[0].name} wins`;
     sub = win || `${top[0].score} points`;
   }
