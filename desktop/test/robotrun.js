@@ -182,8 +182,13 @@ const PAGE = `<!doctype html><body style="margin:0;background:#000">
      `${await phone.locator('#runq .opt-btn').count()} answers on screen`);
 
   const firstQ = await phone.locator('.runq-text').innerText().catch(() => '');
+  /* The right one, by reading it. Clicking whichever tile came first worked
+     only while the right answer was always the first tile, which was the bug
+     this test was meant to be indifferent to. */
   for (let i = 0; i < 3; i++) {
-    await phone.locator('#runq .opt-btn').first().click().catch(() => {});
+    const right = phone.locator('#runq .opt-btn', { hasText: /^\s*Right\s*$/ }).first();
+    if (await right.count()) await right.click().catch(() => {});
+    else await phone.locator('#runq .opt-btn').first().click().catch(() => {});
     await phone.waitForTimeout(500);
   }
   const secondQ = await phone.locator('.runq-text').innerText().catch(() => '');

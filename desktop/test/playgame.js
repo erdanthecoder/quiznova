@@ -40,7 +40,13 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
 
   for (const mode of MODES) {
     // a quiz and a game, made the way the pages make them
-    const quiz = await post('/api/quizzes', { title: 'T', questions: [] });
+    /* starter:false. Without it the quiz opens with the blank question a new
+       quiz comes with, and that blank has its first choice marked correct so
+       the editor has something to show — which meant this test spent its whole
+       life answering a question with no text and four empty options, and
+       passing because the right one happened to be first. Shuffling the
+       answers is what finally made it fall over. */
+    const quiz = await post('/api/quizzes', { title: 'T', starter: false, questions: [] });
     const qid = quiz.quiz ? quiz.quiz.id : quiz.id;
     /* add_question, not addQuestion. The wrong name is silently ignored, which
      * left every one of these tests running on the blank question a new quiz
@@ -137,8 +143,13 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
     /* Cal answers by tapping, the way a child does, and gets a block for it —
        the game does not advance for anybody else, because there is no round to
        resolve any more. That is the whole point of the change. */
-    const opt = page.locator('#buildq .opt-btn').first();
+    /* Tap the right one, which means reading it — the first tile has not been
+       the answer since the options started being shuffled, and a test that
+       clicks whatever is first was quietly depending on that. */
+    const opt = page.locator('#buildq .opt-btn', { hasText: /^\s*4\s*$/ }).first();
+    const any = page.locator('#buildq .opt-btn').first();
     if (await opt.count()) await opt.click().catch(() => {});
+    else if (await any.count()) await any.click().catch(() => {});
     await page.waitForTimeout(1200);
     const after = await (await fetch(`${base}/api/games/${pin}`)).json();
     const cal = (after.players || []).find(p => p.name === 'Cal') || {};

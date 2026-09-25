@@ -309,14 +309,14 @@ tr:hover td{background:var(--paper)}
 <script src="launch.js?v=61b7828a"></script>
 
 <script src="nova.js?v=9fa1dfb0"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="quizbank.js?v=700420d8"></script>
 <script src="realtime.js?v=75e1623c"></script>
 <script src="arena.js?v=5dd682fe"></script>
 <script src="strike.js?v=0d07d142"></script>
 <script src="run.js?v=963fd974"></script>
 <script src="tower.js?v=fbdb38cb"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=a58d4258"></script>
+<script src="rules.js?v=e019d47a"></script>
 <script src="live.js?v=ee2902a9"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
 <script src="account.js?v=1f2bba77"></script>
@@ -1001,11 +1001,23 @@ const joinAddress = () => (window.QUOLDEK_JOIN
       function showMaps(mode) {
         const maps = mode.maps && mode.maps.length ? mode.maps : [{ id: '', label: 'Default' }];
         box.querySelector('#pick-title').textContent = 'Pick the map';
-        box.querySelector('#pick-sub').innerHTML = `${esc(mode.label)} · choose where the class plays`;
+        box.querySelector('#pick-sub').innerHTML = `${esc(mode.label)} · pick one and the game starts`;
         list.innerHTML = '';
         maps.forEach(mp => {
+          /* Straight into the game.
+           *
+           * There was a third screen here — seconds a question, points a
+           * question, and six switches — between a teacher and a class that is
+           * already waiting. Everything on it has a sensible answer, and a
+           * teacher standing in front of thirty children has neither the time
+           * nor the reason to make eight decisions about a starter quiz. The
+           * defaults do what the quiz says, with streaks and late joining on
+           * and the answers shuffled. */
           const btn = el('button', { class: 'modecard', 'data-map': mp.id,
-            onclick: () => showSettings(mode, mp.id) });
+            onclick: () => launch(mode.id, mp.id,
+              { kind: 'questions', value: 0 },
+              { seconds: 0, points: 0, streaks: true, shuffle: false,
+                mix: true, lateJoin: true, doubleLast: false, music: true }) });
           /* The map's own picture. This used to draw the mode's illustration
              three times with a CSS tint over it, so a teacher choosing between
              the Neon Arena, a Bunker and a Moon Base was shown the same picture
@@ -1028,105 +1040,11 @@ const joinAddress = () => (window.QUOLDEK_JOIN
           } }, 'Back to the games'));
       }
 
-      /* Third step: when it ends. Playing every question is what most people
-         want, but a lesson with ten minutes left wants the clock to decide, and
-         a race to a score is a different game entirely. */
-      function showSettings(mode, map) {
-        box.querySelector('#pick-title').textContent = 'Set the game up';
-        box.querySelector('#pick-sub').textContent =
-          `${mode.label} · everything here is for this game only, the quiz itself is not touched`;
-        list.innerHTML = '';
-        list.className = 'setup';
-
-        /* What the teacher picks here rides on the game, not the quiz — so a fast
-           five minutes before lunch does not permanently rewrite a quiz that is
-           also set for homework. Everything defaults to what the quiz already says. */
-        let goal = { kind: 'questions', value: 0 };
-        const setup = { seconds: 0, points: 0, streaks: true, shuffle: false,
-                        mix: false, lateJoin: true, doubleLast: false, music: true };
-
-        const section = (title, body) => {
-          const sec = el('div', { class: 'sect' }, el('h4', {}, title));
-          sec.append(body);
-          list.append(sec);
-          return sec;
-        };
-
-        // ── how it ends
-        const ends = el('div', { class: 'modegrid endgrid' });
-        const endOptions = [
-          { kind: 'questions', value: 0, title: 'All the questions', sub: 'It ends when the quiz runs out' },
-          { kind: 'points', value: 500, title: 'First to 500', sub: 'A short race' },
-          { kind: 'points', value: 1000, title: 'First to 1,000', sub: 'A longer race' },
-          { kind: 'time', value: 5, title: '5 minutes', sub: 'Whoever is ahead wins' },
-          { kind: 'time', value: 10, title: '10 minutes', sub: 'Most of a lesson' },
-          { kind: 'time', value: 15, title: '15 minutes', sub: 'A full session' }
-        ];
-        endOptions.forEach(o => {
-          const btn = el('button', { class: 'endcard', 'data-goal': o.kind + ':' + o.value,
-            onclick: () => {
-              goal = { kind: o.kind, value: o.value };
-              ends.querySelectorAll('.endcard').forEach(b => b.classList.remove('on'));
-              btn.classList.add('on');
-            } });
-          btn.append(el('span', { class: 'endmark',
-                                  html: Sprite.icon(o.kind === 'time' ? 'clock' : o.kind === 'points' ? 'medal' : 'flag', 26) }),
-                     el('span', { class: 'body' }, el('strong', {}, o.title), el('span', { class: 'sub' }, o.sub)));
-          if (o.kind === 'questions') btn.classList.add('on');
-          ends.append(btn);
-        });
-        section('How it ends', ends);
-
-        /* A row of choices where one is always picked. `values` are what goes on
-           the wire; `labels` are what a person reads. */
-        const choose = (key, values, labels) => {
-          const row = el('div', { class: 'seg' });
-          values.forEach((v, i) => {
-            const btn = el('button', { type: 'button', 'data-set': key + ':' + v,
-              onclick: () => {
-                setup[key] = v;
-                row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-                btn.classList.add('on');
-              } }, labels[i]);
-            if (setup[key] === v) btn.classList.add('on');
-            row.append(btn);
-          });
-          return row;
-        };
-
-        section('Seconds a question',
-          choose('seconds', [0, 10, 15, 20, 30, 45, 60],
-                 ['As the quiz says', '10s', '15s', '20s', '30s', '45s', '60s']));
-        section('Points a question',
-          choose('points', [0, 50, 100, 200, 500],
-                 ['As the quiz says', '50', '100', '200', '500']));
-
-        // ── the switches
-        const switches = el('div', { class: 'switches' });
-        const toggles = [
-          ['streaks', 'Streak bonus', 'Right answers in a row are worth more'],
-          ['doubleLast', 'Double the last question', 'A chance to catch up at the end'],
-          ['shuffle', 'Shuffle the questions', 'A different order every game'],
-          ['mix', 'Shuffle the answers', 'Off for questions like "all of the above"'],
-          ['lateJoin', 'Let people join late', 'Somebody arriving after the start can still play'],
-          ['music', 'Music on the big screen', 'A quiet tune. Nothing on the phones.']
-        ];
-        toggles.forEach(([key, title, sub]) => {
-          const row = el('label', { class: 'musicrow' });
-          const input = el('input', { type: 'checkbox', id: 'set-' + key });
-          input.checked = !!setup[key];
-          input.onchange = () => { setup[key] = input.checked; };
-          row.append(input, el('span', {}, el('strong', {}, title), el('span', { class: 'sub' }, sub)));
-          switches.append(row);
-        });
-        section('And these', switches);
-
-        const go = el('button', { class: 'btn primary lg block', id: 'start-game',
-          onclick: () => launch(mode.id, map, goal, setup) }, 'Start the game');
-        list.append(go);
-        list.append(el('button', { class: 'btn ghost block', style: 'margin-top:8px',
-          onclick: () => { list.className = 'modegrid'; showMaps(mode); } }, 'Back to the maps'));
-      }
+      /* The screen that used to be here asked a teacher to set up a game they
+         had already chosen: seconds, points, when it ends, and six switches. It
+         has gone. The one thing on it that was doing real work — shuffling the
+         answers, which is off in no quiz worth playing — is on by default now,
+         so the game a teacher gets by pressing twice is the game they wanted. */
 
       async function launch(mode, map, goal, setup) {
         try {

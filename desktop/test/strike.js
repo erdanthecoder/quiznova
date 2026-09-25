@@ -263,7 +263,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   /* Answering on the real phone, by tapping the answer, loads the real knife —
      the whole loop a child actually does, with no API calls of our own. */
-  await phone.locator('#strikeq .opt-btn').first().click();
+  /* The right one, read off the tile. Tapping whichever came first was a coin
+     toss once the answers started being shuffled, and a coin toss in a suite is
+     a check that fails one run in two and gets called flaky. */
+  const rightTile = phone.locator('#strikeq .opt-btn', { hasText: /^\s*right\s*$/i }).first();
+  if (await rightTile.count()) await rightTile.click();
+  else await phone.locator('#strikeq .opt-btn').first().click();
   await phone.waitForTimeout(1600);
   const armed = await phone.evaluate(() => ({
     ready: duel ? duel.ready : null,

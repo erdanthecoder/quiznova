@@ -14,7 +14,19 @@
 
   const int = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const shuffle = (arr) => arr.slice().sort(() => Math.random() - 0.5);
+  /* A real shuffle. sort(() => Math.random() - 0.5) is the one everybody
+     writes and it is not uniform — the comparator is inconsistent, so which
+     permutations come out depends on the sort, and some are far likelier than
+     others. When the thing being shuffled is where the right answer goes, that
+     bias is a child learning to guess the colour. */
+  function shuffle(arr) {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
 
   /** Build a multiple-choice question, keeping distractors distinct and plausible. */
   function mc(text, correct, wrongs, why) {
@@ -26,7 +38,19 @@
       if (options.length === 4) break;
     }
     if (options.length < 4) return null;              // caller skips it
-    return { text, correct: String(correct), options, why };
+    /* And not in that order.
+     *
+     * This built [correct, ...wrongs] and handed it straight back, so the right
+     * answer was the first option in every question this engine has ever
+     * written — which on the board is the red triangle, every single time. A
+     * class works that out in about four questions and then stops reading the
+     * question.
+     *
+     * Numbers get shuffled too, though putting them in their own order looks
+     * tidier: the wrong answers here are near misses, so a sorted row leaves
+     * the right one in the middle nearly nine times in ten, which is the same
+     * problem wearing a nicer coat. */
+    return { text, correct: String(correct), options: shuffle(options), why };
   }
 
   /* near misses: what a child actually writes when they slip */

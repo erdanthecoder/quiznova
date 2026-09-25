@@ -92,9 +92,13 @@
     // ones first meant it, and a question ending "all of the above" is written
     // in an order that means something
     shuffle:    { label: 'Questions in a new order every game', on: false },
-    // off unless asked for: a question whose options are "1, 2, 3" or that ends
-    // with "all of the above" is written in an order that means something
-    mix:        { label: 'Answers in a new order too', on: false },
+    /* On. It used to be off, on the grounds that a question ending "all of the
+       above" is written in an order that means something — which is true, and
+       is now handled by leaving those particular questions alone rather than by
+       leaving every question alone. Off by default meant a quiz whose answers
+       all sat in the same place stayed that way, and nobody was ever going to
+       find a switch to fix it. */
+    mix:        { label: 'Answers in a new order too', on: true },
     lateJoin:   { label: 'Let people join after it starts', on: true },
     doubleLast: { label: 'Last question is worth double', on: false }
   };
@@ -150,12 +154,32 @@
 
   /* Questions in a new order, and the answers within them, so a class playing the
    * same quiz twice is not simply remembering that it was the third one. */
+  /* A real shuffle, rather than sort(() => Math.random() - 0.5). That
+     comparator is inconsistent, so the permutations it produces are not
+     equally likely — and when what is being shuffled is where the right answer
+     goes, an uneven shuffle is a child learning to guess the colour. */
+  function shuffled(list) {
+    const out = list.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
+  /* Some questions are written in an order that carries meaning: anything with
+     an "all of the above" in it reads as nonsense once the options move, because
+     "the above" stops being above. Those are left exactly as the teacher wrote
+     them; everything else is fair game. */
+  const ORDERED = /\b(all|none|both|either|neither)\s+(of\s+)?(the\s+)?(above|below|these|those)\b|^(all|none)\s+of\s+them$/i;
+  const orderMatters = (q) => (q.choices || []).some(c => ORDERED.test(String(c.text || '')));
+
   function arrange(questions, setup) {
     let out = questions;
-    if (setup.shuffle) out = out.slice().sort(() => Math.random() - 0.5);
+    if (setup.shuffle) out = shuffled(out);
     if (setup.mix) {
-      out = out.map(q => (q.choices && q.choices.length > 1)
-        ? Object.assign({}, q, { choices: q.choices.slice().sort(() => Math.random() - 0.5) })
+      out = out.map(q => (q.choices && q.choices.length > 1 && !orderMatters(q))
+        ? Object.assign({}, q, { choices: shuffled(q.choices) })
         : q);
     }
     return out;
@@ -881,7 +905,7 @@
     GORILLA_MS, MARK_AHEAD, TOWER_TARGET, towerWinner, LASER_TARGET, teamTotal, laserStanding,
     blankTower, floorsOf, towersOf, placeBlock, towerMonster, towerSettle,
     mapsFor, defaultMap, readGoal, goalReached, grade, blankPlayer, pickBossName,
-    readSetup, secondsFor, pointsFor, pickDouble, streakBonus, arrange, modeFinished,
+    readSetup, secondsFor, pointsFor, pickDouble, streakBonus, arrange, modeFinished, orderMatters,
     afterRound, resolve, movesFor, defaultMove, moveOf, chooseMove,
     BOSS_HP_PER_QUESTION, BOSS_HP, BOSS_MS, KNIFE_RELOAD_MS, KNIFE_DAMAGE,
     BOSS_SWING_MS, BOSS_TELL_MS, BOSS_DOWN_MS, BOSS_ANGRY, BOSS_FURIOUS,

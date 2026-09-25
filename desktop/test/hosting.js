@@ -68,13 +68,13 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
     [...document.querySelectorAll('[data-map]')].map(b => b.innerText.trim()));
   ok('named the way the teacher picked them', names.join('|'), names.join(' · '));
 
+  /* Two presses from the quiz to the board. There used to be a third screen
+     between them — seconds, points, when it ends, six switches — which a
+     teacher with a class already waiting has no reason to fill in. */
   await page.locator('[data-map="moon"]').click();
-  await page.waitForTimeout(600);
-  const start = page.locator('button:has-text("Start the game")');
-  ok('the settings step offers a Start button', await start.count() > 0);
-
-  await start.click();
   await page.waitForTimeout(2500);
+  ok('picking the map starts the game, with nothing to fill in first',
+     !/Set the game up/.test(await page.evaluate(() => document.body.innerText)));
 
   // the app serves /host; the static build rewrites the same link to host.html
   ok('starting lands on the board', /host(?:\.html)?\?pin=\d+/.test(page.url()),
