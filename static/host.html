@@ -24,6 +24,11 @@
 <link rel="stylesheet" href="/nova.css">
 <style>
 .stage{max-width:1300px;margin:0 auto;padding:24px 22px 60px}
+/* The last screen of a game is the one a whole room is looking at, so it fills
+   whatever is left under the bar rather than guessing at the bar's height. The
+   guess was calc(100vh - 128px), which was thirty pixels out once the stage's
+   own bottom padding was counted — enough to put a scrollbar on a board. */
+.stage:has(.finale){padding-bottom:22px}
 
 /* lobby */
 .pin-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:26px;align-items:center;padding:34px}
@@ -58,6 +63,11 @@
 .pinhuge{font-size:clamp(2.4rem,6.6vw,5rem);font-weight:900;letter-spacing:.1em;line-height:1.05}
 .qrbox{flex:none;background:#fff;border-radius:12px}
 .crowd{flex:1;min-height:0;overflow:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:12px}
+/* An empty register takes no room. It is still in the tree — the update pass
+   pairs children by position, and a node that comes and goes hands every later
+   child the wrong partner — but with nothing in it the floor gets the space
+   instead of a gap the size of a class list. */
+.crowd:empty{flex:0;min-height:0;display:none}
 .face{display:flex;align-items:center;gap:10px;padding:11px 20px;border-radius:99px;font-weight:800;
   font-size:clamp(1rem,1.4vw,1.3rem);background:rgba(255,255,255,.08);border:2px solid var(--line);
   animation:popIn .35s var(--ease) both}
@@ -419,7 +429,10 @@
 .lb-row.top{background:linear-gradient(90deg,rgba(255,200,87,.2),rgba(255,255,255,.04));border-color:rgba(255,200,87,.45)}
 .lb-row .score{margin-left:auto;font-weight:800;font-size:1.05rem}
 
-.finale{display:flex;flex-direction:column;gap:16px;height:calc(100vh - 128px);min-height:520px}
+/* One screen. The winner, the podium, who else was in it, and the way out
+   of the game all have to be visible at once on a projector — a teacher
+   should not be scrolling a board in front of a class. */
+.finale{display:flex;flex-direction:column;gap:12px;min-height:0;height:var(--fit,auto)}
 .crown{flex:none;background:#fff;color:#161036;border:3px solid #0b0718;border-radius:24px;padding:20px 28px;
   text-align:center;box-shadow:0 13px 0 -3px rgba(0,0,0,.5)}
 .crown h1{font-size:clamp(1.6rem,4vw,3rem);font-weight:900;letter-spacing:-.02em;margin:0;line-height:1.12}
@@ -436,7 +449,7 @@
  * size, and a school laptop does not have to composite a canvas at 60fps while
  * the confetti is running.
  */
-.podium{flex:none;position:relative;height:min(46vh,380px);margin:10px 0 4px;overflow:hidden;
+.podium{flex:none;position:relative;height:min(40vh,330px);margin:8px 0 2px;overflow:hidden;
   border-radius:20px;background:#0A0718}
 /* The scenery and the people who stand in it are two layers, not one 3D soup.
  * Trying to order them by depth alone put a translucent floor in front of the
@@ -593,7 +606,13 @@
   .stand,.stand.up{transition:none;opacity:1;transform:none}
   .stand.up .medal,.stand.up .spot{animation:none;opacity:1;transform:none}
 }
-.finale .rest{flex:1;min-height:0;overflow:auto}
+/* Everyone below third place. It used to be flex:1, which on a 5-player game
+   gave a two-row list the whole leftover column and then clipped its own
+   heading behind the buttons — the panel was tall enough to start and not tall
+   enough to finish. It takes the room it needs now, and only scrolls once a
+   real class is in it. */
+.finale .rest{flex:0 1 auto;min-height:0;max-height:24vh;overflow:auto}
+.finale .rest:empty{display:none}
 .lb-row .move{font-weight:800;font-size:.85rem;width:34px;text-align:right}
 .lb-row .move.up{color:#12BE8E}.lb-row .move.down{color:#FF8A9B}.lb-row .move.same{opacity:.3}
 
@@ -807,8 +826,21 @@ function paintGoal() {
   if (!chip || !game) return;
   const goal = game.goal || { kind: 'questions' };
   clearInterval(goalTicker);
-  if (goal.kind === 'questions' || game.state === 'lobby' || game.state === 'over') {
-    chip.hidden = true;
+  if (game.state === 'lobby' || game.state === 'over') { chip.hidden = true; return; }
+  if (goal.kind === 'questions') {
+    /* "Play every question" is the default, and it used to put nothing on the
+       board at all — so a class had no idea whether they were on question two
+       of four or two of twenty. That is the difference between a room that
+       settles in and a room that keeps asking how many are left.
+       Only the modes that keep one question for the whole room can say it;
+       in the others everybody is on a different question by design. */
+    const paced = ['building', 'strike', 'running', 'safe', 'arena'].includes(game.state);
+    if (paced || !game.total) { chip.hidden = true; return; }
+    chip.hidden = false;
+    const at = Math.min(game.total, (game.index || 0) + 1);
+    chip.textContent = `Question ${at} of ${game.total}`;
+    chip.title = 'How far through the quiz the class is';
+    chip.classList.toggle('warn', at === game.total);
     return;
   }
   chip.hidden = false;
@@ -1013,7 +1045,7 @@ function slide(before) {
 function render(fresh) {
   const stage = $('#stage');
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
-  if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
+  if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); fitFinale(); announce(); } else fitFinale(); return; }
   if (game.state === 'arena') {
     if (paint(stage, arenaView, fresh)) watchArena(); else watchArena();
     feedArena();
@@ -1093,11 +1125,19 @@ function lobbyView() {
       el('div', { style: 'margin-top:8px' }, 'Waiting for the class to join'),
       el('div', { class: 'tiny faint', style: 'margin-top:4px' },
          'They type the PIN on their own device')));
-  } else {
-    if (!many) room.append(lobbyRoom());
+  } else if (many) {
+    /* Too many to stand about: the floor would be a scrum, so the register does
+       the whole job and gets the bigger faces. */
     game.players.forEach(p => crowd.append(el('div', { class: 'face ' + (game.mode === 'laser' ? p.team : '') },
-      el('span', { class: 'av', html: Sprite.face(p.avatar, many ? 40 : 24) }), p.name)));
-    if (many) crowd.classList.remove('strip');
+      el('span', { class: 'av', html: Sprite.face(p.avatar, 40) }), p.name)));
+    crowd.classList.remove('strip');
+  } else {
+    /* The floor already writes every name under its own blook, so the strip
+       underneath was printing the whole class twice on the same screen. It
+       earns its place at the size where the floor stops being readable, and
+       not before. */
+    room.append(lobbyRoom());
+    crowd.classList.remove('strip');
   }
   root.append(room, crowd);
 
@@ -1936,6 +1976,22 @@ function announce() {
   }, delay);
   step(3, 500); step(2, 1900); step(1, 3300);
 }
+
+/* How much room is actually left under the bar for the last screen.
+ *
+ * Every CSS answer to this needs the bar's height as a number, and the bar
+ * wraps on a narrow projector, so the number is wrong exactly when it matters.
+ * Measuring costs one read per paint and is right on every screen. */
+function fitFinale() {
+  const node = document.querySelector('.finale');
+  if (!node) return;
+  const stage = node.parentElement;
+  const pad = stage ? parseFloat(getComputedStyle(stage).paddingBottom) || 0 : 0;
+  node.style.removeProperty('--fit');
+  const top = node.getBoundingClientRect().top + window.scrollY;
+  node.style.setProperty('--fit', Math.max(420, window.innerHeight - top - pad) + 'px');
+}
+addEventListener('resize', fitFinale);
 
 function overView() {
   const top = game.players.slice(0, 3);

@@ -2212,7 +2212,9 @@ function revealCard() {
    * their own board. */
   const ranked = (game.players || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0));
   const place = ranked.findIndex(p => p.id === me.id) + 1;
+  let saidWhere = false;
   if (place && ranked.length > 1 && !['tower', 'robot'].includes(game.mode)) {
+    saidWhere = true;
     const above = place > 1 ? ranked[place - 2] : null;
     const gap = above ? (above.score || 0) - (me.score || 0) : 0;
     const ordinal = ['', '1st', '2nd', '3rd'][place] || place + 'th';
@@ -2252,7 +2254,21 @@ function revealCard() {
     });
     box.style.flex = 'none';
     card.append(box);
-  } else {
+  } else if (game.mode === 'tower') {
+    /* A team game, so a personal rank is the wrong number. What this child did
+       is the right one. */
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Blocks you have put up'),
+      el('h2', { style: 'font-size:2rem' }, String(me.blocks || 0))));
+  } else if (game.mode === 'robot') {
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Boosts you have put in'),
+      el('h2', { style: 'font-size:2rem' }, String(me.boosts || 0))));
+  } else if (!saidWhere) {
+    /* Only when nothing above has already said it. The place and the gap are
+       one fact, and it was being printed twice on the same screen — once as
+       "2nd, 17 behind Ben" and again underneath as "Your position #2". The
+       score is in the header, so the second panel was saying nothing new. */
     const rank = game.players.findIndex(p => p.id === me.id) + 1;
     card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
       el('p', { class: 'tiny faint' }, 'Your position'),
