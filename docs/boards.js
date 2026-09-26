@@ -55,7 +55,11 @@
       bar.append(el('a', { class: 'brand', href: 'https://quoldek.web.app/?stay=1' },
         el('span', { style: 'line-height:0', html: global.Sprite.logo(34) }), el('b', {}, 'Quoldek')));
     }
-    bar.append(el('div', { class: 'grow' }), purse, level, who, out);
+    // The4Workspace: the one-account hub for LearnKyrgyz, Quoldek, Kadam and AkylduuKodo.
+    const oit = global.OneInTwo;
+    const ws = el('a', { class: 'ws-link', href: (oit && oit.hub || 'https://the4workspace.web.app') + '/', title: 'The4Workspace: all four apps, one account' },
+      ...(oit && oit.icon ? [el('img', { src: oit.icon, alt: '', width: '20', height: '20' })] : []), el('span', {}, 'The4Workspace'));
+    bar.append(el('div', { class: 'grow' }), ws, purse, level, who, out);
     return bar;
   }
 

@@ -114,3 +114,9 @@
   .mode,.thing,.blook{transition:none}
   .mode:hover,.thing:hover,.blook:hover{transform:none}
 }
+
+/* The4Workspace: back to the one-account hub */
+.ws-link { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(0,0,0,.1); background: #fff; color: inherit; font-weight: 700; font-size: 13px; text-decoration: none; }
+.ws-link img { border-radius: 6px; display: block; transition: transform .4s cubic-bezier(.2,1.4,.3,1); }
+.ws-link:hover img { transform: rotate(-10deg) scale(1.1); }
+@media (max-width: 640px) { .ws-link span { display: none; } }
