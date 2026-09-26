@@ -132,6 +132,42 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
   .hero{grid-template-columns:1fr;gap:24px;padding-top:32px}
   .stage{min-height:280px;order:-1}
 }
+/* live game picker — the same cards as in the studio (the list page had none, so they showed as bare boxes) */
+.modegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+/* how the game ends: smaller cards than the games, because it is a smaller choice */
+.endgrid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.endcard{display:flex;align-items:center;gap:12px;text-align:left;padding:14px 15px;border-radius:var(--r-lg);
+  border:var(--line-w) solid var(--line);background:var(--card);cursor:pointer;box-shadow:var(--pop-1);
+  transition:transform .14s var(--ease),box-shadow .14s}
+.endcard:hover{transform:translateY(-2px);box-shadow:var(--pop-2)}
+.endcard:active{transform:translateY(1px)}
+.endcard .endmark{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  background:var(--grad-brand);color:#fff;border:var(--line-w) solid var(--line)}
+.endcard .body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.endcard strong{font-size:1rem}
+.endcard .sub{font-size:.76rem;color:var(--faint);font-weight:600}
+.setup{display:block}
+.setup .sect{margin-bottom:16px}
+.setup .sect > h4{font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:9px}
+.endcard.on{border-color:#6C4CF1;box-shadow:0 0 0 3px rgba(108,76,241,.22)}
+  border:var(--line-w) solid var(--line);background:var(--card);color:inherit;transition:.13s}
+.switches{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:9px}
+.musicrow{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:var(--r-lg);
+  border:var(--line-w) dashed var(--line);cursor:pointer}
+.musicrow input{width:20px;height:20px;flex:none;accent-color:#6C4CF1}
+.musicrow span{display:flex;flex-direction:column}
+.musicrow .sub{font-size:.76rem;color:var(--faint);font-weight:600}
+.modecard{display:flex;flex-direction:column;padding:0;overflow:hidden;cursor:pointer;
+  border-radius:20px;border:var(--line-w) solid var(--line);background:var(--card);color:var(--ink);
+  text-align:left;font:inherit;box-shadow:var(--pop-1);transition:transform .16s var(--ease),box-shadow .16s}
+.modecard:hover{transform:translate(-3px,-3px);box-shadow:var(--pop-2)}
+.modecard:active{transform:translate(1px,1px);box-shadow:var(--pop-1)}
+.modecard .art{display:block;line-height:0;border-bottom:var(--line-w) solid var(--line)}
+.modecard .art svg{width:100%;height:auto;display:block}
+.modecard .body{display:block;padding:13px 15px 16px}
+.modecard strong{display:block;font-size:1.06rem;margin-bottom:2px}
+.modecard .sub{font-size:.83rem;color:var(--ink-soft);line-height:1.34}
 </style>
 </head>
 <body>
@@ -244,8 +280,9 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
 <script src="live.js?v=1cdb2620"></script>
 <script src="nova-local.js?v=340f2f93"></script>
 <script src="account.js?v=ff127e8f"></script>
+<script src="oneintwo.js?v=b1383ca2"></script>
 <script src="qr.js?v=b8307384"></script>
-<script src="learnkyrgyz.js?v=c570999b"></script>
+<script src="learnkyrgyz.js?v=ebbf2675"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL

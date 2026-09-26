@@ -8,6 +8,9 @@
  *
  * A link can open the picker with topics already chosen:
  *   quoldek.web.app/?learnkyrgyz=greetings,family&lang=ru
+ * or skip the picker and make the quiz straight away (LearnKyrgyz and oneintwo.web.app
+ * send people here like this), then open the game picker, the studio or a solo run:
+ *   quoldek.web.app/?learnkyrgyz=greetings,family&lang=en&go=host|studio|take
  */
 (function (Nova) {
   'use strict';
@@ -139,13 +142,79 @@
     });
   }
 
-  Nova.learnKyrgyz = { openPicker, makeQuiz, bank: BANK };
+  /* The arrival: topic cards fly from LearnKyrgyz into Quoldek while the quiz is made. */
+  const takeUrl = (id) => (typeof Nova.shareLink === 'function' ? 'take.html?id=' : '/take?id=') + id;
+  function arrivalLayer(names) {
+    const css = document.createElement('style');
+    css.textContent = `
+      .lk-arrive{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;align-content:center;gap:26px;color:#fff;text-align:center;
+        background:radial-gradient(circle at 50% 45%,#2a1b5e,#0d0820 72%);animation:lkIn .35s ease-out}
+      .lk-arrive.bye{animation:lkOut .55s ease-in forwards}
+      @keyframes lkIn{from{opacity:0}} @keyframes lkOut{to{opacity:0;transform:scale(1.06)}}
+      .lk-stage{display:grid;grid-template-columns:auto minmax(150px,360px) auto;align-items:center;gap:12px;width:min(92vw,640px)}
+      .lk-end{display:grid;justify-items:center;gap:8px;font-weight:800}
+      .lk-tile{width:84px;height:84px;border-radius:26px;display:grid;place-items:center;font:900 30px/1 inherit;color:#fff;box-shadow:0 18px 40px rgba(0,0,0,.4)}
+      .lk-tile.a{background:linear-gradient(135deg,#58cc02,#1cb0f6)} .lk-tile.b{background:linear-gradient(135deg,#7c5cff,#22d3ee);animation:lkPulse 1.3s ease-in-out infinite .5s}
+      @keyframes lkPulse{50%{transform:scale(1.12);box-shadow:0 0 34px #22d3ee}}
+      .lk-path{position:relative;height:90px}
+      .lk-beam{position:absolute;left:0;right:0;top:50%;height:4px;margin-top:-2px;border-radius:4px;background:linear-gradient(90deg,#58cc02,#7c5cff,#22d3ee);background-size:200% 100%;animation:lkBeam .8s linear infinite;box-shadow:0 0 18px #7c5cff}
+      @keyframes lkBeam{to{background-position:-200% 0}}
+      .lk-card{position:absolute;left:0;top:50%;padding:7px 12px;border-radius:12px;background:#fff;color:#3c1f8f;font-weight:800;font-size:13px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;
+        box-shadow:0 8px 20px rgba(0,0,0,.35);opacity:0;transform:translate(0,-50%) scale(.6);animation:lkCard 1.4s cubic-bezier(.5,0,.3,1) infinite;animation-delay:calc(var(--i)*.28s)}
+      @keyframes lkCard{15%{opacity:1}55%{transform:translate(120px,calc(-50% - 34px)) rotate(-6deg) scale(1)}90%{opacity:1}100%{left:100%;transform:translate(-100%,-50%) scale(.4);opacity:0}}
+      .lk-msg{font-weight:800;font-size:19px;padding:0 16px} .lk-sub{opacity:.75;font-size:14px;margin-top:-14px}
+      .lk-check{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#58cc02;margin-right:8px;animation:lkPop .4s cubic-bezier(.2,1.6,.4,1)}
+      @keyframes lkPop{from{transform:scale(0)}}
+      @media (prefers-reduced-motion:reduce){.lk-arrive *,.lk-arrive{animation:none!important}.lk-card{opacity:1;position:static;display:inline-block;margin:2px;transform:none}}`;
+    document.head.append(css);
+    const layer = document.createElement('div');
+    layer.className = 'lk-arrive';
+    layer.innerHTML = `<div class="lk-stage">
+        <div class="lk-end"><span class="lk-tile a">LK</span>LearnKyrgyz</div>
+        <div class="lk-path">${names.slice(0, 6).map((n, i) => `<span class="lk-card" style="--i:${i}">${esc(n)}</span>`).join('')}<i class="lk-beam"></i></div>
+        <div class="lk-end"><span class="lk-tile b">Q</span>Quoldek</div></div>
+      <div class="lk-msg">Bringing your topics into Quoldek…</div>
+      <div class="lk-sub">${window.OneInTwo && OneInTwo.user() ? 'Signed in as ' + esc(OneInTwo.user().name) + ' · one account' : 'From LearnKyrgyz'}</div>`;
+    document.body.append(layer);
+    return {
+      done(title) { layer.querySelector('.lk-msg').innerHTML = `<span class="lk-check">✓</span>“${esc(title)}” is ready`; },
+      fail(msg) { layer.querySelector('.lk-msg').textContent = msg; layer.querySelector('.lk-sub').innerHTML = '<a href="?" style="color:#fff">Back to Quoldek</a>'; },
+      close() { layer.classList.add('bye'); setTimeout(() => layer.remove(), 600); }
+    };
+  }
+  async function arrive({ topics, lang, go, count }) {
+    const started = Date.now();
+    let names = topics;
+    try { const idx = await getIndex(); names = topics.map(id => (idx.topics.find(t => t.id === id) || {}).title?.[lang] || id); } catch { /* names stay as ids */ }
+    const layer = arrivalLayer(names);
+    let quiz;
+    try { quiz = await makeQuiz({ topics, lang, count }); }
+    catch (err) { layer.fail(err.message); return; }
+    history.replaceState(null, '', location.pathname);            // a reload must not make it twice
+    await new Promise(r => setTimeout(r, Math.max(0, 1600 - (Date.now() - started))));   // let the cards land
+    layer.done(quiz.title);
+    await new Promise(r => setTimeout(r, 700));
+    if (go === 'studio') { location.href = studioUrl(quiz.id); return; }
+    if (go === 'take') { location.href = takeUrl(quiz.id); return; }
+    layer.close();
+    if (typeof window.load === 'function') window.load();
+    if (typeof window.hostGame === 'function') window.hostGame(quiz); else location.href = studioUrl(quiz.id);
+  }
 
-  // ?learnkyrgyz=greetings,family&lang=ru opens the picker with those topics chosen
+  Nova.learnKyrgyz = { openPicker, makeQuiz, arrive, bank: BANK };
+
+  // ?learnkyrgyz=… opens the picker with those topics chosen; with &go=… it just makes the quiz.
   document.addEventListener('DOMContentLoaded', () => {
     const p = new URLSearchParams(location.search);
     if (!p.has('learnkyrgyz')) return;
-    const topics = p.get('learnkyrgyz').split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
-    openPicker({ topics, lang: p.get('lang') === 'ru' ? 'ru' : 'en' });
+    const topics = p.get('learnkyrgyz').split(',').map(s => s.trim()).filter(s => /^[a-z0-9_-]+$/i.test(s)).slice(0, 50);
+    const lang = p.get('lang') === 'ru' ? 'ru' : 'en';
+    const go = ['host', 'studio', 'take'].includes(p.get('go')) ? p.get('go') : null;
+    if (!topics.length) return;
+    // someone arriving to play goes straight to the game, not to the release screen
+    if (go && window.NovaLaunch && typeof NovaLaunch.markSeen === 'function') { try { NovaLaunch.markSeen(); } catch { /* storage off */ } }
+    // let OneInTwo pick up the account first, so the new quiz is saved to it
+    if (go) setTimeout(() => arrive({ topics, lang, go, count: Math.min(60, Math.max(5, +p.get('n') || 20)) }), 50);
+    else openPicker({ topics, lang });
   });
 })(window.Nova);

@@ -19,7 +19,7 @@ OUT = os.path.join(ROOT, "docs")
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
 PLAY_ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
-               "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+               "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "oneintwo.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
 # site of its own rather than a page inside the studio.
@@ -37,7 +37,7 @@ HOMEWORK_OUT = os.path.join(ROOT, "docs-homework")
 HOMEWORK_HOST = "hwquoldek.web.app"
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html"]
-ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "learnkyrgyz.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "learnkyrgyz.js", "oneintwo.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -85,7 +85,8 @@ def build():
                             '<script src="rules.js"></script>\n'
                             '<script src="live.js"></script>\n'
                             '<script src="nova-local.js"></script>\n'
-                            '<script src="account.js"></script>')
+                            '<script src="account.js"></script>\n'
+                            '<script src="oneintwo.js"></script>')
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
         html = html.replace('<script src="/learnkyrgyz.js"></script>', '<script src="learnkyrgyz.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')
