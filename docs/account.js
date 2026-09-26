@@ -439,6 +439,8 @@
 
   global.NovaAccount = {
     signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon, signInWithWorkspace,
+    // a The4Workspace sign-in under way on this page (a promise), or null
+    workspaceSignIn: wsSignIn,
     workspaceError: () => { try { const m = sessionStorage.getItem('quoldek:ws-error'); sessionStorage.removeItem('quoldek:ws-error'); return m || ''; } catch { return ''; } },
     quizzes, pushQuizzes,
     loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES, requireAccount, wake,

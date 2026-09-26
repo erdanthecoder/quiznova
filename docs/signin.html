@@ -89,7 +89,7 @@
 <script src="rules.js?v=debcec46"></script>
 <script src="live.js?v=7fadac6b"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
-<script src="account.js?v=c8d21eef"></script>
+<script src="account.js?v=0d958f13"></script>
 <script src="the4workspace.js?v=f70095db"></script>
 
 <script>
@@ -430,11 +430,19 @@ function googleMark() {
   if (settled && off) off();
   NovaAccount.wake().catch(() => { /* the library never arrived */ });
 
-  // long enough for a session to be recognised, short enough that nobody with
-  // no account is left staring at a spinner
-  setTimeout(() => done(() => paint(shell(signInPane()))), 2600);
+  /* Coming back from The4Workspace, the sign-in is still being made when this
+     page opens — a round trip to the server and back — so wait for that
+     rather than showing the form and missing it. */
+  const ws = NovaAccount.workspaceSignIn;
+  if (ws) {
+    ws.then(() => setTimeout(() => done(() => NovaAccount.user ? afterSignIn(null) : paint(shell(signInPane()))), 300));
+  } else {
+    // long enough for a session to be recognised, short enough that nobody with
+    // no account is left staring at a spinner
+    setTimeout(() => done(() => paint(shell(signInPane()))), 2600);
+  }
   // and a hard stop, in case the library hangs rather than fails
-  setTimeout(() => done(() => paint(shell(signInPane()))), 7000);
+  setTimeout(() => done(() => paint(shell(signInPane()))), ws ? 12000 : 7000);
 
   /* The backstop.
    *
@@ -447,6 +455,7 @@ function googleMark() {
    */
   setTimeout(() => {
     if (!document.querySelector('.hold')) return;
+    if (ws && !settled) return;   // still signing in with The4Workspace
     settled = true;
     if (off) off();
     paint(shell(signInPane()));
