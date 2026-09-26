@@ -19,7 +19,7 @@ OUT = os.path.join(ROOT, "docs")
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
 PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js",
-               "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "oneintwo.js"]
+               "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "the4workspace.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
 # site of its own rather than a page inside the studio.
@@ -49,11 +49,11 @@ STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
 BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js",
                 "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js",
-                "rules.js", "live.js", "nova-local.js", "account.js", "boards.js", "oneintwo.js"]
+                "rules.js", "live.js", "nova-local.js", "account.js", "boards.js", "the4workspace.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html", "start.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "learnkyrgyz.js", "oneintwo.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "learnkyrgyz.js", "the4workspace.js"]
 
 
 def copy_fonts(where):
@@ -111,7 +111,7 @@ def build():
                             '<script src="live.js"></script>\n'
                             '<script src="nova-local.js"></script>\n'
                             '<script src="account.js"></script>\n'
-                            '<script src="oneintwo.js"></script>')
+                            '<script src="the4workspace.js"></script>')
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
         html = html.replace('<script src="/learnkyrgyz.js"></script>', '<script src="learnkyrgyz.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')

@@ -1,5 +1,5 @@
 /* The4Workspace — one account for LearnKyrgyz, Quoldek, Kadam and AkylduuKodo
- * (the4workspace.web.app; it used to be called OneInTwo, then OneInFour).
+ * (the4workspace.web.app).
  *
  * Signing in happens at the4workspace.web.app, or in LearnKyrgyz. When someone comes here
  * from there, the session rides in the address fragment (#oit=…), which is never sent to
@@ -16,7 +16,9 @@
   const WS_ICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJvaWZCZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI0MTU1MiIvPjxzdG9wIG9mZnNldD0iLjU1IiBzdG9wLWNvbG9yPSIjMTEwYzJhIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMDcwNzExIi8+PC9saW5lYXJHcmFkaWVudD48cmFkaWFsR3JhZGllbnQgaWQ9Im9pZkNvcmUiIGN4PSIuNSIgY3k9Ii41IiByPSIuNSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIi8+PHN0b3Agb2Zmc2V0PSIuNDUiIHN0b3AtY29sb3I9IiNlOWU0ZmYiIHN0b3Atb3BhY2l0eT0iLjkiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNhNzhiZmEiIHN0b3Atb3BhY2l0eT0iMCIvPjwvcmFkaWFsR3JhZGllbnQ+PGxpbmVhckdyYWRpZW50IGlkPSJvaWZTaGVlbiIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIuMTYiLz48c3RvcCBvZmZzZXQ9Ii41IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNiIgZmlsbD0idXJsKCNvaWZCZykiLz48ZyBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjQuMiIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiPjxjaXJjbGUgY3g9IjIzLjUiIGN5PSIyMy41IiByPSIxMCIgc3Ryb2tlPSIjNThjYzAyIi8+PGNpcmNsZSBjeD0iNDAuNSIgY3k9IjIzLjUiIHI9IjEwIiBzdHJva2U9IiM3YzVjZmYiLz48Y2lyY2xlIGN4PSIyMy41IiBjeT0iNDAuNSIgcj0iMTAiIHN0cm9rZT0iIzE0YjhhNiIvPjxjaXJjbGUgY3g9IjQwLjUiIGN5PSI0MC41IiByPSIxMCIgc3Ryb2tlPSIjMWNiMGY2Ii8+PHBhdGggZD0iTTMyIDE4LjIzIEExMCAxMCAwIDAgMSAzMiAyOC43NyIgc3Ryb2tlPSIjNThjYzAyIi8+PHBhdGggZD0iTTQ1Ljc3IDMyIEExMCAxMCAwIDAgMSAzNS4yMyAzMiIgc3Ryb2tlPSIjN2M1Y2ZmIi8+PHBhdGggZD0iTTMyIDQ1Ljc3IEExMCAxMCAwIDAgMSAzMiAzNS4yMyIgc3Ryb2tlPSIjMWNiMGY2Ii8+PHBhdGggZD0iTTE4LjIzIDMyIEExMCAxMCAwIDAgMSAyOC43NyAzMiIgc3Ryb2tlPSIjMTRiOGE2Ii8+PC9nPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjUuNSIgZmlsbD0idXJsKCNvaWZDb3JlKSIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjIuMiIgZmlsbD0iI2ZmZiIvPjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSIzMiIgcng9IjE2IiBmaWxsPSJ1cmwoI29pZlNoZWVuKSIvPjwvc3ZnPg==';
   const API = 'https://lzamxwqxnzcrazyuipjx.supabase.co';
   const KEY = 'sb_publishable_zSvDRXqxLlW1tuaoJ06PUw_Tges-7OG';   // public key; the data is protected by row-level security
-  const STORE = 'oneintwo:session', KNOWN = 'oneintwo:known';
+  const STORE = 'the4workspace:session', KNOWN = 'the4workspace:known';
+  // carry over a sign-in saved under the account's old name, so nobody is signed out by the rename
+  try { for (const [from, to] of [['oneintwo:session', STORE], ['oneintwo:known', KNOWN]]) { const v = localStorage.getItem(from); if (v && !localStorage.getItem(to)) localStorage.setItem(to, v); localStorage.removeItem(from); } } catch { /* private mode */ }
   const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch { return d; } };
   const write = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
   const listeners = new Set();
@@ -163,7 +165,7 @@
     };
   }
 
-  global.OneInTwo = { hub: HUB, icon: WS_ICON, user, token, signIn, signOut, pull, push, onChange: (fn) => { listeners.add(fn); fn(user()); return () => listeners.delete(fn); } };
+  global.The4Workspace = { hub: HUB, icon: WS_ICON, user, token, signIn, signOut, pull, push, onChange: (fn) => { listeners.add(fn); fn(user()); return () => listeners.delete(fn); } };
   const start = () => { hook(); mount(); if (user()) pull().catch(() => { /* offline: the local copy is still here */ }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })(window);

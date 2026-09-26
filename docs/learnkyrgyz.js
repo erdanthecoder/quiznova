@@ -8,7 +8,7 @@
  *
  * A link can open the picker with topics already chosen:
  *   quoldek.web.app/?learnkyrgyz=greetings,family&lang=ru
- * or skip the picker and make the quiz straight away (LearnKyrgyz and oneintwo.web.app
+ * or skip the picker and make the quiz straight away (LearnKyrgyz and the4workspace.web.app
  * send people here like this), then open the game picker, the studio or a solo run:
  *   quoldek.web.app/?learnkyrgyz=greetings,family&lang=en&go=host|studio|take
  */
@@ -174,7 +174,7 @@
         <div class="lk-path">${names.slice(0, 6).map((n, i) => `<span class="lk-card" style="--i:${i}">${esc(n)}</span>`).join('')}<i class="lk-beam"></i></div>
         <div class="lk-end"><span class="lk-tile b">Q</span>Quoldek</div></div>
       <div class="lk-msg">Bringing your topics into Quoldek…</div>
-      <div class="lk-sub">${window.OneInTwo && OneInTwo.user() ? 'Signed in as ' + esc(OneInTwo.user().name) + ' · one account' : 'From LearnKyrgyz'}</div>`;
+      <div class="lk-sub">${window.The4Workspace && The4Workspace.user() ? 'Signed in as ' + esc(The4Workspace.user().name) + ' · one account' : 'From LearnKyrgyz'}</div>`;
     document.body.append(layer);
     return {
       done(title) { layer.querySelector('.lk-msg').innerHTML = `<span class="lk-check">✓</span>“${esc(title)}” is ready`; },
@@ -213,7 +213,7 @@
     if (!topics.length) return;
     // someone arriving to play goes straight to the game, not to the release screen
     if (go && window.NovaLaunch && typeof NovaLaunch.markSeen === 'function') { try { NovaLaunch.markSeen(); } catch { /* storage off */ } }
-    // let OneInTwo pick up the account first, so the new quiz is saved to it
+    // let The4Workspace pick up the account first, so the new quiz is saved to it
     if (go) setTimeout(() => arrive({ topics, lang, go, count: Math.min(60, Math.max(5, +p.get('n') || 20)) }), 50);
     else openPicker({ topics, lang });
   });
