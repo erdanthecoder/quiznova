@@ -1,0 +1,25 @@
+# Connects this app to The4Workspace (the4workspace.web.app): one account for LearnKyrgyz,
+# Quoldek, Kadam and AkylduuKodo. It hands this repository's Firebase key straight from
+# GitHub's secret store to The4Workspace, which checks it with Google and keeps it locked away,
+# so The4Workspace can sign its users in here. Runs once when this file is added.
+name: Connect to The4Workspace
+on:
+  push:
+    paths: ['.github/workflows/oneinfour-connect.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hand this app's Firebase key to The4Workspace
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then echo "::error::No FIREBASE_SERVICE_ACCOUNT secret in this repository."; exit 1; fi
+          jq -n --argjson key "$KEY" '{key: $key}' > "$RUNNER_TEMP/body.json"
+          code=$(curl -sS -o "$RUNNER_TEMP/out.json" -w "%{http_code}" -X POST -H "Content-Type: application/json" --data @"$RUNNER_TEMP/body.json" https://lzamxwqxnzcrazyuipjx.supabase.co/functions/v1/oit-register-key)
+          rm -f "$RUNNER_TEMP/body.json"
+          cat "$RUNNER_TEMP/out.json"; echo
+          [ "$code" = "200" ]
