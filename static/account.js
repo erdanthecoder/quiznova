@@ -365,7 +365,13 @@
   }
 
   const wsSignIn = wsHandoff && wsHandoff.at
-    ? useWorkspaceSession(wsHandoff.at).catch((err) => console.warn('[Quoldek] The4Workspace sign-in did not complete:', err && err.message))
+    ? useWorkspaceSession(wsHandoff.at).catch((err) => {
+        console.warn('[Quoldek] The4Workspace sign-in did not complete:', err && err.message);
+        // say so on the sign-in page rather than quietly asking for a password
+        const msg = (err && err.message) || 'The4Workspace could not sign you in.';
+        try { sessionStorage.setItem('quoldek:ws-error', msg); } catch { }
+        try { global.dispatchEvent(new CustomEvent('quoldek-ws-error', { detail: msg })); } catch { }
+      })
     : null;
 
   // somebody who has signed in before should still be signed in when they return
@@ -433,6 +439,7 @@
 
   global.NovaAccount = {
     signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon, signInWithWorkspace,
+    workspaceError: () => { try { const m = sessionStorage.getItem('quoldek:ws-error'); sessionStorage.removeItem('quoldek:ws-error'); return m || ''; } catch { return ''; } },
     quizzes, pushQuizzes,
     loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES, requireAccount, wake,
     get user() { return user; },
