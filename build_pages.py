@@ -18,7 +18,7 @@ OUT = os.path.join(ROOT, "docs")
 # so a class types playquoldek.web.app rather than a path with a filename on it.
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
-PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
+PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js",
                "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
@@ -48,12 +48,12 @@ TEACH_HOST = "teachboard-quoldek.web.app"
 STUDENT_OUT = os.path.join(ROOT, "docs-student")
 STUDENT_HOST = "studentboard-quoldek.web.app"
 BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js",
-                "launch.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
+                "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js",
                 "rules.js", "live.js", "nova-local.js", "account.js", "boards.js"]
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html", "start.html",
          "signin.html", "teachboard.html", "studentboard.html"]
-ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -90,6 +90,7 @@ def build():
         html = html.replace('<script src="/bridge.js"></script>', '<script src="bridge.js"></script>')
         html = html.replace('<script src="/progress.js"></script>', '<script src="progress.js"></script>')
         html = html.replace('<script src="/launch.js"></script>', '<script src="launch.js"></script>')
+        html = html.replace('<script src="/duet.js"></script>', '<script src="duet.js"></script>')
         html = html.replace('<script src="/music.js"></script>', '<script src="music.js"></script>')
         html = html.replace('<script src="/arena.js"></script>', '')   # the bundle already adds it
         html = html.replace('<script src="/strike.js"></script>', '')   # ditto

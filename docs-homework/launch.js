@@ -213,6 +213,7 @@
     const shell = document.createElement('div');
     shell.className = 'launch launch-' + which;
     shell.innerHTML = '<canvas class="launch-sky"></canvas>'
+      + '<canvas class="launch-duet"></canvas>'
       + '<div class="launch-shot"><b></b><i></i></div>'
       + '<div class="launch-word"><span class="up">Quoldek ' + version + '</span></div>'
       + '<div class="launch-cards"></div>'
@@ -296,7 +297,7 @@
 
     // the hard stop: whatever happens inside, it is over by then
     setTimeout(finish, which === 'garden' ? 34000
-                     : which === 'sunrise' ? 16000 : 9000);
+                     : which === 'sunrise' ? 23000 : 9000);
     return finish;
   }
 
@@ -1235,9 +1236,11 @@
     first: 3100,     // the first word comes over the ridge
     every: 640,      // and the rest follow, this far apart
     flip:  8400,     // they all turn over
-    title: 9800,
-    cards: 10700,
-    out:   14200
+    clear: 9500,     // and go, because the next thing needs the middle
+    duet:  9900,     // the two marks meet
+    title: 16600,
+    cards: 17400,
+    out:   20800
   };
 
   const rgb = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
@@ -1285,7 +1288,7 @@
       speed: rand(0.030, 0.046)
     }));
 
-    let dust = [], smoke = [], worded = false, carded = false;
+    let dust = [], smoke = [], worded = false, carded = false, met = false;
 
     /* Where the words end up. Worked out from the window every frame rather
        than once, so a teacher who turns their laptop round mid-film does not
@@ -1522,8 +1525,13 @@
       /* ── the words arriving ── */
       const g = grid();
       const FLIGHT = 980;
+      /* The words leave before the two marks arrive. Fading them would have
+         been easier and wrong: they came in, so they go out. */
+      const leaving = clamp01((gone - S.clear) / 700);
+      ctx.save();
+      ctx.globalAlpha = 1 - leaving;
       tiles.forEach((t, i) => {
-        if (gone < t.born) return;
+        if (gone < t.born || leaving >= 1) return;
         const k = clamp01((gone - t.born) / FLIGHT);
         const [tx, ty] = g.at(i);
         const fromX = w * 1.24, fromY = h * 0.66;
@@ -1554,8 +1562,11 @@
           face = Math.cos(Math.PI * ease.soft(f));
           if (Math.abs(face) < 0.06) face = face < 0 ? -0.06 : 0.06;
         }
-        drawTile(t, x, y, g.w, g.h, turn + settle, squash, face);
+        drawTile(t, x - leaving * w * 0.5 * (i % 2 ? 1 : -1),
+                 y - ease.out(leaving) * h * 0.5,
+                 g.w, g.h, turn + settle + leaving * 1.1 * (i % 2 ? 1 : -1), squash, face);
       });
+      ctx.restore();
 
       dust = dust.filter(d => d.life > 0);
       dust.forEach(d => {
@@ -1565,6 +1576,19 @@
         ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
+
+      /* The two marks, on a canvas of their own over this one. A collaboration
+       * is the news in this release, and news that arrives as a line of text
+       * under four feature cards is news nobody reads. The film carries on
+       * underneath — the confetti lands on the mountains. */
+      if (!met && gone > S.duet) {
+        met = true;
+        const over = shell.querySelector('.launch-duet');
+        if (over && global.NovaDuet) {
+          try { global.NovaDuet.play(over, { dark: true, line: 'The first collaboration' }); }
+          catch (err) { /* the film is not worth losing over a celebration */ }
+        }
+      }
 
       if (!worded && gone > S.title) { worded = true; word(); }
       if (!carded && gone > S.cards) { carded = true; cards(); }

@@ -323,6 +323,9 @@ body.laser #toasts{bottom:auto;top:calc(env(safe-area-inset-top, 0px) + 92px)}
 @keyframes launch-in{from{opacity:0}to{opacity:1}}
 @keyframes launch-out{to{opacity:0}}
 .launch-sky{position:absolute;inset:0;width:100%;height:100%}
+/* a second canvas over the film, for anything that has to happen in front of
+   it without the film having to stop */
+.launch-duet{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
 .launch-word{position:absolute;top:14%;left:0;right:0;text-align:center;pointer-events:none}
 .launch-word .up{display:inline-block;font-size:clamp(2rem,7vw,4.2rem);font-weight:900;letter-spacing:-.03em;
   color:#fff;opacity:0;transform:scale(.7);text-shadow:0 6px 0 rgba(0,0,0,.35)}

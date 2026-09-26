@@ -30,8 +30,8 @@ const ok = (what, good, note) => {
 /* How much is actually on the canvas: the share of sampled pixels that are not
    the same colour as the corner. A film that is drawing has plenty; a film that
    has thrown has none. */
-const BUSY = `(() => {
-  const c = document.querySelector('.launch-sky');
+const busyOf = (sel) => `(() => {
+  const c = document.querySelector('${sel}');
   if (!c) return -1;
   const g = c.getContext('2d');
   const d = g.getImageData(0, 0, c.width, c.height).data;
@@ -44,6 +44,8 @@ const BUSY = `(() => {
   seen.forEach(v => { if (v > most) most = v; });
   return { colours: seen.size, varied: 1 - most / n };
 })()`;
+const BUSY = busyOf('.launch-sky');
+const DUET = busyOf('.launch-duet');
 
 (async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -74,7 +76,8 @@ const BUSY = `(() => {
   ok('the film opens', await page.locator('.launch-sunrise').count() === 1);
 
   const marks = [
-    ['dark', 900], ['sunrise', 2600], ['words', 5200], ['flipped', 9200], ['title', 11200]
+    ['dark', 900], ['sunrise', 2600], ['words', 5200], ['flipped', 9200],
+    ['meeting', 12600], ['ribbon', 14200], ['title', 17900]
   ];
   let last = 400;
   for (const [name, at] of marks) {
@@ -83,6 +86,14 @@ const BUSY = `(() => {
     const busy = await page.evaluate(BUSY);
     ok(`${name}: something is drawn`, busy && busy.varied > 0.06,
        busy ? `${busy.colours} colours, ${Math.round(busy.varied * 100)}% varied` : 'no canvas');
+    /* The two marks meet on a canvas of their own over the film. It is the news
+       in this release, so it is worth knowing it actually came up rather than
+       failing quietly behind a guard. */
+    if (name === 'meeting' || name === 'ribbon') {
+      const duet = await page.evaluate(DUET);
+      ok(`${name}: the two marks are on screen`, duet && duet.varied > 0.01,
+         duet ? `${duet.colours} colours` : 'no second canvas');
+    }
     await page.screenshot({ path: path.join(SHOTS, `reveal5-${name}.png`) });
   }
 
@@ -96,7 +107,7 @@ const BUSY = `(() => {
 
   /* The important one. A full-screen overlay that does not know how to leave is
      a page nobody can use. */
-  await page.waitForTimeout(4200);
+  await page.waitForTimeout(3600);
   ok('and it lets go of the page on its own',
      await page.locator('.launch').count() === 0);
 
