@@ -37,7 +37,7 @@ HOMEWORK_OUT = os.path.join(ROOT, "docs-homework")
 HOMEWORK_HOST = "hwquoldek.web.app"
 
 PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html"]
-ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "learnkyrgyz.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
 
 
 def copy_fonts(where):
@@ -87,6 +87,7 @@ def build():
                             '<script src="nova-local.js"></script>\n'
                             '<script src="account.js"></script>')
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
+        html = html.replace('<script src="/learnkyrgyz.js"></script>', '<script src="learnkyrgyz.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')
         html = html.replace('href="/fonts.css"', 'href="fonts.css"')
         html = html.replace('href="/logo.svg"', 'href="logo.svg"')

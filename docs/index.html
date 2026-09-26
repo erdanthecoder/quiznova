@@ -245,6 +245,7 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
 <script src="nova-local.js?v=340f2f93"></script>
 <script src="account.js?v=ff127e8f"></script>
 <script src="qr.js?v=b8307384"></script>
+<script src="learnkyrgyz.js?v=c570999b"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
@@ -350,6 +351,15 @@ function render() {
              el('strong', {}, 'New quiz'),
              el('span', { class: 'tiny faint' }, 'Blank, or let the AI draft it'));
   grid.append(add);
+
+  // Kyrgyz topics from LearnKyrgyz, made into a quiz in one step (learnkyrgyz.js)
+  if (Nova.learnKyrgyz) {
+    const kg = el('div', { class: 'quiz-card new-card', onclick: () => Nova.learnKyrgyz.openPicker() });
+    kg.append(el('div', { class: 'plus', style: 'font-size:1.6rem' }, 'KG'),
+              el('strong', {}, 'Kyrgyz from LearnKyrgyz'),
+              el('span', { class: 'tiny faint' }, '99 topics, ready to play'));
+    grid.append(kg);
+  }
 
   if (!list.length && quizzes.length) {
     grid.append(el('div', { class: 'empty', style: 'grid-column:1/-1' }, 'Nothing matches that search.'));
