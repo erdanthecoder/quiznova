@@ -29,7 +29,24 @@
                 blurb: 'Three minutes, thirty health, one class. Answer to load your knife, then put it in' },
 
     robot:    { label: 'Robot Run',     icon: 'dragon', blurb: 'The whole class outruns the robot together. Answer, earn a boost, hold to use it' },
-    
+
+    /* The limited edition.
+     *
+     * Salburun is the old hunt — a golden eagle, a horse and a canyon — and
+     * this is the canyon, in real three dimensions, with a bird in it for every
+     * child in the room. It is here because two apps that had never worked
+     * together now do, and a thing made for that ought to feel like an occasion
+     * rather than like the sixth item on a list.
+     *
+     * `limited` is what makes it an occasion. It is in the game between those
+     * two dates and not before or after, and the board says so while it is
+     * here. Everything a class owns from playing it stays theirs afterwards —
+     * what ends is the mode, not what anybody earned in it. */
+    eagle:    { label: 'Eagle Hunt', icon: 'flag',
+                limited: { from: '2026-09-26', until: '2026-12-31',
+                           note: 'A limited edition, with LearnKyrgyz' },
+                blurb: 'One canyon, everybody\'s eagle in it. Every right answer is a beat of its wings — and the bird at the back rides the wind' },
+
     };
   /* Each game is played on a map the teacher picks. A map is scenery and a palette:
    * it changes what the board looks like, not how the scoring works. */
@@ -44,7 +61,9 @@
     boss:     [['lair', 'Dragon Lair'], ['volcano', 'Volcano'], ['ruins', 'Old Ruins']],
 
     robot:    [['station', 'The Space Station'], ['reactor', 'Reactor Deck'], ['hangar', 'The Hangar']],
-    
+
+    eagle:    [['canyon', 'Ala-Too Canyon'], ['dusk', 'Red Gorge'], ['storm', 'The Storm']],
+
     };
   /* How a game finishes. Playing every question is the default, but a class with
    * ten minutes left before lunch wants the clock to decide, and a race to a
@@ -766,6 +785,44 @@
      * who starts well runs away with it by the fourth question and everybody
      * else stops trying, which is the failure mode of every classroom quiz
      * anybody has ever sat through. */
+    /* Eagle Hunt: the answer is a wingbeat, and the wind is on the side of
+     * whoever is behind.
+     *
+     * The tailwind is the one thing in it that is not Classic with a canyon
+     * behind it. A bird a long way back is carried — up to half again on what
+     * it earns — and the carry shrinks to nothing as it closes. Two reasons,
+     * and neither is kindness:
+     *
+     *   A race everybody can see is only worth watching while it is a race. In
+     *   a straight-scoring race the order is settled by question four and the
+     *   other twenty-six are a formality with a view.
+     *
+     *   And it does not take anything from the leader. It never moves anybody
+     *   backwards and it never slows the front — the child in front still gets
+     *   full value for every answer, so nothing they have earned is taken off
+     *   them to make the game close. What the wind buys is that the child at
+     *   the back is still playing for something on question nineteen.
+     *
+     * A wrong answer costs nothing, as everywhere else here. What it costs you
+     * is the ground the rest of the canyon just took.
+     */
+    eagle(game, p, q, ok, speed) {
+      const worth = Number(q && q.points) || 100;
+      let gain = 0;
+      if (ok) {
+        gain = Math.round(worth * (0.55 + 0.45 * speed));
+        const all = Object.values(game.players || {});
+        const lead = all.reduce((m, x) => Math.max(m, x.score || 0), 0);
+        const behind = Math.max(0, lead - (p.score || 0));
+        const wind = lead > 0 ? Math.min(0.5, (behind / lead) * 0.6) : 0;
+        if (wind > 0) gain = Math.round(gain * (1 + wind));
+        if (wind >= 0.34) game.lastEvents.push(`${p.name} caught the wind`);
+        else if (speed >= 0.8) game.lastEvents.push(`${p.name} answered that one in a flash`);
+      }
+      p.score += gain;
+      p.lastGain = gain;
+    },
+
     normal(game, p, q, ok, speed) {
       const worth = Number(q && q.points) || 100;
       let gain = 0;

@@ -626,6 +626,33 @@
 #goal[hidden]{display:none}
 #music{padding-left:11px;padding-right:11px}
 #music.quiet{opacity:.55}
+
+/* ── Eagle Hunt's canyon ──────────────────────────────────
+ * Behind everything, and never in the way of it: the board's own panels sit on
+ * top with their own backgrounds, and the canyon is what shows between them. */
+/* A band across the top rather than a wash behind everything. Behind
+ * everything was the obvious thing and it was wrong twice over: the board's own
+ * panels cover the middle of the screen, so the valley was only ever visible
+ * down two strips at the edges — and what did show through sat under the
+ * question, which is the one thing on a projector that has to be read from the
+ * back of a room. Given a band of its own it is a wide shot of a canyon with
+ * birds in it, and the question sits on the rock underneath. */
+.canyon{position:fixed;left:0;right:0;top:0;height:min(46vh,430px);
+  width:100%;z-index:0;pointer-events:none}
+body.flying{background:#0C1026}
+body.flying .stage{position:relative;z-index:1;padding-top:min(38vh,350px)}
+body.flying .topbar{position:relative;z-index:2;background:rgba(12,16,38,.5);
+  backdrop-filter:blur(10px);border-bottom-color:transparent}
+body.flying .ask{background:rgba(12,16,38,.86);backdrop-filter:blur(12px);
+  box-shadow:0 20px 60px rgba(6,8,24,.65)}
+body.flying .ask h1{color:#FFF7E4}
+body.flying .lb,body.flying .tile{box-shadow:0 18px 50px rgba(6,8,24,.5)}
+/* what this mode is, while it is here */
+.limited{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:3;
+  display:flex;align-items:center;gap:9px;padding:7px 16px;border-radius:99px;
+  background:rgba(12,8,28,.74);border:2px solid rgba(255,197,61,.45);
+  backdrop-filter:blur(8px);font-weight:800;font-size:.82rem;color:#FFF7E4}
+.limited b{color:#FFC53D;letter-spacing:.08em;text-transform:uppercase;font-size:.7rem}
 </style>
 </head>
 <body class="dark">
@@ -645,9 +672,16 @@
   </div>
 </header>
 
+<!-- Eagle Hunt's canyon. It sits behind the whole board rather than inside one
+     of the views, because in that mode it is the room the game is played in:
+     the question is asked over it, the answers are revealed over it, and the
+     birds carry on down the valley between the two. A view that mounted and
+     unmounted it every question would restart the flight nine times a round. -->
+<canvas class="canyon" id="canyon" hidden></canvas>
 <main class="stage" id="stage"></main>
 
 <script src="/sprites.js"></script>
+<script src="/eagle.js"></script>
 <script src="/music.js"></script>
 <script src="/arena.js"></script>
 <script src="/strike.js"></script>
@@ -1042,7 +1076,70 @@ function slide(before) {
   });
 }
 
+/* ── Eagle Hunt's canyon ───────────────────────────────
+ *
+ * Mounted once, for the whole game, and fed on every poll. It is not a view:
+ * it is the place the game happens, and the views are drawn over it.
+ *
+ * The one thing worth saying about the feeding is where the surge comes from.
+ * Scores arrive already totalled, so the board keeps what it last saw and
+ * pushes a bird by the difference. That is the same number the child's phone
+ * shows them, and it lands at the same moment the answers are revealed rather
+ * than when they pressed — which is the moment the room is looking.
+ */
+let canyon = null, lastFlight = new Map();
+
+function flying() { return game && game.mode === 'eagle'; }
+
+function watchCanyon() {
+  const canvas = document.getElementById('canyon');
+  if (!canvas || !window.NovaEagle) return;
+  /* Not in the lobby and not over the final standings. The lobby already
+     stands the class on a floor of its own and the finale is a podium — a
+     canyon behind either is two scenes fighting over one screen. */
+  if (!flying() || game.state === 'lobby' || game.state === 'over') {
+    if (canyon) { canyon.stop(); canyon = null; lastFlight = new Map(); }
+    canvas.hidden = true;
+    document.body.classList.remove('flying');
+    const tag = document.querySelector('.limited');
+    if (tag) tag.remove();
+    return;
+  }
+  canvas.hidden = false;
+  document.body.classList.add('flying');
+  if (!canyon) {
+    canyon = NovaEagle.start({ canvas, world: game.map || 'canyon' });
+    lastFlight = new Map();
+    /* What this is, while it is here. A limited edition that never says it is
+       one is just a mode that quietly disappears in December. */
+    const info = (game.modeInfo && game.modeInfo.limited) || null;
+    if (info && !document.querySelector('.limited')) {
+      const tag = el('div', { class: 'limited' },
+        el('b', {}, 'Limited edition'),
+        el('span', {}, info.note || 'Here for a while'));
+      document.body.append(tag);
+    }
+  }
+
+  const players = (game.players || []).slice();
+  canyon.setBirds(players.map(p => ({ id: p.id, name: p.name, dist: p.score || 0 })));
+  /* Only once the answers are out. Pushing on every poll would have the birds
+     twitch forward the instant a fast child pressed, which tells the room the
+     answer before the board does. */
+  if (game.state === 'reveal') {
+    players.forEach(p => {
+      const was = lastFlight.has(p.id) ? lastFlight.get(p.id) : (p.score || 0);
+      const by = (p.score || 0) - was;
+      if (by > 0) canyon.surge(p.id, by);
+      lastFlight.set(p.id, p.score || 0);
+    });
+  } else if (game.state === 'lobby') {
+    players.forEach(p => lastFlight.set(p.id, p.score || 0));
+  }
+}
+
 function render(fresh) {
+  watchCanyon();
   const stage = $('#stage');
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
   if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); fitFinale(); announce(); } else fitFinale(); return; }

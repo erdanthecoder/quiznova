@@ -883,6 +883,17 @@ MODES = {
                  "blurb": "Answer to arm yourself, then ten seconds to cut it down"},
     "robot":    {"label": "Robot Run", "icon": "dragon", "teams": False,
                  "blurb": "The whole class outruns the robot together. Answer, earn a boost, hold to use it"},
+    # The limited edition. Salburun is the old hunt — a golden eagle, a horse
+    # and a canyon — and this is the canyon, with a bird in it for every child
+    # in the room. `limited` is what makes it an occasion: it is in the game
+    # between those two dates and not before or after. What ends is the mode,
+    # never anything a class earned in it. Mirrors MODES.eagle in
+    # static/rules.js.
+    "eagle":    {"label": "Eagle Hunt", "icon": "flag", "teams": False,
+                 "limited": {"from": "2026-09-26", "until": "2026-12-31",
+                             "note": "A limited edition, with LearnKyrgyz"},
+                 "blurb": "One canyon, everybody's eagle in it. Every right answer is "
+                          "a beat of its wings — and the bird at the back rides the wind"},
 }
 
 # Each game is played on a map the teacher picks. A map is scenery and a palette:
@@ -894,6 +905,8 @@ MAPS = {
     "boss":     [("lair", "Dragon Lair"), ("volcano", "Volcano"), ("ruins", "Old Ruins")],
     "robot":    [("station", "The Space Station"), ("reactor", "Reactor Deck"),
                  ("hangar", "The Hangar")],
+    "eagle":    [("canyon", "Ala-Too Canyon"), ("dusk", "Red Gorge"),
+                 ("storm", "The Storm")],
 }
 
 
@@ -1858,6 +1871,37 @@ def score_robot(game, player, question, ok, speed):
     player["lastGain"] = 0
 
 
+def score_eagle(game, player, question, ok, speed):
+    """Eagle Hunt: the answer is a wingbeat, and the wind is on the side of
+    whoever is behind.
+
+    A bird a long way back is carried — up to half again on what it earns — and
+    the carry shrinks to nothing as it closes. It never moves anybody backwards
+    and it never slows the front: the child in front still gets full value for
+    every answer. What the wind buys is that the child at the back is still
+    playing for something on question nineteen.
+
+    A wrong answer costs nothing, as everywhere else here. What it costs you is
+    the ground the rest of the canyon just took. Mirrors SCORERS.eagle in
+    static/rules.js.
+    """
+    worth = int((question or {}).get("points") or 100)
+    gain = 0
+    if ok:
+        gain = round(worth * (0.55 + 0.45 * speed))
+        lead = max([p.get("score", 0) for p in game.get("players", {}).values()] or [0])
+        behind = max(0, lead - player.get("score", 0))
+        wind = min(0.5, (behind / lead) * 0.6) if lead > 0 else 0
+        if wind > 0:
+            gain = round(gain * (1 + wind))
+        if wind >= 0.34:
+            game["lastEvents"].append(f"{player['name']} caught the wind")
+        elif speed >= 0.8:
+            game["lastEvents"].append(f"{player['name']} answered that one in a flash")
+    player["score"] += gain
+    player["lastGain"] = gain
+
+
 def score_normal(game, player, question, ok, speed):
     """Classic Quiz: the answer, and how fast it came.
 
@@ -1912,7 +1956,7 @@ def after_round(game):
 SCORERS = {
     "normal": score_normal,
     "laser": score_laser, "tower": score_tower,
-    "boss": score_boss, "robot": score_robot,
+    "boss": score_boss, "robot": score_robot, "eagle": score_eagle,
 }
 
 

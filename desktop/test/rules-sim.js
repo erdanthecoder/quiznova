@@ -274,8 +274,8 @@ console.log('\n— the modes are not each other —');
      nothing should creep back in beside them; Classic Quiz is the fifth on
      purpose, because a starter or a recap does not want a game wrapped round
      it, and every mode still has to score differently from every other. */
-  ok('there are five modes: the four games and the plain quiz',
-     Object.keys(R.MODES).length === 5 && !!R.MODES.normal,
+  ok('there are six modes: the five games and the plain quiz',
+     Object.keys(R.MODES).length === 6 && !!R.MODES.normal,
      Object.keys(R.MODES).join(' '));
   const quick = (() => {
     const g = newGame('normal', ['Fast', 'Slow', 'Wrong']);

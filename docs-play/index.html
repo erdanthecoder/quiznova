@@ -477,7 +477,7 @@
 <body class="dark">
 <main class="shell" id="app"></main>
 
-<script src="sprites.js?v=fd1e42f6"></script>
+<script src="sprites.js?v=ba27b0b1"></script>
 <script src="launch.js?v=387da9d2"></script>
 <script src="duet.js?v=e67160c3"></script>
 <script src="progress.js?v=4849abb2"></script>
@@ -494,7 +494,7 @@
 <script src="run.js?v=963fd974"></script>
 <script src="tower.js?v=fbdb38cb"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=e019d47a"></script>
+<script src="rules.js?v=45d54cc1"></script>
 <script src="live.js?v=ee2902a9"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
 <script src="account.js?v=1f2bba77"></script>
@@ -2265,6 +2265,21 @@ function revealCard() {
     card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
       el('p', { class: 'tiny faint' }, 'Boosts you have put in'),
       el('h2', { style: 'font-size:2rem' }, String(me.boosts || 0))));
+  } else if (game.mode === 'eagle') {
+    /* How far down the canyon, in the units the board is drawn in, and whether
+       the wind is behind you. The wind is the one thing in this mode that is
+       not obvious from looking up, so it is the one thing the phone says: a
+       child at the back who is not told they are being carried reads the gap
+       and stops trying, which is exactly what the wind exists to prevent. */
+    const lead = game.players.reduce((m, p) => Math.max(m, p.score || 0), 0);
+    const behind = Math.max(0, lead - (me.score || 0));
+    const wind = lead > 0 ? Math.min(0.5, (behind / lead) * 0.6) : 0;
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Down the canyon'),
+      el('h2', { style: 'font-size:2rem' }, Math.round((me.score || 0) / 12) + 'm'),
+      el('p', { class: 'tiny muted' }, wind >= 0.08
+        ? `The wind is behind you — every answer is worth ${Math.round((1 + wind) * 100)}%`
+        : 'Out in front, flying on your own')));
   } else if (!saidWhere) {
     /* Only when nothing above has already said it. The place and the gap are
        one fact, and it was being printed twice on the same screen — once as

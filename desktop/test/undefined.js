@@ -54,7 +54,7 @@ const GLOBALS = new Set([
   'CSS', 'escape', 'unescape',
   'scrollTo', 'open', 'close', 'print', 'Node', 'Element', 'HTMLElement', 'Notification',
   // what the project itself hangs on the window
-  'Nova', 'NovaRules', 'NovaLive', 'NovaArena', 'NovaStrike', 'NovaRun', 'NovaTower',
+  'Nova', 'NovaRules', 'NovaLive', 'NovaArena', 'NovaStrike', 'NovaRun', 'NovaTower', 'NovaEagle', 'NovaDuet',
   'NovaMusic', 'NovaAccount', 'NovaProgress', 'NovaLaunch', 'NovaBoards', 'NovaQR',
   'NovaBank', 'NovaPaste', 'NovaRealtime', 'Sprite', 'QuizBank', 'QR',
   'QUOLDEK_LIVE', 'QUOLDEK_LOCAL', 'QUOLDEK_JOIN', 'QUOLDEK_MUSIC', 'QUOLDEK_HUB'
@@ -184,7 +184,7 @@ function unresolved(code) {
 
 const FILES = [
   'static/live.js', 'static/rules.js', 'static/arena.js', 'static/strike.js',
-  'static/run.js', 'static/tower.js', 'static/sprites.js', 'static/nova.js',
+  'static/run.js', 'static/tower.js', 'static/eagle.js', 'static/sprites.js', 'static/nova.js',
   'static/nova-local.js', 'static/music.js', 'static/realtime.js', 'static/boards.js',
   'static/host.html', 'static/play.html', 'static/studio.html', 'static/quiznova.html',
   'static/teachboard.html', 'static/studentboard.html', 'static/take.html'

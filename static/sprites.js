@@ -264,6 +264,66 @@
   /* An illustration for each game, so picking one shows what happens in it
    * rather than naming it. Drawn in a 160x100 box. */
   const SCENE = {
+    /* Eagle Hunt: the canyon, a gate of flags across it, and a bird coming
+       down the middle. Drawn from behind the bird because that is what the
+       board actually shows — a picture of an eagle in profile would promise a
+       different game from the one this is. */
+    eagle:
+      '<rect width="160" height="100" fill="#CBE2F6"/>' +
+      '<path d="M0 0h160v46H0z" fill="#5B7FD4" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#8E7CAB"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6C5A88"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6C5A88" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#2E7FA8"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFC53D"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    canyon:
+      '<rect width="160" height="100" fill="#CBE2F6"/>' +
+      '<path d="M0 0h160v46H0z" fill="#5B7FD4" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#8E7CAB"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6C5A88"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6C5A88" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#2E7FA8"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFC53D"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    dusk:
+      '<rect width="160" height="100" fill="#FFB36B"/>' +
+      '<path d="M0 0h160v46H0z" fill="#8E3A58" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#96515A"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6B3346"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6B3346" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#7E4A7A"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFE3D0"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    storm:
+      '<rect width="160" height="100" fill="#59617F"/>' +
+      '<path d="M0 0h160v46H0z" fill="#2A3050" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#4B4F6E"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#33364F"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#33364F" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#37506E"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#DDE4F5"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
     /* Classic Quiz: the question on the board and four answers under it, which
        is exactly what the mode is. No creature, no arena — the picture should
        promise the plain thing, because a teacher picking this one is picking it
