@@ -17,10 +17,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The key is read from the environment. Pasting it into the script itself broke
+      # the test (the JSON's quote marks end the string), so every run skipped.
       - name: Is Firebase connected?
         id: check
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+          if [ -n "$FIREBASE_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
