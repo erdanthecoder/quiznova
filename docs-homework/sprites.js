@@ -122,13 +122,81 @@
       + MOUTHS_N * w(pattern, PATTERNS_N))));
   };
 
+  /* ── hats ─────────────────────────────────────────────────
+   * A hat is not part of the packed character number. It is a separate thing a
+   * child owns and puts on, and it has to be, because the number is what the
+   * game uses to tell two players apart across a room — a hat that changed it
+   * would change who you look like every time you tried one on.
+   *
+   * Each is drawn in the same 64x64 box as the character, sitting on a head
+   * whose circle is centred at (32, 26) with a radius of 18, so the brim lands
+   * around y=12 and the crown goes up from there. Index 0 is no hat.
+   */
+  const HATS = [
+    '',
+    // party cone
+    '<path d="M32 -2 L42 15 H22z" fill="#F4364C"/>' +
+    '<path d="M32 -2 L37 6.5 L27 6.5z" fill="#FFC53D"/>' +
+    '<ellipse cx="32" cy="15" rx="10.5" ry="2.6" fill="#C42539"/>' +
+    '<circle cx="32" cy="-3" r="3" fill="#FFC53D"/>',
+    // top hat
+    '<rect x="23" y="-3" width="18" height="16" rx="1.6" fill="#221541"/>' +
+    '<rect x="23" y="7" width="18" height="4" fill="#F4364C"/>' +
+    '<ellipse cx="32" cy="13.5" rx="15" ry="3.2" fill="#161036"/>',
+    // crown
+    '<path d="M19 14 L21 1 L26.5 8 L32 -1 L37.5 8 L43 1 L45 14z" fill="#FFC53D"/>' +
+    '<rect x="19" y="12" width="26" height="4" rx="1.6" fill="#E8A400"/>' +
+    '<circle cx="26.5" cy="9" r="1.8" fill="#F4364C"/><circle cx="37.5" cy="9" r="1.8" fill="#4F6BFF"/>',
+    // cap, worn forwards
+    '<path d="M17 13 a15 15 0 0 1 30 0z" fill="#2BA8FF"/>' +
+    '<path d="M17 12.5 h20 a6 6 0 0 1 6 4 H17z" fill="#1E86CC"/>' +
+    '<circle cx="32" cy="-1" r="2.4" fill="#1E86CC"/>',
+    // bobble hat
+    '<path d="M19 14 a13 13 0 0 1 26 0z" fill="#12BE8E"/>' +
+    '<rect x="17" y="11" width="30" height="5.5" rx="2.7" fill="#F6F2FF"/>' +
+    '<circle cx="32" cy="0" r="4.4" fill="#F6F2FF"/>',
+    // headphones
+    '<path d="M15 22 a17 17 0 0 1 34 0" stroke="#221541" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+    '<rect x="10" y="18" width="8" height="12" rx="3.6" fill="#F4364C"/>' +
+    '<rect x="46" y="18" width="8" height="12" rx="3.6" fill="#F4364C"/>',
+    // wizard hat
+    '<path d="M32 -6 C36 4 40 10 46 15 H18 C24 10 28 4 32 -6z" fill="#6C4CF1"/>' +
+    '<ellipse cx="32" cy="15" rx="16" ry="3.4" fill="#5238C8"/>' +
+    '<path d="M30 4 l1.4 3 3 1.4 -3 1.4 -1.4 3 -1.4-3 -3-1.4 3-1.4z" fill="#FFC53D"/>',
+    // flower crown
+    '<path d="M17 13 q15 -5 30 0" stroke="#12BE8E" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="21" cy="11" r="3.4" fill="#FF5D73"/><circle cx="32" cy="7.5" r="3.8" fill="#FFC53D"/>' +
+    '<circle cx="43" cy="11" r="3.4" fill="#4F6BFF"/>' +
+    '<circle cx="32" cy="7.5" r="1.5" fill="#fff"/>',
+    // hard hat
+    '<path d="M18 14 a14 14 0 0 1 28 0z" fill="#FF7A45"/>' +
+    '<rect x="30" y="0" width="4" height="12" rx="1.6" fill="#E0602C"/>' +
+    '<rect x="15" y="12" width="34" height="4.4" rx="2.2" fill="#FFC53D"/>',
+    // pirate
+    '<path d="M15 13 q17 -12 34 0z" fill="#221541"/>' +
+    '<rect x="14" y="11" width="36" height="4.6" rx="2.3" fill="#161036"/>' +
+    '<circle cx="32" cy="6.5" r="2.4" fill="#F6F2FF"/>' +
+    '<rect x="30.6" y="8.4" width="2.8" height="3.4" rx="1" fill="#F6F2FF"/>',
+    // halo
+    '<ellipse cx="32" cy="3" rx="11" ry="3.6" fill="none" stroke="#FFC53D" stroke-width="3"/>',
+    // beanie with a stripe
+    '<path d="M19 14 a13 13 0 0 1 26 0z" fill="#7C4DFF"/>' +
+    '<rect x="18" y="9" width="28" height="3.4" fill="#FFC53D"/>' +
+    '<rect x="17" y="12" width="30" height="4.6" rx="2.3" fill="#5238C8"/>'
+  ];
+  const HAT_NAMES = ['No hat', 'Party cone', 'Top hat', 'Crown', 'Cap', 'Bobble hat',
+                     'Headphones', 'Wizard hat', 'Flower crown', 'Hard hat', "Captain's cap",
+                     'Halo', 'Beanie'];
+  const HATS_N = HATS.length;
+
   let uid = 0;
 
   /**
    * One child's character, drawn whole: feet, arms, body, head, face.
    * `index` is stored with the player, so their character never changes.
+   * `hat` is separate and optional — nought, or nothing at all, is bare-headed.
    */
-  function face(index, size = 48) {
+  function face(index, size = 48, hat = 0) {
     const part = unpack(index);
     const base = SKIN[part.colour];
     const crest = CREST[part.shape];
@@ -165,6 +233,8 @@
       '<ellipse cx="44" cy="32" rx="4" ry="2.6" fill="rgba(0,0,0,.09)"/>' +
       ink(EYES[part.eyes]) +
       ink(MOUTHS[part.mouth]) +
+      // the hat goes on last, over everything, because that is where a hat is
+      (HATS[((Math.round(Number(hat) || 0) % HATS_N) + HATS_N) % HATS_N] || '') +
       '</g>' +
     '</svg>';
   }
@@ -194,16 +264,86 @@
   /* An illustration for each game, so picking one shows what happens in it
    * rather than naming it. Drawn in a 160x100 box. */
   const SCENE = {
+    /* Eagle Hunt: the canyon, a gate of flags across it, and a bird coming
+       down the middle. Drawn from behind the bird because that is what the
+       board actually shows — a picture of an eagle in profile would promise a
+       different game from the one this is. */
+    eagle:
+      '<rect width="160" height="100" fill="#CBE2F6"/>' +
+      '<path d="M0 0h160v46H0z" fill="#5B7FD4" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#8E7CAB"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6C5A88"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6C5A88" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#2E7FA8"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFC53D"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    canyon:
+      '<rect width="160" height="100" fill="#CBE2F6"/>' +
+      '<path d="M0 0h160v46H0z" fill="#5B7FD4" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#8E7CAB"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6C5A88"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6C5A88" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#2E7FA8"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFC53D"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    dusk:
+      '<rect width="160" height="100" fill="#FFB36B"/>' +
+      '<path d="M0 0h160v46H0z" fill="#8E3A58" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#96515A"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#6B3346"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#6B3346" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#7E4A7A"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#FFE3D0"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    storm:
+      '<rect width="160" height="100" fill="#59617F"/>' +
+      '<path d="M0 0h160v46H0z" fill="#2A3050" opacity=".55"/>' +
+      '<path d="M0 46 24 22 44 40 70 14 96 42 122 20 146 44 160 34v22H0z" fill="#4B4F6E"/>' +
+      '<path d="M70 14 60 28h20z" fill="#F4F7FF"/><path d="M122 20 114 32h16z" fill="#F4F7FF"/>' +
+      '<path d="M0 56 46 62 52 100H0z" fill="#33364F"/>' +
+      '<path d="M160 56 114 62 108 100h52z" fill="#33364F" opacity=".82"/>' +
+      '<path d="M46 62 52 100h56l-6-38z" fill="#37506E"/>' +
+      '<g fill="#3F2E1E"><path d="M72 44c-10-5-18-4-22-1 6 0 10 2 14 5l-4 9 8-6 8 6-4-9c4-3 8-5 14-5-4-3-12-4-22-1z"/></g>' +
+      '<g fill="#E8C98A"><circle cx="72" cy="45" r="2.6"/></g>' +
+      '<g stroke="#3A2A1C" stroke-width="2"><path d="M40 52v16M104 52v16"/></g>' +
+      '<path d="M40 52h64" stroke="#3A2A1C" stroke-width="2"/>' +
+      '<g fill="#DDE4F5"><path d="M44 53l8 0-4 7z"/><path d="M60 53l8 0-4 7z"/>' +
+      '<path d="M76 53l8 0-4 7z"/><path d="M92 53l8 0-4 7z"/></g>',
+    /* Classic Quiz: the question on the board and four answers under it, which
+       is exactly what the mode is. No creature, no arena — the picture should
+       promise the plain thing, because a teacher picking this one is picking it
+       on purpose. */
     normal:
-      '<rect width="160" height="100" fill="#FFF3D6"/>' +
-      '<circle cx="133" cy="22" r="15" fill="#FFD86B"/>' +
-      '<rect x="22" y="58" width="30" height="34" rx="4" fill="#BFC7DA"/>' +
-      '<rect x="60" y="40" width="30" height="52" rx="4" fill="#FFC53D"/>' +
-      '<rect x="98" y="66" width="30" height="26" rx="4" fill="#E0A46B"/>' +
-      '<circle cx="75" cy="28" r="9" fill="#F4364C"/><rect x="69" y="30" width="12" height="4" rx="2" fill="#C42539"/>' +
-      '<circle cx="37" cy="47" r="7.5" fill="#4F6BFF"/><rect x="31" y="49" width="12" height="4" rx="2" fill="#3B51C9"/>' +
-      '<circle cx="113" cy="55" r="7.5" fill="#12BE8E"/><rect x="107" y="57" width="12" height="4" rx="2" fill="#0C8E6A"/>' +
-      '<rect y="92" width="160" height="8" fill="#E7D7B4"/>',
+      '<rect width="160" height="100" fill="#F3F0FF"/>' +
+      '<rect x="14" y="12" width="132" height="30" rx="8" fill="#fff" stroke="#1B1330" stroke-width="3"/>' +
+      '<rect x="24" y="22" width="76" height="5" rx="2.5" fill="#1B1330" opacity=".75"/>' +
+      '<rect x="24" y="31" width="48" height="5" rx="2.5" fill="#1B1330" opacity=".35"/>' +
+      '<circle cx="128" cy="27" r="9" fill="none" stroke="#7C4DFF" stroke-width="3.4"/>' +
+      '<path d="M128 21v7l4 3" stroke="#7C4DFF" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<g stroke="#1B1330" stroke-width="3">' +
+      '<rect x="14" y="50" width="62" height="20" rx="6" fill="#F4364C"/>' +
+      '<rect x="84" y="50" width="62" height="20" rx="6" fill="#4F6BFF"/>' +
+      '<rect x="14" y="76" width="62" height="20" rx="6" fill="#FFC53D"/>' +
+      '<rect x="84" y="76" width="62" height="20" rx="6" fill="#12BE8E"/></g>' +
+      '<g fill="#fff">' +
+      '<path d="M26 66 l7-12 7 12z"/><circle cx="99" cy="60" r="6"/>' +
+      '<rect x="26" y="80" width="12" height="12" rx="2.5"/>' +
+      '<path d="M99 80 l6 6-6 6-6-6z"/></g>',
     laser:
       '<rect width="160" height="100" fill="#EDF1FF"/>' +
       '<circle cx="34" cy="50" r="17" fill="#F4364C"/><circle cx="29" cy="45" r="3.6" fill="#fff"/>' +
@@ -213,18 +353,6 @@
       '<rect x="18" y="76" width="32" height="7" rx="3.5" fill="#F4364C" opacity=".45"/>' +
       '<rect x="110" y="76" width="32" height="7" rx="3.5" fill="#4F6BFF" opacity=".45"/>' +
       '<rect y="92" width="160" height="8" fill="#D6DDF6"/>',
-    kart:
-      '<rect width="160" height="100" fill="#E8F6FF"/>' +
-      '<rect y="56" width="160" height="36" fill="#4A4560"/>' +
-      '<g fill="#FFF6D8"><rect x="8" y="72" width="16" height="4" rx="2"/><rect x="36" y="72" width="16" height="4" rx="2"/>' +
-      '<rect x="64" y="72" width="16" height="4" rx="2"/><rect x="92" y="72" width="16" height="4" rx="2"/>' +
-      '<rect x="120" y="72" width="16" height="4" rx="2"/></g>' +
-      '<path d="M44 65 h44 l-6-13 h-9 l-5-8 h-13 l-3 8 h-5z" fill="#F4364C"/>' +
-      '<circle cx="55" cy="67" r="7.5" fill="#241C38"/><circle cx="55" cy="67" r="2.8" fill="#BFC7DA"/>' +
-      '<circle cx="80" cy="67" r="7.5" fill="#241C38"/><circle cx="80" cy="67" r="2.8" fill="#BFC7DA"/>' +
-      '<circle cx="66" cy="45" r="7.5" fill="#FFC53D"/>' +
-      '<g fill="#2BA8FF" opacity=".75"><rect x="10" y="40" width="24" height="4" rx="2"/><rect x="18" y="50" width="15" height="4" rx="2"/></g>' +
-      '<rect y="92" width="160" height="8" fill="#39344D"/>',
     tower:
       '<rect width="160" height="100" fill="#EAFBF3"/>' +
       '<rect x="46" y="76" width="34" height="15" rx="3" fill="#F4364C"/>' +
@@ -236,17 +364,6 @@
       '<rect x="74" y="20" width="3" height="9" fill="#8A93A8"/>' +
       '<rect x="66" y="28" width="20" height="9" rx="2" fill="#7C4DFF"/>' +
       '<rect y="91" width="160" height="9" fill="#CFEEDF"/>',
-    treasure:
-      '<rect width="160" height="100" fill="#FFF0F5"/>' +
-      '<path d="M48 45 a32 22 0 0 1 64 0z" fill="#B4713A"/>' +
-      '<rect x="46" y="45" width="68" height="33" rx="5" fill="#D4924E"/>' +
-      '<rect x="46" y="51" width="68" height="7" fill="#8C5A2B"/>' +
-      '<rect x="74" y="45" width="12" height="20" rx="2" fill="#8C5A2B"/>' +
-      '<circle cx="80" cy="57" r="3.4" fill="#FFC53D"/>' +
-      '<g fill="#FFC53D"><circle cx="36" cy="72" r="7"/><circle cx="126" cy="70" r="7"/><circle cx="30" cy="84" r="5.5"/></g>' +
-      '<path d="M120 16 l5 11 11 5 -11 5 -5 11 -5-11 -11-5 11-5z" fill="#2BA8FF"/>' +
-      '<path d="M34 24 l3.5 8 8 3.5 -8 3.5 -3.5 8 -3.5-8 -8-3.5 8-3.5z" fill="#E8467C"/>' +
-      '<rect y="91" width="160" height="9" fill="#F3D9E3"/>',
     boss:
       '<rect width="160" height="100" fill="#F1ECFF"/>' +
       '<path d="M56 30 a28 26 0 0 1 56 0 v13 a20 20 0 0 1-20 20 h-16 a20 20 0 0 1-20-20z" fill="#7C4DFF"/>' +
@@ -257,77 +374,278 @@
       '<circle cx="26" cy="78" r="10" fill="#12BE8E"/><circle cx="50" cy="83" r="8" fill="#FFC53D"/>' +
       '<circle cx="124" cy="80" r="9" fill="#F4364C"/><circle cx="144" cy="85" r="7" fill="#2BA8FF"/>' +
       '<rect y="91" width="160" height="9" fill="#DED2FF"/>',
-    snow:
-      '<rect width="160" height="100" fill="#E9F4FF"/>' +
-      '<g fill="#fff"><circle cx="24" cy="18" r="4"/><circle cx="70" cy="12" r="3"/><circle cx="112" cy="22" r="3.5"/>' +
-      '<circle cx="140" cy="10" r="2.6"/><circle cx="48" cy="30" r="2.4"/></g>' +
-      // two forts facing each other, one already losing its top row
-      '<g fill="#F4364C"><rect x="10" y="60" width="15" height="11" rx="2"/><rect x="27" y="60" width="15" height="11" rx="2"/>' +
-      '<rect x="10" y="73" width="15" height="11" rx="2"/><rect x="27" y="73" width="15" height="11" rx="2"/>' +
-      '<rect x="18" y="47" width="15" height="11" rx="2"/></g>' +
-      '<g fill="#4F6BFF"><rect x="118" y="60" width="15" height="11" rx="2"/><rect x="135" y="60" width="15" height="11" rx="2"/>' +
-      '<rect x="118" y="73" width="15" height="11" rx="2"/><rect x="135" y="73" width="15" height="11" rx="2"/></g>' +
-      // a snowball mid-flight, with the arc it came in on
-      '<path d="M46 56 Q66 26 96 40" stroke="#C3DCF3" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-dasharray="5 6"/>' +
-      '<circle cx="96" cy="40" r="8.5" fill="#fff" stroke="#7FA8CE" stroke-width="2.5"/>' +
-      '<circle cx="93" cy="37" r="2.6" fill="#EAF4FF"/>' +
-      '<circle cx="60" cy="30" r="4" fill="#fff" stroke="#7FA8CE" stroke-width="1.8"/>' +
-      '<rect y="88" width="160" height="12" fill="#fff"/>',
-    balloon:
-      '<rect width="160" height="100" fill="#FFF6E8"/>' +
-      '<g stroke="#C9B79B" stroke-width="1.4" fill="none">' +
-      '<path d="M34 44c0 12-4 10-4 20M76 34c0 14-5 12-5 24M118 48c0 10-4 9-4 18"/></g>' +
-      '<path d="M34 16a13 13 0 0 1 13 13c0 9-9 15-13 15s-13-6-13-15a13 13 0 0 1 13-13z" fill="#F4364C"/>' +
-      '<path d="M76 6a14 14 0 0 1 14 14c0 10-9 16-14 16s-14-6-14-16a14 14 0 0 1 14-14z" fill="#FFC53D"/>' +
-      '<path d="M118 20a12 12 0 0 1 12 12c0 8-8 14-12 14s-12-6-12-14a12 12 0 0 1 12-12z" fill="#2BA8FF"/>' +
-      // one that has just burst
-      '<g fill="#E8467C"><path d="M140 58l4-7 1 6 6-2-4 6 6 3-7 1 2 6-6-4-3 6-1-7-6 2 4-5-6-3z"/></g>' +
-      '<circle cx="30" cy="76" r="7.5" fill="#7C4DFF"/><circle cx="72" cy="78" r="7.5" fill="#12BE8E"/>' +
-      '<circle cx="114" cy="77" r="7.5" fill="#FF7A45"/>' +
-      '<rect y="88" width="160" height="12" fill="#F0E2CB"/>',
-
-    // two teams either side of one rope, with the marker over the line
-    tug:
-      '<rect width="160" height="100" fill="#DFF3E1"/>' +
-      '<rect y="72" width="160" height="28" fill="#9BD6A4"/>' +
-      '<path d="M78 66h4v34h-4z" fill="#E8DCC0"/>' +          // the centre line
-      '<path d="M14 60h132" stroke="#C99A5B" stroke-width="5" stroke-linecap="round"/>' +
-      '<path d="M74 52h12v16H74z" fill="#F4364C"/>' +          // the marker, pulled left
-      '<g fill="#4F6BFF"><circle cx="112" cy="48" r="9"/><rect x="104" y="57" width="16" height="18" rx="6"/></g>' +
-      '<g fill="#4F6BFF"><circle cx="136" cy="50" r="8"/><rect x="129" y="58" width="14" height="16" rx="6"/></g>' +
-      '<g fill="#F4364C"><circle cx="44" cy="47" r="9"/><rect x="36" y="56" width="16" height="19" rx="6"/></g>' +
-      '<g fill="#F4364C"><circle cx="20" cy="50" r="8"/><rect x="13" y="58" width="14" height="16" rx="6"/></g>',
-
-    // a vault with a pile in front of it, and one bag walking away
-    heist:
-      '<rect width="160" height="100" fill="#2A2140"/>' +
-      '<rect x="20" y="14" width="70" height="62" rx="6" fill="#4A3E6B"/>' +
-      '<circle cx="55" cy="45" r="17" fill="#6C5A96"/><circle cx="55" cy="45" r="7" fill="#FFC53D"/>' +
-      '<path d="M55 28v-6M55 68v-6M38 45h-6M78 45h-6" stroke="#FFC53D" stroke-width="3" stroke-linecap="round"/>' +
-      '<g fill="#FFC53D">' +
-      '<ellipse cx="112" cy="80" rx="26" ry="9"/><ellipse cx="106" cy="72" rx="17" ry="7"/>' +
-      '<ellipse cx="118" cy="66" rx="11" ry="5"/></g>' +
-      '<path d="M128 30c6-6 16-6 22 0 5 6 4 20-11 24-15-4-16-18-11-24z" fill="#8C7BB8"/>' +
-      '<text x="139" y="49" font-size="13" font-weight="800" fill="#2A2140" text-anchor="middle">$</text>' +
-      '<rect y="88" width="160" height="12" fill="#1E1730"/>',
-
-    // a hand of cards, one of each shape, with a gap where the last one goes
-    cards:
-      '<rect width="160" height="100" fill="#F3ECFF"/>' +
-      '<g stroke="#2A2140" stroke-width="2">' +
-      '<rect x="12" y="30" width="30" height="44" rx="5" fill="#fff" transform="rotate(-9 27 52)"/>' +
-      '<rect x="46" y="26" width="30" height="44" rx="5" fill="#fff" transform="rotate(-3 61 48)"/>' +
-      '<rect x="80" y="26" width="30" height="44" rx="5" fill="#fff" transform="rotate(3 95 48)"/>' +
-      '<rect x="114" y="30" width="30" height="44" rx="5" fill="#EDE3FF" stroke-dasharray="5 4"' +
-      ' transform="rotate(9 129 52)"/></g>' +
-      '<path d="M27 41l3.4 7 7.6.8-5.7 5 1.7 7.5L27 57.6 20 61.3l1.7-7.5-5.7-5 7.6-.8z" fill="#FFC53D"/>' +
-      '<path d="M61 38c7 2 10 8 8 14s-9 8-15 5c6 1 10-3 11-8s-1-9-4-11z" fill="#4F6BFF"/>' +
-      '<path d="M95 38c7 4 9 12 4 18-4 5-11 4-13-1 4 2 8 0 9-4s0-9-1-13z" fill="#F4364C"/>' +
-      '<rect y="88" width="160" height="12" fill="#DCCFF5"/>'
+    robot:
+      '<rect width="160" height="100" fill="#0A1418"/>' +
+      '<path d="M26 100 L64 38 L96 38 L134 100z" fill="#1B2422"/>' +
+      '<path d="M56 100 L74 50 L86 50 L104 100z" fill="#0A1214"/>' +
+      '<ellipse cx="80" cy="44" rx="13" ry="8" fill="#05080A"/>' +
+      '<path d="M0 86h160v14H0z" fill="#16201F"/>' +
+      '<circle cx="80" cy="60" r="5" fill="#FFC53D"/>' +
+      '<rect x="77.4" y="62" width="5.2" height="8" rx="2.4" fill="#FFC53D"/>' +
+      '<path d="M92 100c-5-26 8-38 22-38s27 12 22 38z" fill="#0C060F"/>' +
+      '<circle cx="105" cy="72" r="3" fill="#FF5A6E"/><circle cx="118" cy="72" r="3" fill="#FF5A6E"/>' +
+      '<path d="M90 86c-9-4-14-10-14-17M136 86c9-4 14-10 14-17" stroke="#0C060F" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
   };
 
+  /* ── the maps ─────────────────────────────────────────────
+   *
+   * A map used to be a tint. The picker drew the mode's own illustration three
+   * times and put a CSS filter over it, so a teacher choosing between the Neon
+   * Arena, a Bunker and a Moon Base was shown the same picture three times and
+   * asked to pick one. That is not a choice, it is a colour swatch.
+   *
+   * Each of the twelve is drawn here instead. Same 160x100 box as the mode
+   * scenes, same flat style, and each one has to be recognisable at the size of
+   * a button on a phone — so: one strong silhouette, one light source, and the
+   * thing the map is named after large enough to read.
+   */
+  const MAPART = {
+    // ── Classic Quiz ──
+    classic:
+      '<rect width="160" height="100" fill="#6C4CF1"/>' +
+      '<circle cx="24" cy="18" r="26" fill="#8C6CFF" opacity=".55"/>' +
+      '<circle cx="140" cy="86" r="30" fill="#5334D8" opacity=".55"/>' +
+      '<rect x="20" y="24" width="120" height="34" rx="10" fill="#fff"/>' +
+      '<rect x="32" y="34" width="70" height="6" rx="3" fill="#1B1330" opacity=".8"/>' +
+      '<rect x="32" y="45" width="44" height="6" rx="3" fill="#1B1330" opacity=".35"/>' +
+      '<g><rect x="20" y="66" width="56" height="16" rx="5" fill="#F4364C"/>' +
+      '<rect x="84" y="66" width="56" height="16" rx="5" fill="#4F6BFF"/></g>',
+    chalk:
+      '<rect width="160" height="100" fill="#26453B"/>' +
+      '<rect x="6" y="6" width="148" height="88" rx="4" fill="#1F3A31" stroke="#C8A76A" stroke-width="5"/>' +
+      '<g stroke="#EAF3EE" stroke-width="3" stroke-linecap="round" opacity=".85">' +
+      '<path d="M24 28h60M24 40h84M24 52h44"/></g>' +
+      '<g stroke="#FFD86B" stroke-width="3" stroke-linecap="round">' +
+      '<path d="M24 70h28M78 70h28"/></g>' +
+      '<circle cx="132" cy="74" r="9" fill="none" stroke="#EAF3EE" stroke-width="3" opacity=".6"/>',
+    sunset:
+      '<defs><linearGradient id="ssky" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#3B1E6E"/><stop offset="0.55" stop-color="#FF6B6B"/>' +
+      '<stop offset="1" stop-color="#FFB86B"/></linearGradient></defs>' +
+      '<rect width="160" height="100" fill="url(#ssky)"/>' +
+      '<circle cx="80" cy="66" r="26" fill="#FFE2A0" opacity=".9"/>' +
+      '<g fill="#2A1540"><path d="M0 76l26-18 20 14 24-20 26 18 22-12 22 16v26H0z"/></g>' +
+      '<rect x="26" y="20" width="108" height="26" rx="8" fill="#fff" opacity=".95"/>' +
+      '<rect x="38" y="28" width="58" height="5" rx="2.5" fill="#1B1330" opacity=".75"/>' +
+      '<rect x="38" y="37" width="36" height="5" rx="2.5" fill="#1B1330" opacity=".35"/>',
+
+    // ── Laser Tag ──
+    arena:
+      '<rect width="160" height="100" fill="#120A2E"/>' +
+      '<path d="M0 62h160v38H0z" fill="#1B1046"/>' +
+      '<g stroke="#7C4DFF" stroke-width="1" opacity=".5">' +
+      '<path d="M0 70h160M0 80h160M0 90h160M20 62v38M50 62v38M80 62v38M110 62v38M140 62v38"/></g>' +
+      '<rect x="8" y="30" width="6" height="34" rx="3" fill="#E8467C"/>' +
+      '<rect x="146" y="30" width="6" height="34" rx="3" fill="#2BA8FF"/>' +
+      '<rect x="36" y="44" width="26" height="20" rx="3" fill="#2A1A5E"/>' +
+      '<rect x="36" y="44" width="26" height="4" rx="2" fill="#E8467C"/>' +
+      '<rect x="98" y="44" width="26" height="20" rx="3" fill="#2A1A5E"/>' +
+      '<rect x="98" y="44" width="26" height="4" rx="2" fill="#2BA8FF"/>' +
+      '<circle cx="80" cy="26" r="13" fill="#7C4DFF" opacity=".35"/>' +
+      '<circle cx="80" cy="26" r="6" fill="#C9A6FF"/>' +
+      '<circle cx="50" cy="38" r="7" fill="#F4364C"/><circle cx="47.6" cy="35.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="112" cy="38" r="7" fill="#4F6BFF"/><circle cx="109.6" cy="35.6" r="2.1" fill="#fff"/>' +
+      '<path d="M57 40 L96 46" stroke="#FF5A6E" stroke-width="2.2" stroke-linecap="round"/>',
+    bunker:
+      '<rect width="160" height="100" fill="#2A2620"/>' +
+      // daylight through the slit, and the wedge of light it throws inside
+      '<rect x="0" y="26" width="160" height="16" fill="#BFE6FF"/>' +
+      '<path d="M22 60h116l-30 -18H52z" fill="#FFD86B" opacity=".14"/>' +
+      '<g fill="#4A4438">' +
+      '<rect width="160" height="26"/><rect y="42" width="160" height="10"/>' +
+      '<rect x="0" y="26" width="16" height="16"/><rect x="72" y="26" width="12" height="16"/>' +
+      '<rect x="144" y="26" width="16" height="16"/></g>' +
+      '<g fill="#3A3428"><rect y="20" width="160" height="6"/><rect y="52" width="160" height="5"/></g>' +
+      '<rect y="84" width="160" height="16" fill="#4A4234"/>' +
+      '<g fill="#7D7358" stroke="#5A5240" stroke-width="1.2">' +
+      '<rect x="-2" y="70" width="34" height="14" rx="7"/><rect x="30" y="70" width="34" height="14" rx="7"/>' +
+      '<rect x="96" y="70" width="34" height="14" rx="7"/><rect x="128" y="70" width="34" height="14" rx="7"/>' +
+      '<rect x="14" y="58" width="34" height="14" rx="7"/><rect x="112" y="58" width="34" height="14" rx="7"/></g>' +
+      '<circle cx="80" cy="66" r="9" fill="#12BE8E"/><circle cx="76.6" cy="62.6" r="2.7" fill="#fff"/>' +
+      '<rect x="88" y="60" width="22" height="5" rx="2.5" fill="#5E5870"/>' +
+      '<rect x="106" y="57" width="6" height="5" rx="2" fill="#8C86A6"/>' +
+      '<g fill="#FFD86B" opacity=".55"><circle cx="34" cy="34" r="2"/><circle cx="118" cy="34" r="2"/></g>',
+    moon:
+      '<rect width="160" height="100" fill="#07060F"/>' +
+      '<g fill="#fff"><circle cx="18" cy="12" r="1.2"/><circle cx="44" cy="7" r="1"/><circle cx="70" cy="16" r="1.3"/>' +
+      '<circle cx="100" cy="9" r="1"/><circle cx="126" cy="20" r="1.2"/><circle cx="148" cy="10" r="1"/>' +
+      '<circle cx="32" cy="28" r="1"/><circle cx="88" cy="30" r="1.1"/></g>' +
+      '<circle cx="128" cy="26" r="14" fill="#2B7FBF"/>' +
+      '<path d="M118 20c5 2 8-2 13 0s8 5 9 9c-4 6-12 9-19 6s-9-11-3-15z" fill="#12BE8E" opacity=".85"/>' +
+      '<path d="M0 66c18-8 34-4 52-2s32-6 50-4 40 8 58 4v36H0z" fill="#B9B2C4"/>' +
+      '<path d="M0 74c18-6 34-2 52 0s32-5 50-3 40 7 58 3v26H0z" fill="#8F8899"/>' +
+      '<ellipse cx="34" cy="84" rx="12" ry="4" fill="#746E80"/>' +
+      '<ellipse cx="118" cy="90" rx="9" ry="3" fill="#746E80"/>' +
+      '<path d="M42 72a30 20 0 0 1 60 0z" fill="#E9ECF5"/>' +
+      '<path d="M42 72a30 20 0 0 1 60 0z" fill="none" stroke="#9AA2B8" stroke-width="1.6"/>' +
+      '<path d="M72 52v20M42 72a30 20 0 0 1 60 0" fill="none" stroke="#9AA2B8" stroke-width="1" opacity=".6"/>' +
+      '<rect x="60" y="60" width="11" height="12" rx="2" fill="#2BA8FF" opacity=".85"/>' +
+      '<rect x="75" y="60" width="11" height="12" rx="2" fill="#2BA8FF" opacity=".6"/>' +
+      '<rect x="102" y="62" width="14" height="10" rx="2" fill="#6E6880"/>' +
+      '<rect x="114" y="56" width="4" height="16" rx="2" fill="#8C86A6"/>' +
+      '<circle cx="116" cy="54" r="3" fill="#F4364C"/>' +
+      '<circle cx="40" cy="64" r="7" fill="#FFC53D"/><circle cx="37.6" cy="61.6" r="2.1" fill="#fff"/>' +
+      '<circle cx="40" cy="64" r="9" fill="none" stroke="#E9ECF5" stroke-width="1.4" opacity=".8"/>',
+
+    // ── Tower Build ──
+    site:
+      '<rect width="160" height="100" fill="#BFE6FF"/>' +
+      '<rect y="80" width="160" height="20" fill="#C0A87E"/>' +
+      '<g stroke="#E8A400" stroke-width="3" fill="none">' +
+      '<path d="M104 80V20h34"/><path d="M104 28h26M104 40h16"/></g>' +
+      '<path d="M138 20v14" stroke="#8C86A6" stroke-width="1.6"/>' +
+      '<rect x="132" y="34" width="12" height="10" rx="2" fill="#F4364C"/>' +
+      '<g fill="#D8541F" stroke="#9C3A10" stroke-width="1.2">' +
+      '<rect x="18" y="64" width="20" height="10" rx="1.5"/><rect x="40" y="64" width="20" height="10" rx="1.5"/>' +
+      '<rect x="28" y="52" width="20" height="10" rx="1.5"/><rect x="50" y="52" width="20" height="10" rx="1.5"/>' +
+      '<rect x="38" y="40" width="20" height="10" rx="1.5"/></g>' +
+      '<g stroke="#9AA2B8" stroke-width="2" fill="none">' +
+      '<path d="M14 80V38h60M14 58h60M74 80V38"/></g>' +
+      '<circle cx="86" cy="66" r="8" fill="#12BE8E"/><circle cx="83" cy="63" r="2.4" fill="#fff"/>' +
+      '<path d="M78 60a8 8 0 0 1 16 0z" fill="#FFC53D"/>',
+    candy:
+      '<rect width="160" height="100" fill="#FFD9EC"/>' +
+      '<circle cx="132" cy="18" r="11" fill="#FFF2A8"/>' +
+      '<path d="M0 82c14-6 26 2 40 0s26-8 40-6 26 8 40 6 26-6 40-4v22H0z" fill="#F7A8D0"/>' +
+      '<path d="M0 90c14-4 26 2 40 0s26-6 40-4 26 6 40 4 26-4 40-2v12H0z" fill="#EE7FB8"/>' +
+      '<g>' +
+      '<rect x="26" y="34" width="10" height="52" rx="5" fill="#fff"/>' +
+      '<path d="M26 40h10M26 52h10M26 64h10M26 76h10" stroke="#F4364C" stroke-width="5" opacity=".9"/>' +
+      '<rect x="118" y="44" width="10" height="42" rx="5" fill="#fff"/>' +
+      '<path d="M118 50h10M118 62h10M118 74h10" stroke="#2BA8FF" stroke-width="5" opacity=".9"/></g>' +
+      '<circle cx="62" cy="72" r="10" fill="#7BC62D"/><circle cx="82" cy="66" r="8" fill="#FF9A3D"/>' +
+      '<circle cx="98" cy="74" r="7" fill="#E8467C"/>' +
+      '<circle cx="62" cy="72" r="10" fill="none" stroke="#fff" stroke-width="1.6" opacity=".7"/>' +
+      '<circle cx="76" cy="44" r="8" fill="#FFC53D"/><circle cx="73" cy="41" r="2.4" fill="#fff"/>',
+    castle:
+      '<rect width="160" height="100" fill="#7FC9F0"/>' +
+      '<path d="M0 74c22-14 44-10 66-4s50 2 94-6v36H0z" fill="#6FAE58"/>' +
+      '<g fill="#B9B2C4" stroke="#7E7788" stroke-width="1.4">' +
+      '<rect x="18" y="40" width="26" height="46"/><rect x="116" y="40" width="26" height="46"/>' +
+      '<rect x="44" y="54" width="72" height="32"/></g>' +
+      '<g fill="#B9B2C4" stroke="#7E7788" stroke-width="1.4">' +
+      '<rect x="18" y="34" width="7" height="8"/><rect x="30" y="34" width="7" height="8"/>' +
+      '<rect x="123" y="34" width="7" height="8"/><rect x="135" y="34" width="7" height="8"/>' +
+      '<rect x="48" y="48" width="7" height="8"/><rect x="66" y="48" width="7" height="8"/>' +
+      '<rect x="84" y="48" width="7" height="8"/><rect x="102" y="48" width="7" height="8"/></g>' +
+      '<path d="M70 86V68a10 10 0 0 1 20 0v18z" fill="#4A3A2E"/>' +
+      '<g stroke="#2A2140" stroke-width="1" opacity=".5"><path d="M80 68v18M70 76h20"/></g>' +
+      '<path d="M31 34V16l16 5-16 5" fill="#F4364C"/>' +
+      '<path d="M129 34V16l-16 5 16 5" fill="#4F6BFF"/>' +
+      '<circle cx="58" cy="78" r="7" fill="#FFC53D"/><circle cx="55.6" cy="75.6" r="2.1" fill="#fff"/>',
+
+    // ── Boss Battle ──
+    lair:
+      '<rect width="160" height="100" fill="#0B0716"/>' +
+      '<path d="M0 0h160v18c-12 0-14 14-26 14S118 16 106 16 92 32 80 32 66 14 54 14 40 30 28 30 14 16 0 16z" fill="#241A3C"/>' +
+      '<path d="M0 100h160V80c-14-6-26 2-40 0s-26-8-40-6-26 8-40 6-26-4-40-2z" fill="#241A3C"/>' +
+      '<ellipse cx="80" cy="88" rx="56" ry="10" fill="#7C4DFF" opacity=".18"/>' +
+      '<g fill="#FFC53D">' +
+      '<ellipse cx="80" cy="88" rx="36" ry="7"/><ellipse cx="54" cy="84" rx="14" ry="5"/>' +
+      '<ellipse cx="108" cy="84" rx="13" ry="5"/></g>' +
+      '<g fill="#E8A400"><circle cx="64" cy="84" r="3"/><circle cx="76" cy="87" r="3"/>' +
+      '<circle cx="92" cy="84" r="3"/><circle cx="100" cy="88" r="2.4"/></g>' +
+      '<path d="M46 74c6-24 22-34 34-34s28 10 34 34z" fill="#3E2680"/>' +
+      '<path d="M62 52c0-8 8-14 18-14s18 6 18 14z" fill="#5E3BB8"/>' +
+      '<circle cx="70" cy="50" r="4.5" fill="#FF5A6E"/><circle cx="90" cy="50" r="4.5" fill="#FF5A6E"/>' +
+      '<circle cx="70" cy="50" r="1.8" fill="#FFD86B"/><circle cx="90" cy="50" r="1.8" fill="#FFD86B"/>' +
+      '<path d="M66 62h28l-4 6H70z" fill="#E9ECF5" opacity=".9"/>',
+    volcano:
+      '<rect width="160" height="100" fill="#2A0F1C"/>' +
+      '<path d="M0 0h160v40c-20 6-36-6-56-2S70 48 50 44 18 34 0 38z" fill="#4E1B2C" opacity=".8"/>' +
+      '<path d="M40 100 L78 26 L86 26 L124 100z" fill="#2A1A2E"/>' +
+      '<path d="M74 30h16l10 22-18-6-16 6z" fill="#F4364C"/>' +
+      '<path d="M78 26h8l6 12-10-3-8 3z" fill="#FFD86B"/>' +
+      '<path d="M0 100h160V78c-16 4-30-4-46-2s-24 8-40 6-24-8-38-6z" fill="#F4364C"/>' +
+      '<path d="M0 100h160V88c-14 3-28-3-44-1s-22 7-38 5-24-7-38-5z" fill="#FF9A3D"/>' +
+      '<g fill="#FFD86B"><circle cx="106" cy="18" r="4"/><circle cx="120" cy="30" r="2.8"/>' +
+      '<circle cx="58" cy="22" r="3"/><circle cx="44" cy="34" r="2.2"/></g>' +
+      '<circle cx="36" cy="64" r="8" fill="#12BE8E"/><circle cx="33" cy="61" r="2.4" fill="#fff"/>' +
+      '<circle cx="126" cy="60" r="8" fill="#2BA8FF"/><circle cx="123" cy="57" r="2.4" fill="#fff"/>',
+    ruins:
+      '<rect width="160" height="100" fill="#141B2E"/>' +
+      '<circle cx="124" cy="22" r="12" fill="#E9ECF5" opacity=".9"/>' +
+      '<circle cx="119" cy="19" r="10" fill="#141B2E"/>' +
+      '<path d="M0 78c20-8 38-2 58 0s40-8 60-6 28 6 42 4v24H0z" fill="#22304A"/>' +
+      '<g fill="#8F8899">' +
+      '<rect x="18" y="38" width="13" height="44" rx="2"/><rect x="14" y="34" width="21" height="6" rx="2"/>' +
+      '<rect x="44" y="50" width="13" height="32" rx="2"/><rect x="40" y="46" width="21" height="6" rx="2"/>' +
+      '<rect x="102" y="44" width="13" height="38" rx="2"/><rect x="98" y="40" width="21" height="6" rx="2"/></g>' +
+      '<path d="M66 82l10-22 8 4-6 18z" fill="#746E80"/>' +
+      '<g stroke="#6FAE58" stroke-width="2.4" fill="none" stroke-linecap="round">' +
+      '<path d="M24 82c-4-10 2-18 0-26M50 82c4-8-2-14 0-20M108 82c-4-10 2-16 0-24"/></g>' +
+      '<g fill="#7BC62D"><circle cx="24" cy="54" r="2.6"/><circle cx="50" cy="64" r="2.6"/><circle cx="108" cy="60" r="2.6"/></g>' +
+      '<circle cx="132" cy="70" r="7" fill="#7C4DFF"/><circle cx="129.6" cy="67.6" r="2.1" fill="#fff"/>',
+
+    // ── Robot Run ──
+    station:
+      '<rect width="160" height="100" fill="#0A1418"/>' +
+      // the tunnel, closing to a point you are running towards
+      '<path d="M0 0h160v100H0z" fill="#101C20"/>' +
+      '<path d="M22 100 L64 40 L96 40 L138 100z" fill="#1B2422"/>' +
+      '<path d="M52 100 L74 52 L86 52 L108 100z" fill="#0A1214"/>' +
+      '<ellipse cx="80" cy="46" rx="14" ry="9" fill="#06090A"/>' +
+      '<g stroke="#2E3E3A" stroke-width="3" fill="none">' +
+      '<path d="M0 18h30M130 18h30M0 34h18M142 34h18"/></g>' +
+      '<g fill="#14201E"><rect x="6" y="46" width="10" height="54" rx="3"/>' +
+      '<rect x="144" y="46" width="10" height="54" rx="3"/></g>' +
+      '<path d="M0 86h160v14H0z" fill="#16201F"/>' +
+      '<path d="M0 92h160v3H0z" fill="#3AC0D8" opacity=".25"/>' +
+      // the runner, small and ahead
+      '<circle cx="80" cy="62" r="4.6" fill="#FFC53D"/>' +
+      '<rect x="77.6" y="64" width="4.8" height="7" rx="2.2" fill="#FFC53D"/>' +
+      // and the thing behind, close to us
+      '<path d="M96 100c-4-22 6-34 18-34s22 12 18 34z" fill="#0C060F"/>' +
+      '<circle cx="108" cy="74" r="2.6" fill="#FF5A6E"/><circle cx="118" cy="74" r="2.6" fill="#FF5A6E"/>' +
+      '<path d="M96 88c-8-4-12-10-12-16M132 88c8-4 12-10 12-16" stroke="#0C060F" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    reactor:
+      '<rect width="160" height="100" fill="#1A0A10"/>' +
+      '<circle cx="128" cy="16" r="9" fill="#E9ECF5" opacity=".85"/>' +
+      '<circle cx="124" cy="14" r="7.5" fill="#070E1C"/>' +
+      '<path d="M0 0h160v56c-18 6-32-4-50-2S74 62 56 58 16 48 0 52z" fill="#16233F" opacity=".7"/>' +
+      '<path d="M28 100 L62 44 L98 44 L132 100z" fill="#0C1A12"/>' +
+      '<path d="M58 100 L74 54 L86 54 L102 100z" fill="#070F0A"/>' +
+      '<g fill="#101B14">' +
+      '<rect x="10" y="40" width="9" height="60" rx="3"/><rect x="141" y="40" width="9" height="60" rx="3"/>' +
+      '<rect x="30" y="52" width="7" height="48" rx="3"/><rect x="123" y="52" width="7" height="48" rx="3"/></g>' +
+      '<g fill="#17301F">' +
+      '<path d="M14.5 42 L2 60h25z"/><path d="M145.5 42 L133 60h25z"/>' +
+      '<path d="M33.5 54 L24 68h19z"/><path d="M126.5 54 L117 68h19z"/></g>' +
+      '<path d="M0 88h160v12H0z" fill="#1A1510"/>' +
+      '<circle cx="80" cy="64" r="4.4" fill="#7BC62D"/>' +
+      '<rect x="77.8" y="66" width="4.4" height="7" rx="2" fill="#7BC62D"/>' +
+      '<path d="M94 100c-4-24 7-36 20-36s24 12 20 36z" fill="#0A0610"/>' +
+      '<circle cx="106" cy="72" r="2.8" fill="#FFD86B"/><circle cx="118" cy="72" r="2.8" fill="#FFD86B"/>',
+    hangar:
+      '<rect width="160" height="100" fill="#0A1410"/>' +
+      '<path d="M0 0h160v44c-16 6-28-4-44-2s-22 8-38 6-24-8-38-6-22 4-40 0z" fill="#37152A"/>' +
+      '<g fill="#221224">' +
+      '<rect x="2" y="14" width="22" height="70"/><rect x="28" y="28" width="16" height="56"/>' +
+      '<rect x="116" y="22" width="20" height="62"/><rect x="140" y="34" width="18" height="50"/></g>' +
+      '<g fill="#FF9A3D" opacity=".55">' +
+      '<rect x="7" y="22" width="5" height="6"/><rect x="16" y="34" width="5" height="6"/>' +
+      '<rect x="122" y="30" width="5" height="6"/><rect x="145" y="44" width="5" height="6"/></g>' +
+      '<path d="M30 100 L64 42 L96 42 L130 100z" fill="#2C2830"/>' +
+      '<path d="M58 100 L74 52 L86 52 L102 100z" fill="#141118"/>' +
+      '<path d="M0 86h160v14H0z" fill="#1C1622"/>' +
+      '<path d="M0 93h160v2H0z" fill="#FF7A45" opacity=".3"/>' +
+      '<circle cx="80" cy="62" r="4.6" fill="#2BA8FF"/>' +
+      '<rect x="77.7" y="64" width="4.6" height="7" rx="2.1" fill="#2BA8FF"/>' +
+      '<path d="M94 100c-5-26 7-38 21-38s26 12 21 38z" fill="#0C060F"/>' +
+      '<circle cx="106" cy="70" r="2.9" fill="#FF5A6E"/><circle cx="118" cy="70" r="2.9" fill="#FF5A6E"/>' +
+      '<path d="M92 84c-9-3-14-9-14-16M136 84c9-3 14-9 14-16" stroke="#0C060F" stroke-width="4" fill="none" stroke-linecap="round"/>'
+
+  };
+
+  /** A map's own picture, falling back to the mode's if one is ever missing. */
+  function map(id, width = 160, mode) {
+    const body = MAPART[id] || SCENE[mode] || SCENE.laser;
+    return '<svg class="scene" viewBox="0 0 160 100" width="' + width + '" height="' + Math.round(width / 1.6) + '"' +
+           ' preserveAspectRatio="xMidYMid slice" aria-hidden="true">' + body + '</svg>';
+  }
+
   function scene(name, width = 160) {
-    const body = SCENE[name] || SCENE.normal;
+    const body = SCENE[name] || SCENE.laser;
     return '<svg class="scene" viewBox="0 0 160 100" width="' + width + '" height="' + Math.round(width / 1.6) + '"' +
            ' preserveAspectRatio="xMidYMid slice" aria-hidden="true">' + body + '</svg>';
   }
@@ -336,6 +654,23 @@
    * One flat style: 24x24, filled, no strokes to go thin when scaled down. */
   const ICON = {
     play:     '<path d="M8 5.5v13l11-6.5z"/>',
+    /* The teacher's dashboard needs a name for each of the four things they
+       came to do, and an unknown name draws nothing at all — so these are
+       spelled out rather than borrowed from the nearest shape that fits. */
+    home:     '<path d="M12 2.6 1.8 11h3v10.4h5.2V15h4v6.4h5.2V11h3z"/>',
+    search:   '<circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="currentColor" stroke-width="2.6"/>' +
+              '<path d="M15.4 15.4 21 21" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" fill="none"/>',
+    book:     '<path d="M4 3.4h6.2a2.4 2.4 0 0 1 1.8.9v15.4a2.4 2.4 0 0 0-1.8-.9H4z"/>' +
+              '<path d="M20 3.4h-6.2a2.4 2.4 0 0 0-1.8.9v15.4a2.4 2.4 0 0 1 1.8-.9H20z" opacity=".55"/>',
+    chart:    '<rect x="3" y="13" width="4.4" height="8" rx="1.4"/>' +
+              '<rect x="9.8" y="8" width="4.4" height="13" rx="1.4"/>' +
+              '<rect x="16.6" y="3.4" width="4.4" height="17.6" rx="1.4"/>',
+    plus:     '<path d="M10.6 3h2.8v7.6H21v2.8h-7.6V21h-2.8v-7.6H3v-2.8h7.6z"/>',
+    pencil:   '<path d="M3 17.3 14.6 5.7l3.7 3.7L6.7 21H3z"/>' +
+              '<path d="M16 4.3 17.7 2.6a1.9 1.9 0 0 1 2.7 0l1 1a1.9 1.9 0 0 1 0 2.7L19.7 8z"/>',
+    screen:   '<rect x="2.2" y="4" width="19.6" height="12.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/>' +
+              '<path d="M8.4 20h7.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+              '<path d="M12 16.6V20" stroke="currentColor" stroke-width="2.4" fill="none"/>',
     sound:    '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>' +
               '<path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" stroke="currentColor" ' +
               'stroke-width="2" fill="none" stroke-linecap="round"/>',
@@ -456,11 +791,16 @@
   const combine = (colour, shape, rest) => pack(Object.assign({ colour, shape }, rest || {}));
   const partsOf = unpack;
 
-  global.Sprite = { face, icon, scene, crest, logo, freeFace, looksLike,
+  /** The colour a given avatar wears, so other drawings can match the blook. */
+  const colourFor = (n) => SKIN[(Number(n) || 0) % SKIN.length];
+
+  global.Sprite = { face, icon, scene, map, colourFor, crest, logo, freeFace, looksLike,
                     COMBINATIONS, ALL, COLOURS, SHAPES,
                     EYES: EYES_N, MOUTHS: MOUTHS_N, PATTERNS: PATTERNS_N,
                     palette: SKIN.slice(), combine, partsOf, pack, unpack,
-                    names: Object.keys(ICON), scenes: Object.keys(SCENE) };
+                    HATS_N, HAT_NAMES: HAT_NAMES.slice(),
+                    names: Object.keys(ICON), scenes: Object.keys(SCENE),
+                    maps: Object.keys(MAPART) };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 if (typeof module !== 'undefined') module.exports = globalThis.Sprite;

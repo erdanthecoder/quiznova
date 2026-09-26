@@ -1,4 +1,4 @@
-/* Levels, coins, and monsters you have to earn.
+/* Levels, coins, and blooks you have to earn.
  *
  * Where this lives, and why
  *   Children playing Quoldek do not have accounts — they type a name and a PIN,
@@ -8,11 +8,11 @@
  *   plainly rather than implying it follows them around.
  *
  * The shape of it
- *   Coins are earned by playing and spent on monster parts. A level comes from
+ *   Coins are earned by playing and spent on blook parts. A level comes from
  *   the coins earned over all time and is never spent, so it only ever goes up —
  *   it decides which parts are *available*, and coins decide which of those you
  *   actually own. That is two different questions ("have you played enough?" and
- *   "have you saved up?") and keeping them apart is what stops the good monsters
+ *   "have you saved up?") and keeping them apart is what stops the good blooks
  *   arriving all at once in week one.
  *
  * Nothing here touches the network or the page: it is arithmetic and one small
@@ -53,10 +53,10 @@
   }
 
   /* ── what a level opens, and what a part costs ────────────
-   * Every part of a monster sits in one of five tiers. A tier needs a level
+   * Every part of a blook sits in one of five tiers. A tier needs a level
    * before it can be bought at all, and then costs coins. The plainest parts are
    * tier 0: free, and there from the first game, so nobody is ever looking at a
-   * monster maker with nothing in it. */
+   * blook maker with nothing in it. */
   const TIER_LEVEL = [1, 3, 6, 10, 15];
   const TIER_COST = [0, 60, 140, 280, 550];
   const TIER_NAME = ['Starter', 'Bronze', 'Silver', 'Gold', 'Legendary'];
@@ -81,7 +81,7 @@
     return Math.min(TIER_LEVEL.length - 1, 1 + Math.floor(((i - free) / span) * (TIER_LEVEL.length - 1)));
   }
 
-  /** Everything a page needs to draw one option in the monster maker. */
+  /** Everything a page needs to draw one option in the blook maker. */
   function partState(kind, index, counts, saved) {
     const state = saved || read();
     const tier = tierOf(kind, index, counts);
@@ -142,9 +142,9 @@
   /* ── the storage ──────────────────────────────────────────
    * One object, in this browser. Every read repairs whatever it finds, because a
    * child's phone is exactly where a half-written or hand-edited value turns up,
-   * and a monster maker that throws is worse than one that starts again.
+   * and a blook maker that throws is worse than one that starts again.
    */
-  const BLANK = () => ({ coins: 0, lifetime: 0, games: 0, owned: {}, face: null, seenLevel: 1 });
+  const BLANK = () => ({ coins: 0, lifetime: 0, games: 0, owned: {}, face: null, hat: 0, seenLevel: 1 });
 
   function read() {
     let raw = null;
@@ -157,6 +157,7 @@
       clean.games = Math.max(0, Math.round(Number(raw.games) || 0));
       clean.seenLevel = Math.max(1, Math.round(Number(raw.seenLevel) || 1));
       clean.face = Number.isFinite(Number(raw.face)) ? Number(raw.face) : null;
+      clean.hat = Math.max(0, Math.round(Number(raw.hat) || 0));
       if (raw.owned && typeof raw.owned === 'object') {
         for (const [kind, list] of Object.entries(raw.owned)) {
           if (Array.isArray(list)) {
@@ -202,12 +203,29 @@
     return { ok: true, coins: state.coins, spent: info.cost };
   }
 
-  /** Remember the monster this phone plays as, so it comes back next game. */
+  /** Remember the blook this phone plays as, so it comes back next game. */
   function remember(face) {
     const state = read();
     state.face = Number(face);
     return write(state).face;
   }
+
+  /* A hat is worn, not bought again: buy() already put it in `owned`, and this
+   * only says which of the owned ones is on. Nought is bare-headed and is
+   * always allowed, so there is no way to end up with nothing to wear. */
+  function wearHat(hat) {
+    const state = read();
+    const n = Math.max(0, Math.round(Number(hat) || 0));
+    if (n !== 0 && !(state.owned.hat || []).includes(n) && tierOf('hat', n, { hat: HAT_COUNT }) !== 0) {
+      return state.hat;
+    }
+    state.hat = n;
+    return write(state).hat;
+  }
+  /* How many hats there are. Kept here rather than read off Sprite so the
+     arithmetic can be tested without a drawing library in the room. */
+  let HAT_COUNT = 13;
+  const countHats = (n) => { HAT_COUNT = Math.max(1, Math.round(n) || 1); return HAT_COUNT; };
 
   /** The level the child has already been shown, so a level-up is announced once. */
   function markSeen(level) {
@@ -221,7 +239,7 @@
   global.NovaProgress = {
     KEY, LEVELS, MAX_LEVEL, TIER_LEVEL, TIER_COST, TIER_NAME,
     levelFor, tierOf, partState, coinsFor, award, buy,
-    read, write, remember, markSeen, reset
+    read, write, remember, wearHat, countHats, markSeen, reset
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

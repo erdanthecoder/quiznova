@@ -255,6 +255,10 @@ body.dark .chip{color:var(--muted)}
   display:flex;gap:9px;align-items:center;max-width:min(90vw,460px);color:var(--ink);
 }
 body.dark .toast{color:var(--text)}
+/* In the arena the bottom of the screen is both thumbsticks, and a message
+   landing on them takes the controls away at exactly the moment something has
+   gone wrong. It goes above the pad there. */
+body.laser #toasts{bottom:auto;top:calc(env(safe-area-inset-top, 0px) + 92px)}
 .toast.good{background:#D8FBF0;color:#065F46}
 .toast.bad{background:#FFE1E6;color:#8B1020}
 @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.9)}}
@@ -319,6 +323,9 @@ body.dark .toast{color:var(--text)}
 @keyframes launch-in{from{opacity:0}to{opacity:1}}
 @keyframes launch-out{to{opacity:0}}
 .launch-sky{position:absolute;inset:0;width:100%;height:100%}
+/* a second canvas over the film, for anything that has to happen in front of
+   it without the film having to stop */
+.launch-duet{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
 .launch-word{position:absolute;top:14%;left:0;right:0;text-align:center;pointer-events:none}
 .launch-word .up{display:inline-block;font-size:clamp(2rem,7vw,4.2rem);font-weight:900;letter-spacing:-.03em;
   color:#fff;opacity:0;transform:scale(.7);text-shadow:0 6px 0 rgba(0,0,0,.35)}
@@ -338,6 +345,86 @@ body.dark .toast{color:var(--text)}
   background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);color:#fff;font:inherit;
   font-weight:800;font-size:.82rem}
 .launch-skip:hover{background:rgba(255,255,255,.2)}
+
+/* ── the 4.0 reveal ──────────────────────────────────────
+ * The garden paints its own night, so the shell gets out of its way. The word
+ * does not pop: it opens, slowly, out of a blur and a warm light — the same
+ * thing the flowers underneath it are doing, on the same easing, which is what
+ * makes the two read as one moment rather than two effects. */
+.launch-garden{background:#07040F}
+.launch-garden .launch-word{top:17%}
+.launch-garden .launch-word .up{
+  color:#FFF7E4;letter-spacing:-.035em;transform:scale(.72);filter:blur(9px);
+  text-shadow:0 0 34px rgba(255,197,61,.65),0 0 90px rgba(124,77,255,.5),0 6px 0 rgba(0,0,0,.3)}
+.launch-garden .launch-word.on .up{animation:launch-bloom 1.5s cubic-bezier(.16,.9,.24,1) forwards}
+@keyframes launch-bloom{
+  0%{opacity:0;transform:scale(.72) translateY(14px);filter:blur(9px)}
+  55%{opacity:1;filter:blur(0)}
+  72%{transform:scale(1.035) translateY(0)}
+  100%{opacity:1;transform:scale(1) translateY(0);filter:blur(0)}}
+/* the cards come up the way a leaf does — off centre, and not all at one angle */
+.launch-garden .launch-card{transform:translateY(34px) scale(.88) rotate(-2.5deg)}
+.launch-garden .launch-card:nth-child(2n){transform:translateY(34px) scale(.88) rotate(2deg)}
+.launch-garden .launch-cards.on .launch-card{
+  animation:launch-leaf 1.05s cubic-bezier(.2,1.05,.3,1) forwards}
+@keyframes launch-leaf{
+  60%{opacity:1;transform:translateY(-5px) scale(1.02) rotate(.6deg)}
+  100%{opacity:1;transform:none}}
+/* dark enough to read against a garden in full bloom, and warm enough to
+   belong to it */
+.launch-garden .launch-card{background:rgba(14,8,24,.68);border-color:rgba(255,216,107,.34);
+  backdrop-filter:blur(9px);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.launch-garden .launch-card span{opacity:.86}
+/* the blooks get the floor to themselves — they are the payoff, not scenery */
+.launch-garden .launch-cards{bottom:19%}
+@media (max-width:640px){ .launch-garden .launch-cards{bottom:26%} }
+
+/* ── the 5.0 reveal ──────────────────────────────────────
+ * A dawn, so the shell is the colour of the last of the night and the word
+ * arrives the way the sun does: up from under the ridge, warm, once. The cards
+ * sit low and lean a little, like postcards put down on a table. */
+.launch-sunrise{background:#100C22}
+.launch-sunrise .launch-word{top:11%}
+.launch-sunrise .launch-word .up{
+  color:#FFF7E4;letter-spacing:-.035em;transform:translateY(26px) scale(.9);
+  text-shadow:0 0 30px rgba(255,203,96,.6),0 0 80px rgba(236,124,116,.42),0 5px 0 rgba(0,0,0,.32)}
+.launch-sunrise .launch-word.on .up{animation:launch-dawn 1.2s cubic-bezier(.18,.95,.26,1) forwards}
+@keyframes launch-dawn{
+  0%{opacity:0;transform:translateY(26px) scale(.9)}
+  70%{opacity:1;transform:translateY(-3px) scale(1.02)}
+  100%{opacity:1;transform:none}}
+.launch-sunrise .launch-card{transform:translateY(30px) scale(.9) rotate(-1.8deg);
+  background:rgba(16,12,34,.72);border-color:rgba(255,203,96,.32);
+  backdrop-filter:blur(8px);box-shadow:0 12px 38px rgba(0,0,0,.48)}
+.launch-sunrise .launch-card:nth-child(2n){transform:translateY(30px) scale(.9) rotate(1.6deg)}
+.launch-sunrise .launch-cards{bottom:9%}
+@media (max-width:640px){ .launch-sunrise .launch-cards{bottom:16%} }
+
+/* ── the cutscene ────────────────────────────────────────
+ * Bars top and bottom while it runs. They are not decoration: they say "this is
+ * a thing to watch, it will end, you do not have to do anything" — which is the
+ * difference between a cutscene and a page that has gone strange. */
+.launch-bar-t,.launch-bar-b{position:absolute;left:0;right:0;height:0;background:#000;
+  z-index:3;transition:height .8s cubic-bezier(.16,.9,.24,1);pointer-events:none}
+.launch-bar-t{top:0} .launch-bar-b{bottom:0}
+.launch.bars .launch-bar-t,.launch.bars .launch-bar-b{height:5.5vh}
+
+/* what the shot is of. Comes in from the left on its own line, the way a title
+   card does, and leaves before the next cut rather than dissolving into it. */
+.launch-shot{position:absolute;left:clamp(20px,6vw,86px);bottom:16vh;z-index:4;
+  max-width:min(560px,74vw);opacity:0;pointer-events:none;
+  transform:translateX(-22px)}
+.launch-shot.on{animation:shot-in .55s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes shot-in{to{opacity:1;transform:none}}
+.launch-shot b{display:block;font-size:clamp(1.6rem,4.4vw,3.1rem);font-weight:900;
+  letter-spacing:-.03em;color:#FFF7E4;line-height:1.04;
+  text-shadow:0 4px 26px rgba(0,0,0,.7),0 0 60px rgba(255,197,61,.35)}
+.launch-shot i{display:block;font-style:normal;margin-top:8px;font-weight:700;
+  font-size:clamp(.86rem,1.5vw,1.08rem);color:rgba(255,247,228,.82);line-height:1.4;
+  text-shadow:0 2px 14px rgba(0,0,0,.8)}
+.launch-shot b::after{content:'';display:block;width:58px;height:4px;border-radius:99px;
+  margin-top:12px;background:linear-gradient(90deg,#FFC53D,#FF7A45)}
+@media (max-width:640px){ .launch-shot{bottom:22vh} }
 @media (max-width:560px){ .launch-card{width:100%;max-width:300px} .launch-cards{bottom:8%} }
 @media (prefers-reduced-motion:reduce){
   .launch-word .up,.launch-cards.on .launch-card{animation-duration:.01ms}

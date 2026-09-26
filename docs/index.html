@@ -45,8 +45,29 @@
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
 </script>
-<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="nova.css?v=9d7cfb2b">
 <style>
+/* The mode and map picker. These cards had no styling on this page at all —
+   the dialog rendered bare buttons, which is why pressing a game and expecting
+   to see the maps showed you nothing worth looking at. */
+.modegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.modecard{display:flex;flex-direction:column;padding:0;overflow:hidden;cursor:pointer;
+  border-radius:20px;border:var(--line-w) solid var(--line);background:var(--card);color:var(--ink);
+  text-align:left;font:inherit;box-shadow:var(--pop-1);transition:transform .16s var(--ease),box-shadow .16s}
+.modecard:hover{transform:translate(-3px,-3px);box-shadow:var(--pop-2)}
+.modecard:active{transform:translate(1px,1px);box-shadow:var(--pop-1)}
+.modecard .art{display:block;line-height:0;border-bottom:var(--line-w) solid var(--line)}
+.modecard .art svg{width:100%;height:auto;display:block}
+.modecard .body{display:block;padding:13px 15px 16px}
+.modecard strong{display:block;font-size:1.06rem;margin-bottom:2px}
+.modecard .sub{font-size:.83rem;color:var(--ink-soft);line-height:1.34}
+/* the floor plan under the picture: the actual walls of that map */
+.modecard .plan{display:block;line-height:0;border-bottom:var(--line-w) solid var(--line);
+  position:relative}
+.modecard .plan svg{width:100%;height:auto;display:block}
+.modecard .plan::after{content:'The map';position:absolute;left:8px;bottom:6px;
+  font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
+  color:#fff;opacity:.72;line-height:1}
 .newsbar{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:16px;padding:12px 18px;
   border-radius:var(--r-lg);background:var(--card);border:var(--line-w) solid var(--line);
   box-shadow:var(--pop-1);color:inherit;text-decoration:none;transition:.15s var(--ease)}
@@ -181,6 +202,7 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
     <div class="grow"></div>
     <span id="store-pill" class="chip hide-sm">checking</span>
     <span id="ai-pill" class="chip hide-sm">checking</span>
+    <span id="top-who"></span>
     <a class="btn primary sm" href="#new" id="top-new">＋ New quiz</a>
   </div>
 </header>
@@ -188,8 +210,8 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
 <main class="wrap">
   <a class="newsbar fade-up" href="whatsnew.html">
     <span class="pill">New</span>
-    <span class="what"><strong>Quoldek 3.0</strong> — levels and coins, three new games,
-    and Laser Tag in real 3D.</span>
+    <span class="what"><strong>Quoldek 5.0</strong> — Kyrgyz in the game, a
+    lesson that arrives as a link, and the answer is not always the red one.</span>
     <span class="go">See what's new &rarr;</span>
   </a>
 
@@ -269,29 +291,121 @@ footer{margin:80px 0 40px;padding-top:24px;border-top:2px solid var(--line-soft)
   </footer>
 </main>
 
-<script src="sprites.js?v=a7a8749e"></script>
-<script src="launch.js?v=b9d6e0d6"></script>
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
-<script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
-<script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2b1ca27f"></script>
-<script src="live.js?v=1cdb2620"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=ff127e8f"></script>
-<script src="oneintwo.js?v=b1383ca2"></script>
-<script src="qr.js?v=b8307384"></script>
-<script src="learnkyrgyz.js?v=ebbf2675"></script>
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
 window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
   : 'https://playquoldek.web.app/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : 'https://quoldek.web.app/quiz';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
   : 'https://hwquoldek.web.app/';
+/* Somebody who has signed in has a board of their own, and this is not it.
+ *
+ * The check runs before anything else on the page so a returning teacher does
+ * not watch the hub paint and then jump. It leans on a remembered role for the
+ * instant answer and lets the account settle the matter behind it, because the
+ * remembered one can be stale — a shared laptop, a signed-out account — and a
+ * wrong redirect is worse than a short wait.
+ *
+ * ?stay=1 turns it off, which is how somebody signed in reaches the hub on
+ * purpose. The links on both boards carry it.
+ */
+(function () {
+  if (/[?&]stay=1/.test(location.search)) return;
+  let hint = '';
+  try { hint = localStorage.getItem('quoldek:role') || ''; } catch { /* private mode */ }
+  /* Folders on this site, not addresses of their own.
+   *
+   * These were the old board domains, and sending people there is what kept the
+   * loop alive after the boards themselves had moved: a browser keeps its
+   * sign-in session per origin, so a board on another address could never see
+   * it and sent everybody straight back here. The names still work — they
+   * redirect to these paths — but nothing inside the site should ever cross the
+   * boundary again.
+   *
+   * This list exists twice: here, because it has to run before any script
+   * loads, and in account.js as SITES. If one of them ever changes, the other
+   * must too — which is exactly how this survived one fix already. */
+  const to = { teacher: '/teach/', student: '/student/' }[hint];
+  if (to && location.pathname !== to) location.replace(to);
+})();
+</script>
+<script>
+/* And an account is required to be here at all.
+ *
+ * This is the teacher's own site: the studio, the quizzes, the board. The
+ * addresses a class is sent to are different sites and stay open — a child who
+ * has to make an account before they can answer a question is a child who does
+ * not answer the question.
+ *
+ * Run after the scripts rather than before them, because it needs account.js;
+ * the redirect above runs first and on its own so a returning teacher never
+ * watches this page paint before being sent to their board.
+ */
+window.addEventListener('load', () => {
+  if (!/[?&]stay=1/.test(location.search) && window.NovaAccount) NovaAccount.requireAccount();
+  paintWho();
+});
+
+/* Who is here, said once and honestly.
+ *
+ * This corner used to be a "Sign in" button that was there whatever your state
+ * — so somebody who had just signed in, landed on their board, and come back
+ * here was told to sign in again. Two sign-ins where there is only one account.
+ *
+ * It now says what is actually true: your board and a way out when you are
+ * signed in, an invitation when you are not, and nothing at all until it knows
+ * which — a button that guesses is how this went wrong in the first place.
+ */
+function paintWho() {
+  const box = document.getElementById('top-who');
+  if (!box || !window.NovaAccount) return;
+
+  const draw = () => {
+    const role = NovaAccount.role || NovaAccount.roleHint;
+    const user = NovaAccount.user;
+    if (!role && !user) {
+      box.innerHTML = '<a class="btn sm" href="/signin.html">Sign in</a>';
+      return;
+    }
+    const board = role === 'student' ? '/student/' : '/teach/';
+    const name = (user && user.name) ? user.name.split(/\s+/)[0] : '';
+    box.innerHTML =
+      `<a class="btn primary sm" href="${board}">Your board</a>`
+      + `<button class="btn ghost sm" id="top-out" style="margin-left:8px">`
+      + (name ? `Sign ${esc(name)} out` : 'Sign out') + `</button>`;
+    const out = document.getElementById('top-out');
+    if (out) out.onclick = () => {
+      NovaAccount.signOut().finally(() => location.replace('/signin.html'));
+    };
+  };
+
+  draw();
+  NovaAccount.onChange(draw);
+}
+</script>
+<script src="sprites.js?v=ba27b0b1"></script>
+
+<script src="launch.js?v=387da9d2"></script>
+<script src="duet.js?v=dcf1dcae"></script>
+<script src="nova.js?v=9fa1dfb0"></script>
+<script src="quizbank.js?v=cab5d77f"></script>
+<script src="realtime.js?v=75e1623c"></script>
+<script src="arena.js?v=5dd682fe"></script>
+<script src="strike.js?v=0d07d142"></script>
+<script src="run.js?v=963fd974"></script>
+<script src="tower.js?v=fbdb38cb"></script>
+<script src="paste.js?v=3032c005"></script>
+<script src="rules.js?v=debcec46"></script>
+<script src="live.js?v=7fadac6b"></script>
+<script src="nova-local.js?v=44c67ff9"></script>
+<script src="account.js?v=1f2bba77"></script>
+<script src="oneintwo.js?v=b1383ca2"></script>
+<script src="qr.js?v=b8307384"></script>
+<script src="learnkyrgyz.js?v=ebbf2675"></script>
+<script>
 const { $, api, el, esc, toast, modal, ago, classroomUrl, copy } = Nova;
 
 /* Interface icons are drawn, not typed: emoji change shape on every device. */
@@ -315,20 +429,31 @@ document.addEventListener('DOMContentLoaded', () => { paintIcons(); showcase(); 
  */
 function watchLaunch() {
   if (!window.NovaLaunch) return;
-  const go = () => {
-    if (NovaLaunch.seen()) return;
-    NovaLaunch.markSeen();
+  const go = (version) => {
+    if (NovaLaunch.seen(version)) return;
+    NovaLaunch.markSeen(version);
     // No reload afterwards. The picker asks for the list of games when it opens
     // and the phone reads the clock as it draws, so nothing needs refreshing —
     // and a reload on a browser that cannot remember it has seen this would put
-    // the page in a loop of rocket, reload, rocket, with no way to play at all.
-    NovaLaunch.rocket({});
+    // the page in a loop of reveal, reload, reveal, with no way to play at all.
+    NovaLaunch.reveal(version, {});
   };
-  if (NovaLaunch.out()) return go();
-  const wait = NovaLaunch.until();
+
+  /* Whichever release is next, rather than the first one for ever. Every
+     release that has already landed and was never watched is shown once, oldest
+     first, so a browser that was closed all evening still gets the moment. */
+  /* Only while the reveal is still worth playing. A release that landed last
+     month is not news, and thirty seconds between a teacher and their lesson is
+     not a gift. */
+  const missed = NovaLaunch.RELEASES.filter(r => NovaLaunch.showing(r.version) && !NovaLaunch.seen(r.version));
+  if (missed.length) return go(missed[missed.length - 1].version);
+
+  const soon = NovaLaunch.next();
+  if (!soon) return;
+  const wait = NovaLaunch.untilVersion(soon.version);
   // setTimeout is not to be trusted over many hours, so long waits are checked
   // again rather than fired blind
-  setTimeout(() => (NovaLaunch.out() ? go() : watchLaunch()), Math.min(wait + 250, 60000));
+  setTimeout(watchLaunch, Math.min(wait + 250, 60000));
 }
 
 /* What the card on the landing page says.
@@ -349,9 +474,13 @@ async function showcase() {
   if (!stats || (!stats.games && !stats.liveNow)) return;     // nothing honest to show yet
 
   const faces = [0, 13, 26].map(i => `<span class="av">${Sprite.face(i, 26)}</span>`).join('');
+  /* Both numbers, always. "3 games on right now" on its own is a moment; the
+     total is the thing somebody actually wants to know, and burying it in a
+     tooltip is the same as not saying it. */
+  const total = `${stats.games.toLocaleString()} game${stats.games === 1 ? '' : 's'} played`;
   const say = stats.liveNow
-    ? `${stats.liveNow} game${stats.liveNow === 1 ? '' : 's'} on right now`
-    : `${stats.games.toLocaleString()} games played`;
+    ? `${stats.liveNow} on right now · ${total}`
+    : total;
   strip.innerHTML = faces + ' ' + say;
   strip.hidden = false;
   strip.title = `${stats.games.toLocaleString()} games hosted and `
@@ -440,7 +569,14 @@ async function newQuiz() {
         try {
           const quiz = await api('/quizzes', { method: 'POST', body: { title } });
           location.href = 'studio.html?id=' + quiz.id;
-        } catch (err) { toast(err.message, 'bad'); }
+        } catch (err) {
+          /* A browser with no room left is the one failure a teacher cannot do
+             anything about from a toast. So this opens what is taking the room
+             and lets them clear it here, and then makes the quiz they asked
+             for. */
+          if (err && err.storageFull) { close(); return freeUpRoom(title); }
+          toast(err.message, 'bad');
+        }
       };
       box.querySelector('#go').onclick = create;
       box.querySelector('#t').onkeydown = (e) => { if (e.key === 'Enter') create(); };
@@ -448,10 +584,93 @@ async function newQuiz() {
   });
 }
 
+/* ── making room ─────────────────────────────────────────
+ *
+ * Reported from a classroom: "we cannot generate more quizzes now — even new
+ * accounts with no quizzes cannot make quizzes". Storage belongs to the browser
+ * rather than to the account, so a full one stops everybody, and until now the
+ * only thing the app could do was refuse. This shows what is using the room,
+ * in plain megabytes, and offers the two safe ways to get some back: drop the
+ * pictures, which are almost always the whole problem, or delete a quiz that is
+ * finished with. Nothing goes without being asked.
+ */
+function freeUpRoom(wantedTitle) {
+  const store = window.Nova && Nova.storage;
+  if (!store) return toast('This browser has no room left for more quizzes', 'bad');
+  const items = store.items();
+  const results = store.resultsMb();
+  const rows = items.slice(0, 12).map(q => `
+    <div class="row" data-id="${q.id}" style="justify-content:space-between;gap:10px;
+         padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="min-width:0">
+        <b style="display:block">${esc(q.title)}</b>
+        <span class="muted tiny">${q.questions} question${q.questions === 1 ? '' : 's'}${
+          q.pictures ? ` · ${q.pictures} picture${q.pictures === 1 ? '' : 's'}` : ''}</span>
+      </div>
+      <div class="row" style="gap:8px;flex:none">
+        <span class="muted tiny">${q.mb.toFixed(2)} MB</span>
+        <button class="btn ghost sm" data-del="${q.id}">Delete</button>
+      </div>
+    </div>`).join('');
+
+  modal(`
+    <h2 style="margin-bottom:6px">This browser is full</h2>
+    <p class="muted tiny" style="margin-bottom:16px">
+      Quoldek is using about ${store.used().toFixed(1)}MB here, which is all the room this
+      browser gives a website. Free some up and the quiz will be made.
+      ${results > 0.05 ? `Saved results are ${results.toFixed(2)}MB of it.` : ''}
+    </p>
+    <div id="room-list" style="max-height:46vh;overflow:auto">${rows || '<p class="muted tiny">No quizzes are stored here.</p>'}</div>
+    <div class="row" style="margin-top:18px;gap:10px;flex-wrap:wrap">
+      <button class="btn ghost" id="room-pics">Remove every picture</button>
+      ${results > 0.05 ? '<button class="btn ghost" id="room-res">Clear saved results</button>' : ''}
+      <span style="flex:1"></span>
+      <button class="btn ghost" data-x>Close</button>
+      <button class="btn primary" id="room-again">Try again</button>
+    </div>`, {
+    wide: true,
+    onMount(box, close) {
+      box.querySelector('[data-x]').onclick = close;
+      box.querySelectorAll('[data-del]').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.getAttribute('data-del');
+          btn.disabled = true;
+          try {
+            await api('/quizzes/' + id, { method: 'DELETE' });
+            const row = box.querySelector(`[data-id="${id}"]`);
+            if (row) row.remove();
+            toast('Deleted — there is room for ' + (Nova.storage.used()).toFixed(1) + 'MB used now');
+          } catch (e) { btn.disabled = false; toast(e.message, 'bad'); }
+        };
+      });
+      const pics = box.querySelector('#room-pics');
+      if (pics) pics.onclick = () => {
+        try {
+          const gone = Nova.storage.dropPictures();
+          toast(gone ? `${gone} picture${gone === 1 ? '' : 's'} removed` : 'There were no pictures');
+        } catch (e) { toast(e.message, 'bad'); }
+      };
+      const res = box.querySelector('#room-res');
+      if (res) res.onclick = () => {
+        Nova.storage.clearResults();
+        toast('Saved results cleared');
+      };
+      box.querySelector('#room-again').onclick = async () => {
+        try {
+          const quiz = await api('/quizzes', { method: 'POST', body: { title: wantedTitle || 'Untitled quiz' } });
+          location.href = 'studio.html?id=' + quiz.id;
+        } catch (e) {
+          toast(e && e.storageFull ? 'Still no room — free a little more' : e.message, 'bad');
+        }
+      };
+    }
+  });
+}
+
 async function hostGame(q) {
   modal(`
-    <h2 style="margin-bottom:6px">Pick how the class plays</h2>
-    <p class="muted tiny" style="margin-bottom:18px">“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.</p>
+    <h2 style="margin-bottom:6px" id="pick-title">Pick how the class plays</h2>
+    <p class="muted tiny" style="margin-bottom:18px" id="pick-sub">“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.</p>
     <div class="modegrid" id="mode-list">
       <p class="tiny faint">Loading</p>
     </div>
@@ -460,25 +679,66 @@ async function hostGame(q) {
     async onMount(box, close) {
       box.querySelector('[data-x]').onclick = close;
       const list = box.querySelector('#mode-list');
+      const title = box.querySelector('#pick-title');
+      const sub = box.querySelector('#pick-sub');
       let modes = [];
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
-      if (!modes.length) modes = [{ id: 'normal', icon: 'target', label: 'Normal', blurb: 'Speed points and a live leaderboard' }];
-      list.innerHTML = '';
-      modes.forEach(m => {
-        const btn = el('button', { class: 'modecard', 'data-mode': m.id });
-        btn.append(el('span', { class: 'art', html: Sprite.scene(m.id, 320) }),
-                   el('span', { class: 'body' },
-                      el('strong', {}, m.label),
-                      el('span', { class: 'sub' }, m.blurb)));
-        list.append(btn);
-      });
-      box.querySelectorAll('[data-mode]').forEach(btn => btn.onclick = async () => {
+      // a fallback for a page that could not reach the server; it has to name a
+      // mode that still exists
+      if (!modes.length) modes = [{ id: 'normal', icon: 'play', label: 'Classic Quiz',
+                                    blurb: 'Straight questions on the board. Answer fast — the quicker you are, the more it is worth',
+                                    maps: [] }];
+      showModes();
+
+      function showModes() {
+        title.textContent = 'Pick how the class plays';
+        sub.innerHTML = `“${esc(q.title)}” on the big screen, everyone else on their own device with the PIN.`;
+        list.innerHTML = '';
+        modes.forEach(m => {
+          const btn = el('button', { class: 'modecard', 'data-mode': m.id,
+            onclick: () => (m.maps && m.maps.length) ? showMaps(m) : start(m.id, '') });
+          btn.append(el('span', { class: 'art', html: Sprite.scene(m.id, 320) }),
+                     el('span', { class: 'body' },
+                        el('strong', {}, m.label),
+                        el('span', { class: 'sub' }, m.blurb)));
+          list.append(btn);
+        });
+      }
+
+      /* Second step: where it is played.
+       *
+       * This screen did not exist here at all. Picking Laser Tag on the main
+       * page went straight into a game on whatever map came first, so the
+       * Bunker and the Moon Base were drawn, shipped, and impossible to see
+       * unless you happened to start the game from inside the studio. */
+      function showMaps(mode) {
+        title.textContent = 'Pick the map';
+        sub.innerHTML = `${esc(mode.label)} · choose where the class plays`;
+        list.innerHTML = '';
+        mode.maps.forEach(mp => {
+          const btn = el('button', { class: 'modecard', 'data-map': mp.id,
+            onclick: () => start(mode.id, mp.id) });
+          /* The picture, and under it the plan of the place — the actual walls,
+             drawn from the same data the game uses. Three maps that look like
+             three moods are not a choice; three shapes are. */
+          btn.append(el('span', { class: 'art', html: Sprite.map(mp.id, 320, mode.id) }));
+          if (mode.id === 'laser' && window.NovaArena && NovaArena.plan) {
+            btn.append(el('span', { class: 'plan', html: NovaArena.plan(mp.id, 320) }));
+          }
+          btn.append(el('span', { class: 'body' }, el('strong', {}, mp.label)));
+          list.append(btn);
+        });
+        list.append(el('button', { class: 'btn ghost', style: 'grid-column:1/-1;margin-top:4px',
+          onclick: showModes }, 'Back to the games'));
+      }
+
+      async function start(mode, map) {
         try {
-          const game = await api('/games', { method: 'POST', body: { quizId: q.id, mode: btn.dataset.mode } });
+          const game = await api('/games', { method: 'POST', body: { quizId: q.id, mode, map } });
           Nova.store.set('host:' + game.pin, game.hostToken);
           location.href = 'host.html?pin=' + game.pin + '#h=' + game.hostToken;
         } catch (err) { toast(err.message, 'bad'); }
-      });
+      }
     }
   });
 }

@@ -24,6 +24,11 @@
 <link rel="stylesheet" href="/nova.css">
 <style>
 .stage{max-width:1300px;margin:0 auto;padding:24px 22px 60px}
+/* The last screen of a game is the one a whole room is looking at, so it fills
+   whatever is left under the bar rather than guessing at the bar's height. The
+   guess was calc(100vh - 128px), which was thirty pixels out once the stage's
+   own bottom padding was counted — enough to put a scrollbar on a board. */
+.stage:has(.finale){padding-bottom:22px}
 
 /* lobby */
 .pin-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:26px;align-items:center;padding:34px}
@@ -45,6 +50,10 @@
 
 /* the board, sized for the back row of a classroom */
 .board,.lobby{display:flex;flex-direction:column;gap:14px;height:calc(100vh - 128px);min-height:520px}
+/* the waiting room fills whatever the join bar and the buttons leave */
+.lobby .waiting{flex:1;min-height:0;display:flex}
+.lobby .waiting:empty{flex:0;min-height:0}
+.lobby .waiting > .stage3d{flex:1;min-height:180px}
 .joinbar{flex:none;display:flex;align-items:center;gap:30px;background:#fff;color:#161036;border:3px solid #0b0718;
   border-radius:24px;padding:16px 26px;box-shadow:0 13px 0 -3px rgba(0,0,0,.5)}
 .lobby-art{flex:none;line-height:0;border-radius:16px;overflow:hidden;border:3px solid #0b0718}
@@ -54,6 +63,11 @@
 .pinhuge{font-size:clamp(2.4rem,6.6vw,5rem);font-weight:900;letter-spacing:.1em;line-height:1.05}
 .qrbox{flex:none;background:#fff;border-radius:12px}
 .crowd{flex:1;min-height:0;overflow:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:12px}
+/* An empty register takes no room. It is still in the tree — the update pass
+   pairs children by position, and a node that comes and goes hands every later
+   child the wrong partner — but with nothing in it the floor gets the space
+   instead of a gap the size of a class list. */
+.crowd:empty{flex:0;min-height:0;display:none}
 .face{display:flex;align-items:center;gap:10px;padding:11px 20px;border-radius:99px;font-weight:800;
   font-size:clamp(1rem,1.4vw,1.3rem);background:rgba(255,255,255,.08);border:2px solid var(--line);
   animation:popIn .35s var(--ease) both}
@@ -78,13 +92,28 @@
 .tally b{display:block;font-size:clamp(1.6rem,2.4vw,2.4rem);font-weight:900;line-height:1}
 .tally span{font-size:.66rem;letter-spacing:.15em;text-transform:uppercase;opacity:.5;font-weight:800}
 
-.grid4{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:15px;min-height:0}
+/* The answers are four buttons lying on a table, not four rectangles on a wall.
+ * The grid is one plane tilted away from the camera, so the far row is genuinely
+ * smaller and the near row genuinely larger — and each tile is thick, with a lit
+ * top edge and a riser in its own colour underneath.
+ *
+ * The tilt is deliberately small. This screen's first job is to be readable from
+ * the back of a room; anything past about eight degrees starts costing letters. */
+.board{perspective:1700px;perspective-origin:50% 34%}
+.grid4{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:15px;min-height:0;
+  transform:rotateX(6deg) scale(.985);transform-origin:50% 50%;transform-style:preserve-3d;
+  padding-bottom:10px}
 .grid4.one{grid-template-columns:1fr}
 .tile{position:relative;display:flex;align-items:center;gap:20px;padding:18px 26px;border-radius:22px;
   background:var(--c);color:#fff;border:3px solid rgba(0,0,0,.42);overflow:hidden;
-  box-shadow:0 11px 0 -3px rgba(0,0,0,.45);transition:opacity .4s,transform .4s,filter .4s;
+  box-shadow:0 12px 0 -2px rgba(0,0,0,.5),0 26px 30px -14px rgba(0,0,0,.6),
+             inset 0 3px 0 rgba(255,255,255,.3),inset 0 -14px 22px -14px rgba(0,0,0,.45);
+  box-shadow:0 12px 0 -2px color-mix(in srgb,var(--c) 52%,#07040f),
+             0 26px 30px -14px rgba(0,0,0,.6),
+             inset 0 3px 0 rgba(255,255,255,.3),inset 0 -14px 22px -14px rgba(0,0,0,.45);
+  transition:opacity .4s,transform .4s,filter .4s,box-shadow .4s;
   animation:tileIn .34s var(--ease) both}
-@keyframes tileIn{from{opacity:0;transform:translateY(14px) scale(.97)}}
+@keyframes tileIn{from{opacity:0;transform:translateY(14px) translateZ(-60px)}}
 .tile .sh{flex:none;width:clamp(34px,3vw,52px);display:grid;place-items:center}
 .tile .sh svg{width:100%;height:auto;fill:#fff;filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}
 .tile .lbl{flex:1;font-size:clamp(1.05rem,2.1vw,2rem);font-weight:800;line-height:1.16}
@@ -92,15 +121,18 @@
 .tile .fill{position:absolute;left:0;bottom:0;height:9px;width:0;background:rgba(255,255,255,.9);
   transition:width .85s var(--ease)}
 .tile .tick{flex:none;font-size:clamp(1.1rem,1.7vw,1.7rem);opacity:0;transform:scale(.4);transition:.4s var(--ease)}
-.tile.miss{opacity:.26;transform:scale(.975);filter:saturate(.35)}
-.tile.hit{animation:hitPop .55s var(--ease)}
+/* on the reveal the wrong answers sink into the table and the right one comes
+   up off it — depth doing the work a colour change used to do on its own */
+.tile.miss{opacity:.3;transform:translateZ(-46px);filter:saturate(.3) brightness(.8);
+  box-shadow:0 3px 0 -1px rgba(0,0,0,.5)}
+.tile.hit{transform:translateZ(38px);animation:hitPop .55s var(--ease)}
 .tile.hit .tick{opacity:1;transform:scale(1)}
-@keyframes hitPop{45%{transform:scale(1.03)}}
+@keyframes hitPop{0%{transform:translateZ(0)}45%{transform:translateZ(70px)}100%{transform:translateZ(38px)}}
 .board.result .grid4{flex:none;grid-auto-rows:minmax(50px,auto)}
 .board.result .ask{padding:12px 24px}
 .board.result .ask h1{font-size:clamp(1.2rem,2.6vw,2.1rem)}
 .board.result .tile{padding:12px 22px}
-.board .rest{flex:none}
+.board .rest{flex:0 1 auto;min-height:0;overflow:auto}
 .board.result .rest{flex:1;min-height:0;overflow:auto;padding-bottom:4px}
 .why{margin:0;font-size:1rem;font-weight:600;opacity:.8;text-align:center}
 
@@ -109,10 +141,21 @@
  * Each figure is counter-rotated by the same angle so it stands upright while
  * the ground runs away into the distance, which is what makes it read as depth
  * rather than as a flat picture of depth. */
-.stage3d{position:relative;height:100%;min-height:300px;perspective:1100px;perspective-origin:50% 34%}
+/* The hall the floor stands in. This is painted on the container itself rather
+ * than as a child layer: .stage3d carries the perspective, so any child of it
+ * with a transform joins one 3D context where the browser sorts by depth and
+ * z-index stops meaning anything. A background cannot lose that argument. */
+.stage3d{position:relative;height:100%;min-height:300px;perspective:1100px;perspective-origin:50% 34%;
+  border-radius:26px;overflow:hidden;
+  background:
+    radial-gradient(66% 52% at 50% 47%,rgba(124,77,255,.32),rgba(8,5,18,0) 74%),
+    linear-gradient(180deg,#0C0820 0%,#1C1442 43%,#0A0718 46%,#07040F 100%)}
 .world{position:absolute;inset:6% 4% 4%;transform-style:preserve-3d;transform:rotateX(58deg);border-radius:26px}
 .floor{position:absolute;inset:0;border-radius:26px;overflow:hidden;
-  background:var(--floor,linear-gradient(180deg,#2A2547,#151129));
+  /* the far end of the floor fades into the hall, so the ground runs out of
+     sight instead of stopping at a hard edge */
+  background:linear-gradient(0deg,rgba(9,6,22,0) 40%,rgba(9,6,22,.8) 96%),
+             var(--floor,linear-gradient(180deg,#2A2547,#151129));
   box-shadow:inset 0 0 90px rgba(0,0,0,.55),0 40px 70px -30px rgba(0,0,0,.9)}
 .floor::after{content:'';position:absolute;inset:0;opacity:.5;
   background-image:linear-gradient(90deg,rgba(255,255,255,.09) 1px,transparent 1px),
@@ -179,50 +222,99 @@
 .balloons i.popped{background:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);animation:none;opacity:.45}
 .balloons i.popped::after{display:none}
 @keyframes sway{50%{transform:rotate(9deg)}}
+/* under the waiting room: the same names again, small, in one line of sight */
+.crowd.strip{flex:none;max-height:78px;overflow:auto;gap:8px}
+.crowd.strip .face{padding:5px 12px;font-size:.92rem;gap:7px;border-width:2px}
+.crowd.strip .face .av{font-size:1rem}
+/* the lobby: a blook walks in from the back rather than blinking into being */
+.figure.arriving{animation:walkOn .6s var(--bounce) both}
+@keyframes walkOn{
+  from{opacity:0;transform:rotateX(-58deg) translateY(26px) scale(.6)}}
+.figure.red .tag{background:rgba(244,54,76,.85);border-color:#7A0F1E}
+.figure.blue .tag{background:rgba(79,107,255,.85);border-color:#1E2A6E}
 .figure.knocked{filter:grayscale(1) brightness(.62)}
 .figure.knocked .tag{background:rgba(10,7,20,.6);color:var(--faint)}
 
+/* ── Volcano Climb: a wall, seen from the side ────────────
+ * The one board that is not a floor. The whole game is a single axis, so a
+ * top-down arena would be a picture of nothing; a wall with a line coming up it
+ * is the game itself. */
+.wall3d{position:relative;height:100%;min-height:300px;border-radius:26px;overflow:hidden;
+  background:linear-gradient(180deg,#1A1030 0%,#2A1436 55%,#3A1420 100%)}
+.wall3d .rock{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(115deg,rgba(255,255,255,.05) 1px,transparent 1px),
+                   linear-gradient(65deg,rgba(0,0,0,.35) 1px,transparent 1px);
+  background-size:56px 74px,74px 56px}
+.wall3d .lava{position:absolute;left:0;right:0;bottom:0;
+  background:linear-gradient(180deg,#FF7A45,#F4364C 40%,#7A0F1E);
+  box-shadow:0 -14px 40px rgba(255,122,69,.55);transition:height 1s var(--ease)}
+.wall3d .lava .lip{position:absolute;left:0;right:0;top:-7px;height:14px;border-radius:50%;
+  background:linear-gradient(180deg,#FFD86B,#FF7A45);filter:blur(2px);
+  animation:bubble 2.6s ease-in-out infinite}
+@keyframes bubble{50%{transform:translateY(-4px) scaleY(1.25)}}
+.wall3d .lava .lvl{position:absolute;right:14px;top:8px;font-size:.74rem;font-weight:900;
+  letter-spacing:.05em;color:#3A0A12;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.wall3d .climber{position:absolute;margin-left:-24px;display:flex;flex-direction:column;
+  align-items:center;gap:2px;transition:bottom 1s var(--ease);z-index:2}
+.wall3d .climber .tag{font-size:.7rem;font-weight:800;white-space:nowrap;padding:2px 7px;
+  border-radius:99px;background:rgba(10,7,20,.78);border:1px solid rgba(255,255,255,.16)}
+.wall3d .climber.lead .tag{background:var(--sun);color:#1b1330;border-color:#0b0718}
+.wall3d .climber.caught{filter:saturate(.4) brightness(.7);animation:flail .7s ease-in-out infinite}
+@keyframes flail{50%{transform:translateX(4px) rotate(5deg)}}
+
+/* ── Factory: a shop floor rather than an arena ───────────
+ * One line per player, because what is being compared is what they have built,
+ * and a row of sheds compares at a glance in a way a scatter of figures does not. */
+.floorplan{display:flex;flex-direction:column;gap:9px;overflow:auto;padding-right:2px}
+.bay{display:flex;align-items:center;gap:11px;padding:9px 13px;border-radius:16px;
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.09)}
+.bay.lead{border-color:var(--sun);background:rgba(255,197,61,.12)}
+.bay .nm{font-weight:850;font-size:.95rem;min-width:6.5ch;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.bay .sheds{flex:1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:30px}
+.bay .machine{width:30px;height:26px;border-radius:5px 5px 3px 3px;display:grid;place-items:center;
+  background:linear-gradient(180deg,#FFD86B,#E8A400);border:2px solid #7A4F00;
+  box-shadow:0 3px 0 #7A4F00;animation:clank 2.4s ease-in-out infinite}
+@keyframes clank{50%{transform:translateY(-3px)}}
+.bay .takings{font-weight:900;font-size:1.05rem;text-align:right;min-width:7ch}
+.bay .takings em{display:block;font-style:normal;font-size:.7rem;font-weight:800;color:var(--mint)}
+
+/* ── Fishing: bands of water running away from the camera ─ */
+.floor.water{background:linear-gradient(0deg,rgba(9,6,22,0) 40%,rgba(9,6,22,.8) 96%),
+  linear-gradient(180deg,#0A2E52,#062038 45%,#04121F)}
+.floor .band{position:absolute;left:0;right:0;height:2px;background:rgba(255,255,255,.16)}
+.floor .band span{position:absolute;left:12px;top:-15px;font-size:.66rem;font-weight:900;
+  letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+
 /* maps: the same arena, dressed differently */
-.map-hall,.map-arena,.map-city,.map-site,.map-cave,.map-lair{--floor:linear-gradient(180deg,#2A2547,#151129)}
-.map-space{--floor:linear-gradient(180deg,#131A4A,#05060F)}
-.map-jungle{--floor:linear-gradient(180deg,#123D2B,#07160F)}
+.map-arena,.map-site,.map-lair{--floor:linear-gradient(180deg,#2A2547,#151129)}
 .map-bunker{--floor:linear-gradient(180deg,#3A3730,#16150F)}
 .map-moon{--floor:linear-gradient(180deg,#3C4258,#0E1119)}
-.map-desert{--floor:linear-gradient(180deg,#6A4A22,#2A1B0B)}
-.map-ice{--floor:linear-gradient(180deg,#1E5570,#081E2B)}
 .map-candy{--floor:linear-gradient(180deg,#6B2350,#260C1D)}
 .map-castle{--floor:linear-gradient(180deg,#3E3A2E,#171510)}
-.map-beach{--floor:linear-gradient(180deg,#7A6132,#241C0D)}
-.map-vault{--floor:linear-gradient(180deg,#243A5E,#0A1120)}
 .map-volcano{--floor:linear-gradient(180deg,#5E1F16,#1C0806)}
 .map-ruins{--floor:linear-gradient(180deg,#33452F,#101710)}
-.map-playground{--floor:linear-gradient(180deg,#5C6E86,#161C26)}
-.map-forest{--floor:linear-gradient(180deg,#2C4258,#0A1018)}
-.map-peak{--floor:linear-gradient(180deg,#6A7C93,#1A222E)}
-.map-fair{--floor:linear-gradient(180deg,#6B4A2A,#22160C)}
-.map-clouds{--floor:linear-gradient(180deg,#3C5A86,#101828)}
-.map-night{--floor:linear-gradient(180deg,#241C50,#080614)}
-.scene.map-space{filter:hue-rotate(200deg) saturate(.9)}
-.scene.map-jungle{filter:hue-rotate(80deg) saturate(1.2)}
-.scene.map-bunker{filter:saturate(.5) brightness(.92)}
-.scene.map-moon{filter:hue-rotate(215deg) saturate(.6)}
-.scene.map-desert{filter:hue-rotate(-25deg) saturate(1.3)}
-.scene.map-ice{filter:hue-rotate(160deg) saturate(.8) brightness(1.08)}
-.scene.map-candy{filter:hue-rotate(295deg) saturate(1.3)}
-.scene.map-castle{filter:hue-rotate(30deg) saturate(.7)}
-.scene.map-beach{filter:hue-rotate(35deg) saturate(1.2)}
-.scene.map-vault{filter:hue-rotate(210deg) saturate(.85)}
-.scene.map-volcano{filter:hue-rotate(-40deg) saturate(1.4)}
-.scene.map-ruins{filter:hue-rotate(60deg) saturate(.6)}
-.scene.map-forest{filter:hue-rotate(185deg) saturate(.75)}
-.scene.map-peak{filter:saturate(.55) brightness(1.06)}
-.scene.map-clouds{filter:hue-rotate(190deg) saturate(.9)}
-.scene.map-night{filter:hue-rotate(240deg) saturate(1.15) brightness(.92)}
+.map-crater{--floor:linear-gradient(180deg,#5E2318,#180806)}
+.map-ashfall{--floor:linear-gradient(180deg,#3E3A3E,#100E12)}
+.map-obsidian{--floor:linear-gradient(180deg,#2A2436,#08060C)}
 
 /* the arena on the big screen */
-.arena-board{position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;
+/* The arena has to be the biggest thing on the board. It used to be flex:1
+   against a leaderboard that was flex:none, so the table took its full height
+   and left the game about a hundred pixels — thirty children watching six green
+   dots. It gets a floor now, and the table gives way instead. */
+.arena-board{position:relative;flex:1 1 auto;min-height:min(56vh,460px);border-radius:22px;overflow:hidden;
   border:3px solid #0b0718;box-shadow:0 22px 50px -24px rgba(0,0,0,.9)}
 .arena-board canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+.runboard{min-height:min(62vh,540px)}
+/* The towers share the screen with the question, so they take what is left
+   rather than a fixed slab — a min-height big enough for a tower is a
+   min-height that lands on top of the answers. */
+/* The mode is called Tallest Tower and the towers had a quarter of the
+   screen, which made three proud towers look like three piles of bricks.
+   They get the room now; the question and its answers still sit above. */
+.towerboard{flex:1 1 auto;min-height:min(44vh,380px);max-height:min(62vh,620px)}
+.board .rest:has(.towerboard){overflow:hidden}
 
 /* laser arena */
 .arena{display:grid;grid-template-columns:1fr 74px 1fr;gap:14px;align-items:stretch;margin-top:18px}
@@ -301,8 +393,6 @@
 .setrow .spare{font-size:.7rem;font-weight:800;color:var(--faint)}
 
 /* tower build */
-.skyline{display:flex;gap:16px;align-items:flex-end;justify-content:center;margin-top:18px;padding:18px 12px;
-  min-height:220px;border-radius:var(--r-lg);border:2.5px solid var(--line);background:rgba(0,0,0,.28)}
 .tower{display:flex;flex-direction:column;align-items:center;gap:5px}
 .tower .stack{display:flex;flex-direction:column-reverse;gap:3px;min-height:8px}
 .tower .blk{width:46px;height:16px;border-radius:5px;border:2px solid rgba(0,0,0,.45);
@@ -339,35 +429,190 @@
 .lb-row.top{background:linear-gradient(90deg,rgba(255,200,87,.2),rgba(255,255,255,.04));border-color:rgba(255,200,87,.45)}
 .lb-row .score{margin-left:auto;font-weight:800;font-size:1.05rem}
 
-.finale{display:flex;flex-direction:column;gap:16px;height:calc(100vh - 128px);min-height:520px}
+/* One screen. The winner, the podium, who else was in it, and the way out
+   of the game all have to be visible at once on a projector — a teacher
+   should not be scrolling a board in front of a class. */
+.finale{display:flex;flex-direction:column;gap:12px;min-height:0;height:var(--fit,auto)}
 .crown{flex:none;background:#fff;color:#161036;border:3px solid #0b0718;border-radius:24px;padding:20px 28px;
   text-align:center;box-shadow:0 13px 0 -3px rgba(0,0,0,.5)}
 .crown h1{font-size:clamp(1.6rem,4vw,3rem);font-weight:900;letter-spacing:-.02em;margin:0;line-height:1.12}
 .crown p{margin:6px 0 0;font-weight:600;opacity:.6}
-.podium{flex:none;display:flex;gap:16px;align-items:flex-end;justify-content:center;margin:20px 0 8px;
-  position:relative}
-/* the places arrive one at a time, each in its own light */
-.podium .stand{opacity:0;transform:translateY(26px)}
-.podium .stand.up{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .6s var(--bounce)}
-.podium .stand .spot{position:absolute;left:50%;bottom:100%;width:190px;height:230px;margin-left:-95px;
-  pointer-events:none;opacity:0;
-  background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.30));
-  clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);filter:blur(3px)}
-.podium .stand.up .spot{animation:lampOn .9s var(--ease) forwards}
-@keyframes lampOn{0%{opacity:0}40%{opacity:1}100%{opacity:.55}}
+/* ── the podium, as a place rather than a bar chart ────────
+ *
+ * Three blocks standing on a floor in a hall, seen from slightly above. Every
+ * face is a real surface — a lit top, a front, and a side that catches less
+ * light — so it reads as something solid the winners are standing on rather than
+ * as three coloured rectangles. This is the moment a room remembers, so it is
+ * worth the depth.
+ *
+ * CSS rather than canvas on purpose: the blooks are SVG and stay sharp at any
+ * size, and a school laptop does not have to composite a canvas at 60fps while
+ * the confetti is running.
+ */
+.podium{flex:none;position:relative;height:min(40vh,330px);margin:8px 0 2px;overflow:hidden;
+  border-radius:20px;background:#0A0718}
+/* The scenery and the people who stand in it are two layers, not one 3D soup.
+ * Trying to order them by depth alone put a translucent floor in front of the
+ * winner and washed the gold out to brown: every see-through layer that lands in
+ * front costs the block underneath a little more of its colour. So the hall is
+ * flat stacking — scenery behind, stands in front — and 3D is used only where it
+ * earns something, inside a block that really does have three faces. */
+/* Names here are deliberately not .face/.floor/.scene: those already mean a
+ * player chip, a race track and an arena backdrop elsewhere in this file, and
+ * borrowing them handed the podium a pop-in animation and a half-opaque
+ * overlay it never asked for. Third time a generic class name has done this.
+ *
+ * The perspective lives here, not on .podium. Put it on the outer box and the
+ * scenery and the stands share one 3D rendering context, where the browser sorts
+ * by depth and ignores z-index — which is how a see-through floor ended up in
+ * front of the winner and turned the gold to brown. Kept inside .scene, the
+ * scenery is one flat layer that can simply be told to stay behind. */
+.podium .set{position:absolute;inset:0;z-index:0;pointer-events:none;
+  perspective:1200px;perspective-origin:50% 34%}
+.podium .hall{position:absolute;inset:0;z-index:1}
+.podium .ground{position:absolute;left:-40%;right:-40%;bottom:-8%;height:170%;
+  transform:rotateX(76deg);transform-origin:50% 100%;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 2px,transparent 2px 90px),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 2px,transparent 2px 90px),
+    radial-gradient(60% 70% at 50% 16%,rgba(124,77,255,.34),rgba(8,5,18,0) 72%),
+    linear-gradient(180deg,#1B1436,#0A0718)}
+.podium .backdrop{position:absolute;left:6%;right:6%;top:-6%;height:80%;
+  transform:translateZ(-340px);border-radius:24px;
+  background:radial-gradient(72% 92% at 50% 100%,rgba(124,77,255,.32),rgba(10,7,22,0) 74%)}
+
+.stand{position:absolute;bottom:6%;opacity:0;transform:translateY(44px)}
+.stand.up{opacity:1;transform:none;transition:opacity .5s var(--ease),transform .7s var(--bounce)}
+.stand.p1{left:50%;width:196px;margin-left:-98px;--h:176px;--fh:94px;--c:#FFC53D;--lit:#FFE9A8;--dark:#C08200;z-index:3}
+.stand.p2{left:21%;width:172px;margin-left:-86px;--h:132px;--fh:74px;--c:#C9D2E6;--lit:#EFF3FB;--dark:#8791AC;z-index:2}
+.stand.p3{left:79%;width:172px;margin-left:-86px;--h:104px;--fh:74px;--c:#E0A46B;--lit:#F7D1A7;--dark:#9E6530;z-index:1}
+
+.stand .block{position:absolute;left:0;right:0;bottom:0;height:var(--h);z-index:1;
+  transform-style:preserve-3d;perspective:900px}
+.stand .block .front{position:absolute;inset:0;background:linear-gradient(180deg,var(--lit),var(--c));
+  border:3px solid rgba(8,5,18,.85);border-radius:5px 5px 0 0}
+.stand .block .top{position:absolute;left:0;right:0;top:0;height:58px;
+  transform:rotateX(76deg);transform-origin:50% 0;
+  background:linear-gradient(180deg,var(--lit),var(--c));
+  border:3px solid rgba(8,5,18,.85);border-radius:5px}
+.stand .block .side{position:absolute;top:0;bottom:0;right:0;width:36px;
+  transform:rotateY(56deg);transform-origin:100% 50%;
+  background:var(--dark);border:3px solid rgba(8,5,18,.85)}
+.stand .block .num{position:absolute;left:0;right:0;top:8px;text-align:center;
+  font-size:clamp(1.4rem,2.6vw,2.2rem);font-weight:900;color:rgba(8,5,18,.5);
+  text-shadow:0 2px 0 rgba(255,255,255,.35)}
+/* Name and score are painted on the block itself, the way a real podium has the
+   country on the front. Floating them above the blook left it hovering in the
+   air with a hand's width of nothing under its feet. */
+.stand .block .plate{position:absolute;left:5px;right:5px;bottom:9px;text-align:center;
+  color:rgba(8,5,18,.9)}
+.stand .who{font-size:clamp(.9rem,1.35vw,1.2rem);font-weight:900;line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.stand .pts{font-weight:800;font-size:.82rem;color:rgba(8,5,18,.62)}
+
+/* the blook stands on top of the block, feet on the lit surface */
+.stand .who-box{position:absolute;left:0;right:0;bottom:calc(var(--h) - 14px);text-align:center;z-index:2}
+.stand .mini-face{display:inline-block;line-height:0;filter:drop-shadow(0 10px 9px rgba(0,0,0,.55))}
+.stand .medal{position:absolute;left:50%;margin-left:-17px;
+  bottom:calc(var(--h) + var(--fh) + 2px);line-height:0;z-index:3;
+  filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));
+  opacity:0;transform:scale(.4) rotate(-25deg)}
+.stand.up .medal{animation:medalDrop .7s .25s var(--bounce) forwards}
+@keyframes medalDrop{to{opacity:1;transform:none}}
+
+/* The beam runs past the block and spills onto the floor either side of it — a
+   lamp that stopped dead at the block top read as a grey panel, not as light.
+   It sits behind the block, so the block itself stays crisp. */
+.stand .spot{position:absolute;left:50%;bottom:-26px;width:320px;margin-left:-160px;
+  height:calc(var(--h) + 330px);
+  pointer-events:none;opacity:0;z-index:0;
+  background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,244,214,.2) 62%,rgba(255,244,214,.05));
+  clip-path:polygon(45% 0,55% 0,100% 100%,0 100%);filter:blur(9px)}
+.stand.up .spot{animation:lampOn 1s var(--ease) forwards}
+@keyframes lampOn{0%{opacity:0}45%{opacity:.9}100%{opacity:.55}}
 .crown{transition:opacity .4s}
 .crown.hush{opacity:.35}
-.stand{width:150px;border-radius:20px 20px 0 0;display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;padding:16px 12px;text-align:center;animation:rise .8s var(--ease) both}
-@keyframes rise{from{transform:scaleY(.2);opacity:0;transform-origin:bottom}}
-.stand.p1{height:min(280px,34vh);background:linear-gradient(180deg,#FFE08A,#FFC53D);border:3px solid #0b0718}
-.stand.p2{height:min(215px,26vh);background:linear-gradient(180deg,#E6EAF5,#BFC7DA);border:3px solid #0b0718}
-.stand.p3{height:min(175px,21vh);background:linear-gradient(180deg,#F0BD8B,#D08C4B);border:3px solid #0b0718}
-.stand.p1,.stand.p2,.stand.p3{color:#161036;box-shadow:0 11px 0 -3px rgba(0,0,0,.45)}
-.stand .medal{font-size:2.2rem;line-height:1}
-.stand .who{font-size:clamp(1rem,1.5vw,1.35rem);font-weight:900;margin-top:4px}
-.stand .pts{font-weight:800;opacity:.66;font-size:.95rem}
-.finale .rest{flex:1;min-height:0;overflow:auto}
+/* The music menu: a sheet that drops from the buttons beside the PIN. Kept
+   narrow and scrollable, because a teacher with thirty records on the shelf
+   should not get a list that runs off the bottom of a projector. */
+.musicmenu{position:fixed;top:64px;right:18px;width:min(340px,calc(100vw - 36px));
+  max-height:min(70vh,560px);overflow:auto;z-index:60;padding:8px;border-radius:18px;
+  background:rgba(16,12,38,.97);border:1px solid rgba(255,255,255,.13);
+  box-shadow:0 24px 60px rgba(0,0,0,.6);display:none}
+.musicmenu.on{display:block}
+.mm-head{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  opacity:.5;padding:12px 12px 6px}
+.mm-row{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;
+  padding:10px 12px;border:0;border-radius:12px;background:transparent;color:#fff;
+  cursor:pointer;font:inherit}
+.mm-row:hover{background:rgba(255,255,255,.08)}
+.mm-row b{font-size:.93rem;font-weight:800}
+.mm-row span{font-size:.76rem;opacity:.55}
+.mm-row.on{background:rgba(139,92,246,.26);box-shadow:inset 0 0 0 1px rgba(139,92,246,.6)}
+.mm-row.add b{color:#FFC53D}
+.mm-row.rec span{color:#FF8A96;opacity:.8}
+
+/* The boss winding up to swing: the bar fills, and when it is full it lands */
+.bosswarn{flex-basis:100%;margin-top:8px;position:relative;height:0;overflow:hidden;
+  border-radius:12px;background:rgba(244,54,76,.14);transition:height .18s ease}
+.bosswarn.on{height:34px}
+.bosswarn i{position:absolute;inset:0;width:calc(var(--wind,0) * 100%);
+  background:linear-gradient(90deg,#FF8A5A,#F4364C)}
+.bosswarn b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;letter-spacing:.1em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+
+/* The one question worth double, announced where nobody can miss it */
+.doubler{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-2deg);
+  padding:8px 22px;border-radius:999px;background:linear-gradient(90deg,#FFC53D,#FF8A3D);
+  color:#2A1B00;font-weight:900;letter-spacing:.14em;font-size:.86rem;
+  box-shadow:0 6px 0 rgba(0,0,0,.18);animation:doublepop .5s var(--ease) both}
+@keyframes doublepop{from{transform:translateX(-50%) rotate(-2deg) scale(.6);opacity:0}}
+.ask{position:relative}
+
+/* Laser Tag's scoreboard: two totals and the ground between them */
+.arena-panel{padding:14px 22px}
+.teamscore{display:flex;align-items:center;gap:22px;width:100%}
+.teamscore .side{display:flex;flex-direction:column;align-items:center;min-width:130px}
+.teamscore .side b{font-size:clamp(28px,4.4vw,56px);line-height:1;font-variant-numeric:tabular-nums}
+.teamscore .side span{font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.teamscore .side.red b{color:#F4364C}
+.teamscore .side.blue b{color:#4F6BFF}
+.teamscore .tug{position:relative;flex:1;height:26px;border-radius:99px;overflow:hidden;
+  display:flex;background:rgba(20,16,40,.14)}
+.teamscore .tug i{display:block;height:100%;transition:width .4s cubic-bezier(.2,.9,.25,1)}
+.teamscore .tug i#tug-red{background:linear-gradient(90deg,#FF6B7C,#F4364C)}
+.teamscore .tug i#tug-blue{background:linear-gradient(90deg,#4F6BFF,#8EA2FF)}
+.teamscore .tug em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-style:normal;font-weight:900;font-size:.82rem;letter-spacing:.06em;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.55)}
+
+/* the boss's health, one pip per knife, across the board's panel */
+.bosspips{flex-basis:100%;display:flex;gap:3px;margin-top:10px}
+.bosspips i{flex:1;height:18px;border-radius:5px;
+  background:linear-gradient(180deg,#FF8A5A,#F4364C);
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18);transition:background .18s ease,opacity .18s ease}
+.bosspips i.gone{background:rgba(20,16,40,.18);box-shadow:none}
+.bosspips i.struck{background:#fff;animation:pipout .4s ease both}
+@keyframes pipout{from{transform:scaleY(1.5);background:#fff}to{transform:scaleY(1)}}
+
+@media (max-width:860px){
+  .podium{height:min(38vh,290px)}
+  .stand.p1{width:156px;margin-left:-78px;--h:136px}
+  .stand.p2,.stand.p3{width:134px;margin-left:-67px}
+  .stand.p2{--h:108px} .stand.p3{--h:88px}
+}
+@media (prefers-reduced-motion:reduce){
+  .stand,.stand.up{transition:none;opacity:1;transform:none}
+  .stand.up .medal,.stand.up .spot{animation:none;opacity:1;transform:none}
+}
+/* Everyone below third place. It used to be flex:1, which on a 5-player game
+   gave a two-row list the whole leftover column and then clipped its own
+   heading behind the buttons — the panel was tall enough to start and not tall
+   enough to finish. It takes the room it needs now, and only scrolls once a
+   real class is in it. */
+.finale .rest{flex:0 1 auto;min-height:0;max-height:24vh;overflow:auto}
+.finale .rest:empty{display:none}
 .lb-row .move{font-weight:800;font-size:.85rem;width:34px;text-align:right}
 .lb-row .move.up{color:#12BE8E}.lb-row .move.down{color:#FF8A9B}.lb-row .move.same{opacity:.3}
 
@@ -381,6 +626,33 @@
 #goal[hidden]{display:none}
 #music{padding-left:11px;padding-right:11px}
 #music.quiet{opacity:.55}
+
+/* ── Eagle Hunt's canyon ──────────────────────────────────
+ * Behind everything, and never in the way of it: the board's own panels sit on
+ * top with their own backgrounds, and the canyon is what shows between them. */
+/* A band across the top rather than a wash behind everything. Behind
+ * everything was the obvious thing and it was wrong twice over: the board's own
+ * panels cover the middle of the screen, so the valley was only ever visible
+ * down two strips at the edges — and what did show through sat under the
+ * question, which is the one thing on a projector that has to be read from the
+ * back of a room. Given a band of its own it is a wide shot of a canyon with
+ * birds in it, and the question sits on the rock underneath. */
+.canyon{position:fixed;left:0;right:0;top:0;height:min(46vh,430px);
+  width:100%;z-index:0;pointer-events:none}
+body.flying{background:#0C1026}
+body.flying .stage{position:relative;z-index:1;padding-top:min(38vh,350px)}
+body.flying .topbar{position:relative;z-index:2;background:rgba(12,16,38,.5);
+  backdrop-filter:blur(10px);border-bottom-color:transparent}
+body.flying .ask{background:rgba(12,16,38,.86);backdrop-filter:blur(12px);
+  box-shadow:0 20px 60px rgba(6,8,24,.65)}
+body.flying .ask h1{color:#FFF7E4}
+body.flying .lb,body.flying .tile{box-shadow:0 18px 50px rgba(6,8,24,.5)}
+/* what this mode is, while it is here */
+.limited{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:3;
+  display:flex;align-items:center;gap:9px;padding:7px 16px;border-radius:99px;
+  background:rgba(12,8,28,.74);border:2px solid rgba(255,197,61,.45);
+  backdrop-filter:blur(8px);font-weight:800;font-size:.82rem;color:#FFF7E4}
+.limited b{color:#FFC53D;letter-spacing:.08em;text-transform:uppercase;font-size:.7rem}
 </style>
 </head>
 <body class="dark">
@@ -394,15 +666,27 @@
     <span class="chip" id="goal" hidden></span>
     <span class="chip mono" id="pinchip">------</span>
     <button class="btn sm" id="music" title="Music on the big screen"></button>
+    <button class="btn sm" id="musicpick" title="Choose the music">Music</button>
+    <input type="file" id="musicfiles" accept="audio/*" multiple hidden>
     <button class="btn sm danger" id="end">End game</button>
   </div>
 </header>
 
+<!-- Eagle Hunt's canyon. It sits behind the whole board rather than inside one
+     of the views, because in that mode it is the room the game is played in:
+     the question is asked over it, the answers are revealed over it, and the
+     birds carry on down the valley between the two. A view that mounted and
+     unmounted it every question would restart the flight nine times a round. -->
+<canvas class="canyon" id="canyon" hidden></canvas>
 <main class="stage" id="stage"></main>
 
 <script src="/sprites.js"></script>
+<script src="/eagle.js"></script>
 <script src="/music.js"></script>
 <script src="/arena.js"></script>
+<script src="/strike.js"></script>
+<script src="/run.js"></script>
+<script src="/tower.js"></script>
 <script src="/nova.js"></script>
 <script src="/qr.js"></script>
 <script>
@@ -446,7 +730,15 @@ const joinLabel = () => joinUrl().replace(/^https?:\/\//, '').replace(/\/?\?pin=
 
 const mark = document.getElementById('brand-mark');
 if (mark) mark.innerHTML = Sprite.logo(42);
-if (!pin) location.href = '/quiz';
+/* A board with no game used to bounce to /quiz. On the board's own site —
+   livequoldek.web.app — docs-live holds the board and nothing else, and every
+   unknown path is rewritten back to index.html. So /quiz served the board
+   again, still with no PIN, which bounced to /quiz again: an endless redirect
+   showing six dashes and "Reconnecting…" between each hop. That is the loop a
+   teacher was stuck in, with no game to join and none to end.
+
+   It stays on the page now and asks which game to open. */
+const HUB = (typeof QUOLDEK_HUB === 'string' && QUOLDEK_HUB) ? QUOLDEK_HUB : '/quiz';
 if (!hostToken) toast('You are watching this game. Only the teacher device can control it.', 'bad');
 
 /* ── the music ─────────────────────────────────────
@@ -470,10 +762,15 @@ function paintMusic() {
 }
 
 /* Each part of a game has its own piece of music. The board says which part it
- * is in; the tune follows, easing from one to the next. */
+ * is in; the tune follows, easing from one to the next.
+ *
+ * Since 4.0 the question also has a tune per kind of game — a race gallops, a
+ * heist sneaks, the lava chases — because the question is the moment the room is
+ * actually in, and the same eight bars in all fourteen games is what turns a
+ * soundtrack into a screensaver. */
 function trackFor(state) {
   if (!state) return 'lobby';
-  if (state.state === 'question') return 'question';
+  if (state.state === 'question') return NovaMusic.tuneFor(state.mode);
   if (state.state === 'reveal') return 'reveal';
   if (state.state === 'over') return 'podium';
   return 'lobby';
@@ -499,6 +796,7 @@ if (musicBtn) {
   else try { const saved = localStorage.getItem('nova:music'); if (saved !== null) musicWanted = !!saved; }
   catch { /* private mode */ }
   musicBtn.onclick = (e) => { e.stopPropagation(); musicUnlocked = true; musicShould(!musicWanted); };
+  buildMusicMenu();
   // the first click anywhere is the permission a browser is waiting for
   document.addEventListener('click', () => {
     if (musicUnlocked) return;
@@ -518,7 +816,7 @@ function connect() {
 
 function fail() {
   $('#stage').innerHTML = `<div class="card pad empty"><span class="em">${Sprite.icon('ghost', 48)}</span>
-    That game is no longer running.<br><a class="btn sm" style="margin-top:16px" href="/quiz">Back to quizzes</a></div>`;
+    That game is no longer running.<br><a class="btn sm" style="margin-top:16px" href="${HUB}">Back to quizzes</a></div>`;
 }
 
 function apply(state) {
@@ -562,8 +860,21 @@ function paintGoal() {
   if (!chip || !game) return;
   const goal = game.goal || { kind: 'questions' };
   clearInterval(goalTicker);
-  if (goal.kind === 'questions' || game.state === 'lobby' || game.state === 'over') {
-    chip.hidden = true;
+  if (game.state === 'lobby' || game.state === 'over') { chip.hidden = true; return; }
+  if (goal.kind === 'questions') {
+    /* "Play every question" is the default, and it used to put nothing on the
+       board at all — so a class had no idea whether they were on question two
+       of four or two of twenty. That is the difference between a room that
+       settles in and a room that keeps asking how many are left.
+       Only the modes that keep one question for the whole room can say it;
+       in the others everybody is on a different question by design. */
+    const paced = ['building', 'strike', 'running', 'safe', 'arena'].includes(game.state);
+    if (paced || !game.total) { chip.hidden = true; return; }
+    chip.hidden = false;
+    const at = Math.min(game.total, (game.index || 0) + 1);
+    chip.textContent = `Question ${at} of ${game.total}`;
+    chip.title = 'How far through the quiz the class is';
+    chip.classList.toggle('warn', at === game.total);
     return;
   }
   chip.hidden = false;
@@ -586,6 +897,102 @@ function paintGoal() {
   paint();
   goalTicker = setInterval(paint, 500);
 }
+/* ── choosing the music ───────────────────────────────────
+ *
+ * The board had one button and it turned the sound off. That is the only
+ * control a teacher had over a soundtrack that played for a whole afternoon,
+ * which is why the answer to "the music is annoying" was "turn it off".
+ *
+ * So: a menu. Where the music comes from, which of the six styles the written
+ * pieces are in, and a shelf the teacher puts their own records on. Their
+ * files stay on this machine — they go into this browser and nowhere else,
+ * which is the difference between playing music in your own room and putting
+ * it on a web address.
+ */
+function buildMusicMenu() {
+  const open = document.getElementById('musicpick');
+  const files = document.getElementById('musicfiles');
+  if (!open || !files || !window.NovaMusic) return;
+
+  const sheet = el('div', { class: 'musicmenu', id: 'musicmenu' });
+  document.body.append(sheet);
+
+  const shut = () => sheet.classList.remove('on');
+  document.addEventListener('click', (e) => {
+    if (!sheet.contains(e.target) && e.target !== open) shut();
+  });
+
+  async function draw() {
+    const source = NovaMusic.source();
+    const style = NovaMusic.style();
+    const mine = await NovaMusic.records();
+    sheet.innerHTML = '';
+
+    const group = (title) => {
+      sheet.append(el('div', { class: 'mm-head' }, title));
+    };
+    const row = (label, say, on, go) => {
+      const b = el('button', { class: 'mm-row' + (on ? ' on' : '') },
+        el('b', {}, label), say ? el('span', {}, say) : '');
+      b.onclick = (e) => { e.stopPropagation(); musicUnlocked = true; go(); };
+      sheet.append(b);
+      return b;
+    };
+
+    group('Where it comes from');
+    row('Made as you play', 'a different piece for each part of a game', source === 'made',
+        () => { NovaMusic.source('made'); if (musicWanted) musicNow(); draw(); });
+    row('The Quoldek theme', 'the one track, looping', source === 'theme',
+        () => { NovaMusic.source('theme'); if (musicWanted) musicNow(); draw(); });
+    row('My own music', mine.length ? `${mine.length} on the shelf, shuffled` : 'nothing on the shelf yet',
+        source === 'mine',
+        () => { NovaMusic.source('mine'); if (musicWanted) musicNow(); draw(); });
+
+    if (source === 'made') {
+      group('Style');
+      NovaMusic.styles.forEach(st => {
+        row(st.name, st.say, st.id === style, () => { NovaMusic.style(st.id); draw(); });
+      });
+    }
+
+    group('My own music');
+    const add = el('button', { class: 'mm-row add' }, el('b', {}, 'Add music from this computer'),
+      el('span', {}, 'stays on this machine — nothing is uploaded'));
+    add.onclick = (e) => { e.stopPropagation(); files.click(); };
+    sheet.append(add);
+
+    mine.forEach(r => {
+      const line = el('button', { class: 'mm-row rec' }, el('b', {}, r.name), el('span', {}, 'remove'));
+      line.onclick = async (e) => { e.stopPropagation(); await NovaMusic.dropRecord(r.id); draw(); };
+      sheet.append(line);
+    });
+    if (source === 'mine' && mine.length > 1) {
+      const skip = el('button', { class: 'mm-row' }, el('b', {}, 'Next track'), '');
+      skip.onclick = (e) => { e.stopPropagation(); NovaMusic.skip(); };
+      sheet.append(skip);
+    }
+  }
+
+  files.onchange = async () => {
+    const n = await NovaMusic.addRecords(files.files);
+    files.value = '';
+    if (n) {
+      NovaMusic.source('mine');
+      musicUnlocked = true;
+      if (musicWanted) musicNow();
+      toast(n === 1 ? 'One track added' : `${n} tracks added`, 'good');
+    } else toast('No audio files in that', 'bad');
+    draw();
+  };
+
+  open.onclick = (e) => {
+    e.stopPropagation();
+    musicUnlocked = true;
+    sheet.classList.toggle('on');
+    if (sheet.classList.contains('on')) draw();
+  };
+}
+
 const sting = (kind) => { if (musicUnlocked && musicWanted) NovaMusic.sting(kind); };
 
 /* A poll every second used to throw the whole board away and build a new one.
@@ -595,7 +1002,7 @@ const sting = (kind) => { if (musicUnlocked && musicWanted) NovaMusic.sting(kind
  * copy only the differences onto the live one: unchanged nodes are never touched,
  * and a changed style is a real change to an existing element, which is what CSS
  * transitions need to animate. Nodes marked data-static (the QR code, the
- * countdown ring) own themselves and are left alone entirely. */
+ * countdown ring, and every game canvas) own themselves and are left alone entirely. */
 function morph(cur, next) {
   if (cur.hasAttribute && cur.hasAttribute('data-static')) return;
   for (const a of Array.from(cur.attributes)) if (!next.hasAttribute(a.name)) cur.removeAttribute(a.name);
@@ -669,12 +1076,100 @@ function slide(before) {
   });
 }
 
+/* ── Eagle Hunt's canyon ───────────────────────────────
+ *
+ * Mounted once, for the whole game, and fed on every poll. It is not a view:
+ * it is the place the game happens, and the views are drawn over it.
+ *
+ * The one thing worth saying about the feeding is where the surge comes from.
+ * Scores arrive already totalled, so the board keeps what it last saw and
+ * pushes a bird by the difference. That is the same number the child's phone
+ * shows them, and it lands at the same moment the answers are revealed rather
+ * than when they pressed — which is the moment the room is looking.
+ */
+let canyon = null, lastFlight = new Map();
+
+function flying() { return game && game.mode === 'eagle'; }
+
+function watchCanyon() {
+  const canvas = document.getElementById('canyon');
+  if (!canvas || !window.NovaEagle) return;
+  /* Not in the lobby and not over the final standings. The lobby already
+     stands the class on a floor of its own and the finale is a podium — a
+     canyon behind either is two scenes fighting over one screen. */
+  if (!flying() || game.state === 'lobby' || game.state === 'over') {
+    if (canyon) { canyon.stop(); canyon = null; lastFlight = new Map(); }
+    canvas.hidden = true;
+    document.body.classList.remove('flying');
+    const tag = document.querySelector('.limited');
+    if (tag) tag.remove();
+    return;
+  }
+  canvas.hidden = false;
+  document.body.classList.add('flying');
+  if (!canyon) {
+    canyon = NovaEagle.start({ canvas, world: game.map || 'canyon' });
+    lastFlight = new Map();
+    /* What this is, while it is here. A limited edition that never says it is
+       one is just a mode that quietly disappears in December. */
+    const info = (game.modeInfo && game.modeInfo.limited) || null;
+    if (info && !document.querySelector('.limited')) {
+      const tag = el('div', { class: 'limited' },
+        el('b', {}, 'Limited edition'),
+        el('span', {}, info.note || 'Here for a while'));
+      document.body.append(tag);
+    }
+  }
+
+  const players = (game.players || []).slice();
+  canyon.setBirds(players.map(p => ({ id: p.id, name: p.name, dist: p.score || 0 })));
+  /* Only once the answers are out. Pushing on every poll would have the birds
+     twitch forward the instant a fast child pressed, which tells the room the
+     answer before the board does. */
+  if (game.state === 'reveal') {
+    players.forEach(p => {
+      const was = lastFlight.has(p.id) ? lastFlight.get(p.id) : (p.score || 0);
+      const by = (p.score || 0) - was;
+      if (by > 0) canyon.surge(p.id, by);
+      lastFlight.set(p.id, p.score || 0);
+    });
+  } else if (game.state === 'lobby') {
+    players.forEach(p => lastFlight.set(p.id, p.score || 0));
+  }
+}
+
 function render(fresh) {
+  watchCanyon();
   const stage = $('#stage');
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
-  if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); announce(); } return; }
-  if (game.state === 'arena') { if (paint(stage, arenaView, fresh)) watchArena(); return; }
+  if (game.state === 'over')  { if (paint(stage, overView, fresh)) { cancelAnimationFrame(ticker); fitFinale(); announce(); } else fitFinale(); return; }
+  if (game.state === 'arena') {
+    if (paint(stage, arenaView, fresh)) watchArena(); else watchArena();
+    feedArena();
+    return;
+  }
+  if (game.state === 'strike') {
+    /* Mounted once and then fed. Repainting the whole view on every poll would
+       tear the fight down and build it again several times a second. */
+    if (paint(stage, strikeView, fresh)) watchStrike(); else feedStrike();
+    return;
+  }
+  /* Tallest Tower has no shared question any more: everybody is on their own,
+     so the board is the three towers, the gorilla and the standings. */
+  if (game.state === 'building') {
+    if (paint(stage, towerView, fresh)) watchTower(); else { watchTower(); feedTower(); }
+    return;
+  }
+  if (game.state === 'running' || game.state === 'safe') {
+    /* The canvas is mounted once and then fed. Repainting the whole view on
+       every poll would tear the chase down and build it again several times a
+       second, which is how you get a robot that stutters in place. */
+    if (paint(stage, runView, fresh)) watchRun(); else { watchRun(); feedRun(); }
+    return;
+  }
   if (boardArena) { boardArena.stop(); boardArena = null; }
+  if (boardStrike) { boardStrike.stop(); boardStrike = null; }
+  stopRun();
   if (!game.question) return;
   if (paint(stage, () => questionView(fresh), fresh)) { bindQuestion(); runTimer(); }
 }
@@ -699,16 +1194,49 @@ function lobbyView() {
     <div class="qrbox" id="qr" data-static></div>`;
   root.append(bar);
 
-  const crowd = el('div', { class: 'crowd' });
+  /* The room, rather than a list of the room.
+   *
+   * A lobby is the only screen a class stares at for minutes at a time, and a
+   * grid of name chips gives them nothing to look at while they wait. So the
+   * blooks stand about on the same floor the game will be played on, in the
+   * order they arrived, and a new one walks in rather than appearing. Beyond
+   * two dozen the floor gets crowded and the list underneath does the work.
+   */
+  /* The room, and the register under it. A teacher scanning for who is still
+   * missing wants the names in one line of sight; a class waiting for ten
+   * minutes wants something to look at. Both, rather than a choice.
+   *
+   * These two go in whatever happens, even when they are empty. The update pass
+   * morphs one render onto the last by walking children in order, so a lobby
+   * that grows a fourth child the moment somebody joins hands every later child
+   * the wrong partner — which is how the Start button came back unbound and a
+   * teacher could press it all day. The shape stays the same; the contents move.
+   */
+  const room = el('div', { class: 'waiting' });
+  const crowd = el('div', { class: 'crowd' + (game.players.length ? ' strip' : '') });
+  const many = game.players.length > 24;
+
   if (!game.players.length) {
     crowd.append(el('div', { class: 'nobody' },
       el('div', { class: 'mini-face', html: Sprite.icon('wave', 44) }),
-      el('div', { style: 'margin-top:8px' }, 'Waiting for the class to join')));
-  } else {
+      el('div', { style: 'margin-top:8px' }, 'Waiting for the class to join'),
+      el('div', { class: 'tiny faint', style: 'margin-top:4px' },
+         'They type the PIN on their own device')));
+  } else if (many) {
+    /* Too many to stand about: the floor would be a scrum, so the register does
+       the whole job and gets the bigger faces. */
     game.players.forEach(p => crowd.append(el('div', { class: 'face ' + (game.mode === 'laser' ? p.team : '') },
       el('span', { class: 'av', html: Sprite.face(p.avatar, 40) }), p.name)));
+    crowd.classList.remove('strip');
+  } else {
+    /* The floor already writes every name under its own blook, so the strip
+       underneath was printing the whole class twice on the same screen. It
+       earns its place at the size where the floor stops being readable, and
+       not before. */
+    room.append(lobbyRoom());
+    crowd.classList.remove('strip');
   }
-  root.append(crowd);
+  root.append(room, crowd);
 
   root.append(el('div', { class: 'lobbybar' },
     el('button', { class: 'btn primary lg', id: 'start' },
@@ -724,6 +1252,40 @@ function lobbyView() {
       ? el('span', { class: 'tiny faint' }, 'Teams are balanced automatically. Players can swap before the start.')
       : ''));
   return root;
+}
+
+/* Everybody who has joined, standing on the floor they are about to play on.
+ *
+ * Placed in rows back to front so the ones who arrived first are nearest — which
+ * means a child watching for their own name has somewhere to look, and the
+ * newest arrival is always the one at the back. */
+function lobbyRoom() {
+  const people = game.players.slice(0, 24);
+  const perRow = people.length <= 6 ? Math.max(1, people.length)
+               : people.length <= 12 ? 6 : 8;
+  const placed = people.map((p, i) => {
+    const row = Math.floor(i / perRow);
+    const inRow = i % perRow;
+    const wide = Math.min(perRow, people.length - row * perRow);
+    // odd rows step half a place across, so nobody is ever directly behind
+    // somebody else and every name is readable
+    const shift = row % 2 ? 0.5 : 0;
+    return { p, i, row, x: 50 + (inRow - (wide - 1) / 2 + shift) * (74 / perRow), y: 9 + row * 27 };
+  });
+  /* Back row first. Everything on this floor is drawn on one plane, so what is
+   * in front is decided by the order it is added — and a name tag from the row
+   * behind landing over the face in front is exactly what a lobby must not do. */
+  placed.sort((a, b) => b.row - a.row);
+
+  return stage((world) => {
+    placed.forEach(({ p, i, x, y }) => {
+      const node = standing(p, x, y, p.name, game.mode === 'laser' ? ' ' + p.team : '');
+      // arriving, not appearing: a new blook walks in rather than blinking on
+      node.classList.add('arriving');
+      node.style.animationDelay = Math.min(600, i * 45) + 'ms';
+      world.append(node);
+    });
+  });
 }
 
 /* Bound once, when the lobby is first drawn: later polls only morph the roster,
@@ -759,15 +1321,26 @@ function drawQR(url) {
 }
 
 /* ── the Laser Tag arena, on the big screen ────── */
-let boardArena = null;
+let boardArena = null, boardStrike = null;
 
 function arenaView() {
+  /* Two teams, and the board says which one is winning.
+   *
+   * It used to say how many children were in the arena and list the top four
+   * by name, which is a class of individuals who happen to be wearing colours.
+   * Laser Tag is red against blue: the score that matters is the team's, it
+   * belongs at the top where the room is already looking, and the bar between
+   * the two totals is the whole game at a glance. */
   const root = el('div', { class: 'board' });
-  const panel = el('div', { class: 'ask' });
-  panel.innerHTML = `<h1>Laser Tag</h1>
-    <div class="tally"><b>${game.players.length}</b><span>in the arena</span></div>`;
+  const panel = el('div', { class: 'ask arena-panel' });
+  panel.innerHTML = `<div class="teamscore">
+      <div class="side red"><b id="score-red">0</b><span id="name-red">Crimson</span></div>
+      <div class="tug"><i id="tug-red"></i><i id="tug-blue"></i>
+        <em id="tug-say">First blood</em></div>
+      <div class="side blue"><b id="score-blue">0</b><span id="name-blue">Cobalt</span></div>
+    </div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena' })));
+  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena', 'data-static': '' })));
   // the arena is the thing worth watching, so the table stays short
   const rest = el('div', { class: 'rest' });
   rest.append(leaderboard({ rows: 4, title: 'Top of the arena' }));
@@ -777,11 +1350,315 @@ function arenaView() {
   return root;
 }
 
+/** The two totals, and the bar between them. Fed on every poll. */
+function feedArena() {
+  if (!game || game.state !== 'arena') return;
+  const sides = { red: 0, blue: 0 };
+  (game.players || []).forEach(p => {
+    const side = p.team === 'blue' ? 'blue' : 'red';
+    sides[side] += Math.max(0, p.score || 0);
+  });
+  const set = (id, text) => { const n = document.getElementById(id); if (n) n.textContent = text; };
+  set('score-red', sides.red);
+  set('score-blue', sides.blue);
+
+  const total = sides.red + sides.blue;
+  const redShare = total ? sides.red / total : 0.5;
+  const red = document.getElementById('tug-red');
+  const blue = document.getElementById('tug-blue');
+  if (red && blue) {
+    red.style.width = (redShare * 100).toFixed(1) + '%';
+    blue.style.width = ((1 - redShare) * 100).toFixed(1) + '%';
+  }
+  /* A sentence, not a sum: a class reads "Crimson by 300" across a hall and a
+     pair of numbers it has to subtract, it does not. */
+  const gap = Math.abs(sides.red - sides.blue);
+  /* And what they are actually racing to. The mode had no finish at all — it
+     ran until a teacher pressed the button — so neither side had any reason to
+     push. A number to get to changes how a round is played. */
+  const target = game.laserTarget || 2000;
+  const best = Math.max(sides.red, sides.blue);
+  const nearly = best >= target * 0.75;
+  set('tug-say', !total ? `First to ${target}`
+    : gap === 0 ? `Level · first to ${target}`
+    : `${sides.red > sides.blue ? 'Crimson' : 'Cobalt'} by ${gap} · ${Math.max(0, target - best)} to win`);
+  const say = document.getElementById('tug-say');
+  if (say) say.classList.toggle('warn', nearly);
+}
+
+/* Robot Run's board: the shared escape, the shared lives, and who is putting
+ * boosts in. Not a question — everybody is on a different one — and not a
+ * ranking either, because the class gets out together or not at all.
+ *
+ * Every child is on a different question, so there is no question to put up and
+ * no answer split to draw — putting one up would only be showing the room one
+ * child's business. What the room wants is the standings: who is furthest, who
+ * has got deepest, and who is about to be caught. */
+function runView() {
+  /* The chase, on the projector. Kahoot's host screen shows the robot chasing
+     the class with the collective lives in the corner, and the phones show the
+     question and the boost button. This board used to be a progress bar over a
+     list of names — a spreadsheet — while the chase ran in thirty pockets where
+     nobody could see it. */
+  const root = el('div', { class: 'board' });
+  root.append(el('div', { class: 'arena-board runboard' },
+                el('canvas', { id: 'board-run', 'data-static': '' })));
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 6, title: 'Boosts put in' }));
+  root.append(rest);
+  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
+    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  return root;
+}
+
+/* The board while a class builds. No question on it — thirty children are on
+   thirty different ones — so it is the three towers, full height, with who has
+   put the most blocks in underneath. */
+function towerView() {
+  const root = el('div', { class: 'board' });
+  const panel = el('div', { class: 'ask' });
+  panel.innerHTML = `<h1>Tallest Tower</h1>
+    <div class="tally"><b id="towerlead">—</b><span>in front</span></div>
+    <div class="tally" style="margin-left:18px"><b id="towerblocks">0</b><span>blocks up</span></div>`;
+  root.append(panel);
+  root.append(el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower', 'data-static': '' })));
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 6, title: 'Blocks placed' }));
+  root.append(rest);
+  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
+    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  return root;
+}
+
+let boardRun = null;
+
+function watchRun() {
+  const canvas = document.getElementById('board-run');
+  if (!canvas) return;
+  /* A repaint builds a new canvas and throws the old one away. If the chase is
+     still drawing on the one that left the page, the board goes black — which
+     is what happened the first time the class reached a safe zone, because that
+     is a change of state and a change of state repaints. So: the engine is kept
+     only while it still owns the canvas that is on the screen. */
+  if (boardRun) {
+    if (boardRun.canvas === canvas) return;
+    boardRun.stop();
+    boardRun = null;
+  }
+  boardRun = NovaRun.start({ canvas, world: game.map || 'station' });
+  boardRun.canvas = canvas;
+  /* Where the robot is, readable from outside. The mode's whole claim is that
+     it closes on a class that stops answering, and a claim that can only be
+     checked by squinting at a video is a claim nobody checks. */
+  canvas.__chase = () => boardRun && boardRun.chase;
+  feedRun();
+  const advance = document.getElementById('advance');
+  if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
+    .catch(e => toast(e.message, 'bad'));
+}
+
+let settleTimer = 0;   // the safe phase is only ever settled once per deck
+let swingTimer = 0;    // and the boss swings once, not once per poll
+/* Kept out here rather than on the engine. A change of state repaints, a
+   repaint builds a new canvas and a new engine, and anything remembered on the
+   old one goes with it — which is exactly the moment the deck number changes,
+   so the ride to the next deck was never played. */
+let lastDeck = 0, lastEscape = 0, lastLives = null;
+
+/** Hand the board the room and the class, every time the game changes. */
+function feedRun() {
+  if (!boardRun) return;
+  const target = game.escapeTarget || 100;
+  const before = lastEscape;
+  boardRun.setRoom({
+    escape: game.escape || 0, target,
+    lives: game.lives === undefined ? 3 : game.lives,
+    round: game.round || 1,
+    phase: game.state === 'safe' ? 'safe' : 'running',
+    zones: game.zones || [],
+    zoneCounts: game.zoneCounts || {},
+    safeEndsAt: game.safeEndsAt ? game.safeEndsAt - drift : 0,
+    safeMs: game.safeMs || 15000,
+    endsAt: game.roundEndsAt ? game.roundEndsAt - drift : 0,
+    roundMs: game.robotRoundMs || 75000
+  });
+  boardRun.setPlayers((game.players || []).map(p => ({
+    id: p.id, name: p.name, avatar: p.avatar, boosts: p.boosts || p.score || 0,
+    zone: p.zone || ''
+  })));
+  // somebody put a boost in since the last update: shake the deck
+  if ((game.escape || 0) > before) boardRun.cheer();
+  lastEscape = game.escape || 0;
+
+  /* The class made it off a deck: the scramble ended and the round went up, so
+     play the ride to the next one. Watched here rather than announced by the
+     server because the board is the only thing that can show it. */
+  const deck = game.round || 1;
+  if (lastDeck && deck > lastDeck && game.state === 'running') boardRun.liftOff(deck);
+
+  /* A heart went. The server takes one when a deck's clock runs out, and up to
+     now that was the whole of it — a heart quietly left the row and the deck
+     started again, which is the same amount of nothing as a page reloading.
+     The one event the mode is built around now happens to the room. */
+  const lives = game.lives === undefined ? 3 : game.lives;
+  if (lastLives !== null && lives < lastLives && game.state === 'running') {
+    boardRun.caught();
+    sting('ouch');
+  }
+  lastLives = lives;
+  lastDeck = deck;
+
+  /* The safe phase has its own clock, and on the live edition there is no
+     server to notice it running out — so the board asks for the settle, once,
+     the same way it asks for the tower's monster. */
+  if (hostToken && game.state === 'safe') {
+    const due = game.safeEndsAt || 0;
+    if (due && Date.now() - drift >= due && Date.now() > settleTimer + 4000) {
+      settleTimer = Date.now();
+      api(`/games/${pin}/settle`, { method: 'POST', body: { hostToken } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
+  }
+}
+
+
+/* The fight, on the projector. This is the half of Boss Battle that belongs on
+ * the big screen rather than in thirty pockets: everyone can see who is still
+ * standing, who is on the floor, and the red arc closing on half the ring. */
+function strikeView() {
+  /* The fight, on the projector. Three minutes, thirty health, and the whole
+     class working at its own pace — so the board is the one thing everybody is
+     looking at together: the boss, the clock, what is left of it, and who is
+     putting the most in. */
+  const boss = game.boss || { name: 'The boss', hp: 0, max: 30 };
+  const root = el('div', { class: 'board' });
+  const panel = el('div', { class: 'ask' });
+  panel.innerHTML = `<h1>${esc(boss.name)}</h1>
+    <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
+    <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>
+    <div class="tally" style="margin-left:18px"><b id="bossmood">Calm</b><span>its temper</span></div>
+    <div class="bosspips" id="bosspips"></div>
+    <div class="bosswarn" id="bosswarn"><i></i><b>IT IS WINDING UP — HOLD A KNIFE</b></div>`;
+  root.append(panel);
+  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike', 'data-static': '' })));
+  const rest = el('div', { class: 'rest' });
+  rest.append(leaderboard({ rows: 6, title: 'Knives in' }));
+  root.append(rest);
+  return root;
+}
+
+/* Tear the chase down when the board moves off Robot Run. */
+function stopRun() { if (boardRun) { boardRun.stop(); boardRun = null; } }
+
+function watchStrike() {
+  const canvas = document.getElementById('board-strike');
+  if (!canvas) return;
+  /* A repaint builds a new canvas and throws the old one away. Keeping the
+     engine across that leaves it drawing on a canvas nobody can see, and the
+     board goes black in the middle of the fight — which is exactly what it did,
+     because the boss's own health changing is enough to repaint. Robot Run and
+     Tallest Tower already guarded this; the fight and the arena never did. So:
+     the engine is kept only while it still owns the canvas on the screen. */
+  if (boardStrike) {
+    if (boardStrike.canvas === canvas) return;
+    boardStrike.stop();
+    boardStrike = null;
+  }
+  boardStrike = NovaStrike.start({
+    canvas, watching: true, send: () => {},
+    boss: game.boss || null, seed: game.strikeSeed || 1
+  });
+  boardStrike.canvas = canvas;
+  (game.players || []).forEach(p => boardStrike.add(
+    { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
+  if (Nova.arenaListen) Nova.arenaListen(pin, (e, p) => boardStrike && boardStrike.heard(e, p));
+  feedStrike();
+}
+
+/** The boss's health and the clock, handed to the board as the class cuts it
+    down. A knife going in shakes the room, so the hit is felt and not only
+    counted. */
+function feedStrike() {
+  if (!boardStrike || !game.boss) return;
+  const was = boardStrike.lastHp;
+  boardStrike.setBoss(game.boss);
+  if (was !== undefined && game.boss.hp < was) boardStrike.struck();
+  boardStrike.lastHp = game.boss.hp;
+  // anybody who joined mid-fight, and anybody whose knife changed
+  (game.players || []).forEach(p => boardStrike.add(
+    { id: p.id, name: p.name, avatar: p.avatar, blade: p.blade || 'stick' }));
+  const hp = $('#bosshp');
+  if (hp) hp.textContent = game.boss.hp;
+  /* Thirty knives, thirty pips, across the whole panel. The number alone is a
+     number; a row of lights going out one at a time is the thing a class counts
+     down out loud, and it is the one part of this board readable from the back
+     of the room. */
+  const pips = $('#bosspips');
+  if (pips) {
+    const max = Math.max(1, game.boss.max || 30);
+    if (pips.childElementCount !== max) {
+      pips.innerHTML = '';
+      for (let i = 0; i < max; i++) pips.append(el('i', {}));
+    }
+    const left = Math.max(0, Math.min(max, game.boss.hp));
+    [...pips.children].forEach((pip, i) => {
+      const gone = i >= left;
+      pip.classList.toggle('gone', gone);
+      // the one that went this time gets a moment of white
+      pip.classList.toggle('struck', gone && i === left && game.boss.hp < (boardStrike.wasHp ?? max));
+    });
+    boardStrike.wasHp = game.boss.hp;
+  }
+  /* The swing coming. A boss that hits back is only frightening if the room can
+     see it winding up — and on the live site nothing but this board is awake to
+     make it land, the same as the gorilla and the scramble. */
+  const swingAt = game.bossSwingAt || 0;
+  const tell = game.bossTell || 2200;
+  const left = swingAt ? swingAt - (Date.now() + drift) : 0;
+  const warn = document.getElementById('bosswarn');
+  if (warn) {
+    const winding = swingAt && left <= tell && left > -600;
+    warn.classList.toggle('on', !!winding);
+    warn.style.setProperty('--wind', winding ? String(1 - Math.max(0, left) / tell) : '0');
+  }
+  if (hostToken && swingAt && left <= 0 && Date.now() > swingTimer + 3000) {
+    swingTimer = Date.now();
+    api(`/games/${pin}/swing`, { method: 'POST', body: { hostToken } })
+      .then(out => { if (out && out.view) apply(out.view); if (out && out.swing && boardStrike) boardStrike.struck(); })
+      .catch(() => {});
+  }
+
+  /* What it has become. The rules turn falling health into a faster swing and
+     the drawing shows it, but a word on the panel is what a teacher reads out
+     to a room that has stopped looking at the screen. */
+  const moodEl = $('#bossmood');
+  if (moodEl) {
+    const mood = game.bossMood || 'calm';
+    moodEl.textContent = mood === 'furious' ? 'Furious' : mood === 'angry' ? 'Angry' : 'Calm';
+    moodEl.style.color = mood === 'furious' ? '#FFE14D' : mood === 'angry' ? '#FF8A2F' : '';
+  }
+
+  const clock = $('#bossclock');
+  if (clock) {
+    const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));
+    const secs = Math.round(left / 1000);
+    clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  }
+}
+
 function watchArena() {
   const canvas = document.getElementById('board-arena');
-  if (!canvas || boardArena) return;
+  if (!canvas) return;
+  if (boardArena) {                       // the same guard the chase has
+    if (boardArena.canvas === canvas) return;
+    boardArena.stop();
+    boardArena = null;
+  }
   // the board is a spectator: it draws everyone and controls nobody
-  boardArena = NovaArena.start({ canvas, watching: true, send: () => {} });
+  boardArena = NovaArena.start({ canvas, watching: true, map: game.map || 'arena',
+                                room: pin, send: () => {} });
+  boardArena.canvas = canvas;
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => boardArena && boardArena.heard(event, payload));
   const advance = document.getElementById('advance');
   if (advance) advance.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
@@ -806,7 +1683,8 @@ function questionView(fresh) {
       <div class="num" id="tnum">&ndash;</div>
     </div>
     <h1>${esc(q.text || 'Question')}</h1>
-    <div class="tally"><b>${answered}/${game.players.length}</b><span>answered</span></div>`;
+    <div class="tally"><b>${answered}/${game.players.length}</b><span>answered</span></div>
+    ${game.doubleAt === game.index ? '<div class="doubler">DOUBLE POINTS</div>' : ''}`;
   root.append(ask);
 
   const grid = el('div', { class: 'grid4' });
@@ -834,9 +1712,11 @@ function questionView(fresh) {
 
   if (revealing && q.explanation) root.append(el('p', { class: 'why' }, q.explanation));
 
-  // the arena and the table belong to the moment the scores move, not to the question
+  /* The table belongs to the moment the scores move, not to the question. The
+     towers are the exception: they are the game, and a class needs to see where
+     their own floor still has a gap while they are deciding where to drop. */
   const rest = el('div', { class: 'rest', id: 'extra' });
-  if (revealing) extraInto(rest);
+  if (revealing || game.mode === 'tower') extraInto(rest);
   root.append(rest);
 
   if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
@@ -884,13 +1764,97 @@ function runTimer() {
 /* ── leaderboard / arena under the question ────── */
 function extraInto(host) {
   if (!host) return;
-  const views = { laser: arena, kart: raceTrack, tower: skyline, treasure: treasureBoard,
-                  boss: bossArena, snow: snowField, balloon: balloonField,
-                  tug: tugField, heist: heistBoard, cards: cardTable };
+  const views = { laser: arena, boss: bossArena };
+  /* Tallest Tower is drawn, not tabulated. Three towers built out of the blocks
+     the teams actually placed, at the offsets they actually dropped them — a
+     hurried drop is crooked up there for the rest of the lesson. It used to be
+     a leaderboard of numbers and no tower was drawn on any screen at all. */
+  if (game.mode === 'tower') {
+    host.append(el('div', { class: 'arena-board towerboard' },
+                   el('canvas', { id: 'board-tower', 'data-static': '' })));
+    setTimeout(watchTower, 0);
+    return;
+  }
   const view = views[game.mode];
   // laser and boss carry their own standings, so a table underneath would repeat them
   if (view) host.append(view());
   if (!view || (game.mode !== 'laser' && game.mode !== 'boss')) host.append(leaderboard());
+}
+
+let boardTower = null, monsterTimer = 0;
+
+function watchTower() {
+  const canvas = document.getElementById('board-tower');
+  if (!canvas) return;
+  if (boardTower && boardTower.canvas !== canvas) { boardTower.stop(); boardTower = null; }
+  if (!boardTower) {
+    boardTower = NovaTower.board({ canvas, towers: game.towers,
+                                   players: game.players, slots: game.towerSlots || 4 });
+    boardTower.canvas = canvas;
+  }
+  feedTower();
+}
+
+/** Hand the board the towers, and notice when the monster has been. */
+function feedTower() {
+  if (!boardTower) return;
+  const before = boardTower.lastFloors || {};
+  const nowFloors = {};
+  NovaTower.TEAMS.forEach(t => {
+    const list = (game.towers && game.towers[t] && game.towers[t].blocks) || [];
+    nowFloors[t] = Math.floor(list.length / (game.towerSlots || 4));
+    // a tower that got shorter is a tower the monster has been at
+    if (before[t] !== undefined && nowFloors[t] < before[t]) boardTower.smash(t);
+  });
+  boardTower.lastFloors = nowFloors;
+  boardTower.update({ towers: game.towers, players: game.players,
+                      slots: game.towerSlots || 4, target: game.towerTarget || 10, drift });
+
+  // who is in front, and how much is standing up between the three of them
+  const names = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
+  const floors = Object.entries(game.towers || {})
+    .map(([t, v]) => [t, Math.floor(((v && v.blocks) || []).length / (game.towerSlots || 4))])
+    .sort((a, b) => b[1] - a[1]);
+  const lead = document.getElementById('towerlead');
+  if (lead && floors.length) {
+    lead.textContent = floors[0][1] === (floors[1] || [])[1] ? 'Level' : names[floors[0][0]];
+  }
+  const blocks = document.getElementById('towerblocks');
+  if (blocks) {
+    blocks.textContent = Object.values(game.towers || {})
+      .reduce((n, v) => n + ((v && v.blocks) || []).length, 0);
+  }
+  const done = document.getElementById('advance');
+  if (done && !done.onclick) {
+    done.onclick = () => api(`/games/${pin}/end`, { method: 'POST', body: { hostToken } })
+      .catch(e => toast(e.message, 'bad'));
+  }
+
+  /* The gorilla climbs down on a clock, and on the live edition there is no
+     clock but this one — so the board tidies him away, the same way it settles
+     Robot Run's safe phase. Harmless on the desktop edition, whose own timer
+     will usually have done it first. */
+  const ape = Object.entries(game.towers || {})
+    .find(([, v]) => v && v.apeUntil && Date.now() - drift >= v.apeUntil);
+  if (hostToken && ape && Date.now() > settleTimer + 3000) {
+    settleTimer = Date.now();
+    api(`/games/${pin}/settle`, { method: 'POST', body: { hostToken } })
+      .then(out => { if (out && out.view) apply(out.view); })
+      .catch(() => {});
+  }
+
+  /* The monster comes on its own clock rather than between questions, because
+     there is no "between" — so the board asks for it, once, when it is due.
+     Only the host's page does this, and the server decides who it takes. */
+  if (hostToken && game.mode === 'tower' && game.state === 'building') {
+    const due = game.monsterAt || 0;
+    if (due && Date.now() - drift >= due && Date.now() > monsterTimer + 5000) {
+      monsterTimer = Date.now();
+      api(`/games/${pin}/monster`, { method: 'POST', body: { hostToken } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
+  }
 }
 
 
@@ -918,134 +1882,11 @@ function standing(p, x, y, label, extra) {
 
 const KART_COLOURS = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#6C4CF1', '#2BA8FF'];
 
-function raceTrack() {
-  const longest = Math.max(game.trackLength || 1000, ...game.players.map(p => p.distance || 0));
-  return stage((world, floor) => {
-    floor.append(el('div', { class: 'finish', style: 'right:2%' }));
-    [22, 44, 66, 88].forEach(t => floor.append(el('div', { class: 'line', style: `top:${t}%` })));
-    game.players.slice(0, 10).forEach((p, i) => {
-      const pct = Math.min(94, (p.distance || 0) / longest * 92) + 2;
-      const lane = 6 + i * (78 / Math.max(1, Math.min(10, game.players.length)));
-      world.append(standing(p, pct, lane, `${p.name} · ${p.distance || 0}m`,
-                            i === 0 ? ' lead' : ''));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No racers yet.'));
-  });
-}
 
-function skyline() {
-  const tallest = Math.max(6, ...game.players.map(p => p.blocks || 0));
-  return stage((world) => {
-    game.players.slice(0, 10).forEach((p, i) => {
-      const x = 8 + i * (84 / Math.max(1, Math.min(10, game.players.length)));
-      const node = el('div', { class: 'figure' + (i === 0 ? ' lead' : ''), 'data-id': p.id,
-        style: `left:${x}%;bottom:14%;margin-left:-17px` });
-      const stack = el('div', { class: 'pillar',
-        style: `height:${Math.max(4, (p.blocks || 0) / tallest * 150)}px;--c:${KART_COLOURS[i % 6]}` });
-      node.append(el('div', { class: 'shadow' }), stack,
-                  el('div', { class: 'tag' }, `${p.name} · ${p.blocks || 0}`));
-      world.append(node);
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No builders yet.'));
-  });
-}
-
-/* One rope for the whole room. The marker is the only thing that moves, and it
-   can go back the way it came, which is the point of the game. */
-function tugField() {
-  const rope = Math.max(-100, Math.min(100, game.rope || 0));
-  const leading = rope < 0 ? 'red' : 'blue';
-  return stage((world) => {
-    // how much further each team has to drag it, which is the only number that matters
-    const teams = game.teams || {};
-    world.append(el('div', { class: 'tugplate red' },
-                      `${(teams.red || {}).name || 'Crimson'} · ${Math.max(0, 100 + rope)} to go`),
-                 el('div', { class: 'tugplate blue' },
-                      `${(teams.blue || {}).name || 'Cobalt'} · ${Math.max(0, 100 - rope)} to go`));
-    world.append(el('div', { class: 'tugend', style: 'left:6%' }),
-                 el('div', { class: 'tugend', style: 'right:6%' }),
-                 el('div', { class: 'tugmid' }),
-                 el('div', { class: 'tugline' }));
-    // -100 is all the way to the red end, +100 all the way to the blue
-    world.append(el('div', { class: 'tugmark ' + (rope === 0 ? 'red' : leading),
-                             style: `left:${50 + rope * 0.42}%` }));
-    ['red', 'blue'].forEach((side) => {
-      const mine = game.players.filter(p => p.team === side);
-      mine.slice(0, 6).forEach((p, i) => {
-        const from = side === 'red' ? 8 : 92;
-        const way = side === 'red' ? 1 : -1;
-        const node = el('div', { class: 'figure', 'data-id': p.id,
-          style: `left:${from + way * i * 6}%;bottom:20%;margin-left:-17px` });
-        node.append(el('div', { class: 'shadow' }),
-                    el('div', { class: 'body', html: Sprite.face(p.avatar, 54) }),
-                    el('div', { class: 'tag' }, p.name));
-        world.append(node);
-      });
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody on the rope yet.'));
-  });
-}
-
-/* Piles of gold, and whatever the last chest did to somebody. The callout is the
-   whole game: a robbery nobody sees is not worth playing for. */
-function heistBoard() {
-  const richest = Math.max(1, ...game.players.map(p => p.coins || 0));
-  const box = el('div', { class: 'piles' });
-  game.players.slice(0, 10).forEach((p, i) => {
-    const pile = el('div', { class: 'pile', 'data-id': p.id });
-    const heap = el('div', { class: 'heap' });
-    const stacked = Math.max(0, Math.round((p.coins || 0) / richest * 9));
-    for (let n = 0; n < stacked; n++) {
-      heap.append(el('i', { class: 'coin', style: `--w:${52 - n * 3}px` }));
-    }
-    pile.append(el('span', { class: 'mini-face', html: Sprite.face(p.avatar, 34) }),
-                heap,
-                el('b', { class: 'amt' }, String(p.coins || 0)),
-                el('span', { class: 'who' }, p.name),
-                el('span', { class: 'say' }, p.chest || ''));
-    box.append(pile);
-  });
-  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'No robbers yet.'));
-  return box;
-}
-
-/* Everybody's set, with the gaps showing. A child can see at a glance how close
-   they are and, more to the point, how close everybody else is. */
-function cardTable() {
-  const all = ['star', 'moon', 'leaf', 'flame', 'drop', 'bolt', 'gem', 'crown'];
-  const box = el('div', { class: 'sets' });
-  game.players.slice(0, 12).forEach((p) => {
-    const row = el('div', { class: 'setrow', 'data-id': p.id });
-    const hand = el('div', { class: 'hand' });
-    const held = p.cards || [];
-    all.forEach((c) => {
-      const has = held.includes(c);
-      hand.append(el('i', { class: 'swap' + (has ? '' : ' gap'),
-                            html: has ? Sprite.icon(CARD_ICON[c], 18, CARD_COLOUR[c]) : '' }));
-    });
-    row.append(el('span', { class: 'nm' }, p.name), hand);
-    if (p.spares) row.append(el('span', { class: 'spare' }, `${p.spares} spare`));
-    box.append(row);
-  });
-  if (!game.players.length) box.append(el('p', { class: 'faint tiny' }, 'No collectors yet.'));
-  return box;
-}
 const CARD_ICON = { star: 'star', moon: 'moon', leaf: 'leaf', flame: 'flame',
                     drop: 'drop', bolt: 'bolt', gem: 'gem', crown: 'crown' };
 const CARD_COLOUR = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
                       drop: '#2BA8FF', bolt: '#F4364C', gem: '#7C4DFF', crown: '#E5A02A' };
-
-function treasureBoard() {
-  const richest = Math.max(1, ...game.players.map(p => p.coins || 0));
-  return stage((world) => {
-    game.players.slice(0, 12).forEach((p, i) => {
-      const x = 8 + (i % 6) * 16;
-      const y = 12 + Math.floor(i / 6) * 34 + (p.coins || 0) / richest * 18;
-      world.append(standing(p, x, y, `${p.name} · ${p.coins || 0}`, i === 0 ? ' lead' : ''));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No treasure hunters yet.'));
-  });
-}
 
 /* Snowball Fight. The two forts are the whole story, so they are what the room
  * looks at: the throwers stand behind their own wall and the blocks come off the
@@ -1055,94 +1896,37 @@ function treasureBoard() {
  * just been hit can be shown being hit rather than simply being smaller. */
 let lastFort = {};
 
-function snowField() {
-  const teams = game.teams || {};
-  const hitNow = {};
-  ['red', 'blue'].forEach((side) => {
-    const now = (teams[side] || {}).blocks;
-    hitNow[side] = lastFort[side] !== undefined && now !== undefined && now < lastFort[side];
-    if (now !== undefined) lastFort[side] = now;
-  });
-  const wrap = stage((world) => {
-    ['red', 'blue'].forEach((side) => {
-      const team = teams[side] || { blocks: 0, max: 0, name: side };
-      const mine = game.players.filter(p => p.team === side);
-      // the forts face each other across the middle, each team behind its own
-      const wall = side === 'red' ? 30 : 70;
-      const home = side === 'red' ? 12 : 88;
-      const fort = el('div', { class: 'fort' + (team.blocks <= 0 ? ' fallen' : ''),
-        'data-side': side, style: `left:${wall}%;bottom:52%;margin-left:-63px` });
-      const rows = Math.max(1, Math.ceil((team.max || 1) / 3));
-      for (let r = 0; r < rows; r++) {
-        const row = el('div', { class: 'row' });
-        for (let c = 0; c < 3; c++) {
-          const nth = r * 3 + c;
-          if (nth >= (team.max || 0)) continue;
-          row.append(el('i', { class: 'brick' + (nth < team.blocks ? '' : ' gone'),
-                               style: `--c:${side === 'red' ? '#F4364C' : '#4F6BFF'}` }));
-        }
-        fort.append(row);
-      }
-      fort.append(el('div', { class: 'plate' },
-        team.blocks > 0 ? `${team.name} · ${team.blocks} left` : `${team.name} fort is down`));
-      world.append(fort);
+/* The boss telegraph and the wind: both are warnings the whole room reads at
+ * once, so both are big, both sit under the stage, and the dangerous one is
+ * red and moves. A warning nobody notices is the same as no warning. */
+const WORLD_CSS = `
+.escape{margin:14px 0 6px;padding:16px 20px;border-radius:20px;flex:none;
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.1)}
+.escape-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.escape-head strong{font-size:1.3rem;letter-spacing:-.01em}
+.escape-head span{font-size:.9rem;opacity:.7}
+.escape-bar{height:22px;border-radius:11px;overflow:hidden;background:rgba(0,0,0,.45)}
+.escape-bar i{display:block;height:100%;border-radius:11px;
+  background:linear-gradient(90deg,#12BE8E,#FFC53D);transition:width .4s var(--ease)}
 
-      mine.slice(0, 6).forEach((p, i) => {
-        // the throwers stand behind their own wall, out towards their own side
-        const spread = (i - (Math.min(mine.length, 6) - 1) / 2) * 11;
-        world.append(standing(p, Math.max(4, Math.min(96, home + spread)), 10,
-                              `${p.name} · ${p.hits || 0}`, i === 0 ? ' lead' : ''));
-      });
-    });
-    // a snowball crosses the floor towards whichever fort just lost a block
-    ['red', 'blue'].forEach((side) => {
-      if (hitNow[side]) world.append(el('div', { class: 'snowball at-' + side }));
-    });
-    if (!game.players.length) world.append(el('p', { class: 'faint tiny' }, 'No throwers yet.'));
-  });
-
-  const bars = el('div', { class: 'card pad', style: 'margin-top:12px' });
-  ['red', 'blue'].forEach((side) => {
-    const team = teams[side] || { blocks: 0, max: 1, name: side, score: 0 };
-    bars.append(el('div', { class: 'spread', style: 'margin-bottom:8px' },
-      el('strong', {}, team.name),
-      el('span', { class: 'tiny faint' }, `${team.blocks} of ${team.max || 0} blocks standing`)),
-      el('div', { class: 'hpbar' },
-        el('i', { style: `width:${team.max ? team.blocks / team.max * 100 : 0}%;` +
-                         `background:${side === 'red' ? 'linear-gradient(90deg,#ff4d5e,#ff9b6a)'
-                                                      : 'linear-gradient(90deg,#4f6bff,#22d3ee)'}` })));
-  });
-  const box = el('div', {});
-  box.append(wrap, bars);
-  return box;
-}
-
-/* Balloon Drop. Everyone is on the same floor and the balloons above their heads
- * are the score that matters: a child who has lost all three is greyed out where
- * they stand rather than taken off the board, because being knocked out in front
- * of the class is only bearable if you can still see yourself in the game. */
-function balloonField() {
-  return stage((world) => {
-    const shown = game.players.slice(0, 12);
-    shown.forEach((p, i) => {
-      const x = 8 + (i % 6) * 16.5;
-      const y = 14 + Math.floor(i / 6) * 34;
-      const out = (p.balloons || 0) <= 0;
-      const node = el('div', { class: 'figure' + (out ? ' knocked' : '') + (i === 0 && !out ? ' lead' : ''),
-        'data-id': p.id, style: `left:${x}%;bottom:${y}%;margin-left:-26px` });
-      const strip = el('div', { class: 'balloons' });
-      for (let b = 0; b < 3; b++) {
-        strip.append(el('i', { class: b < (p.balloons || 0) ? '' : 'popped',
-                               style: `--c:${KART_COLOURS[(i + b) % 6]}` }));
-      }
-      node.append(el('div', { class: 'shadow' }), strip,
-                  el('div', { class: 'mini-face', html: Sprite.face(p.avatar, 58) }),
-                  el('div', { class: 'tag' }, out ? `${p.name} · out` : `${p.name} · ${p.score}`));
-      world.append(node);
-    });
-    if (!shown.length) world.append(el('p', { class: 'faint tiny' }, 'Nobody has joined yet.'));
-  });
-}
+.telegraph{display:flex;align-items:center;gap:14px;margin-top:14px;padding:12px 16px;
+  border-radius:16px;background:color-mix(in srgb,#FFC53D 16%,transparent);
+  border:2px solid color-mix(in srgb,#FFC53D 45%,transparent)}
+.telegraph.danger{background:color-mix(in srgb,#F4364C 15%,transparent);
+  border-color:color-mix(in srgb,#F4364C 55%,transparent);animation:warnPulse 1.1s ease-in-out infinite}
+.telegraph strong{display:block;font-size:1.02rem;letter-spacing:-.01em}
+.telegraph span{font-size:.82rem;opacity:.8}
+@keyframes warnPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,54,76,0)}
+  50%{box-shadow:0 0 0 7px rgba(244,54,76,.18)}}
+.band.shoaling{background:color-mix(in srgb,#12BE8E 22%,transparent);
+  border-color:color-mix(in srgb,#12BE8E 60%,transparent)}
+.band.shoaling span{font-weight:800}
+`;
+(function () {
+  const tag = document.createElement('style');
+  tag.textContent = WORLD_CSS;
+  document.head.append(tag);
+})();
 
 function bossArena() {
   const boss = game.boss || { hp: 1, max: 1, name: 'The Boss', classHp: 100, classMax: 100 };
@@ -1171,19 +1955,29 @@ function bossArena() {
     el('div', { class: 'bar' }, el('i', { style: `width:${Math.max(0, boss.hp / boss.max * 100)}%` })),
     el('p', { class: 'tiny', style: 'margin-top:12px;font-weight:800' }, `Class health · ${boss.classHp}%`),
     el('div', { class: 'classbar' }, el('i', { style: `width:${boss.classHp}%` })));
+  /* What it is about to do. This has to be on the board and not on the phones:
+   * it is the one piece of information the whole room needs at once, and the
+   * point of the mode is thirty children shouting "GUARD" at each other. */
+  if (boss.hp > 0 && boss.says) {
+    bars.append(el('div', { class: 'telegraph' + (boss.next === 'sweep' ? ' danger' : '') },
+      el('span', { class: 'mini-face',
+        html: Sprite.icon(boss.next === 'sweep' ? 'flame' : boss.next === 'mend' ? 'drop' : 'target',
+                          34, boss.next === 'sweep' ? '#F4364C' : '#FFC53D') }),
+      el('div', {},
+        el('strong', {}, `${boss.name} ${boss.says}`),
+        el('span', {}, boss.next === 'sweep' ? 'Guard, or it lands on everyone who attacks'
+                     : boss.next === 'mend' ? 'Hit it hard enough and it cannot heal'
+                     : 'One guard is enough to stop this one'))));
+  }
   wrap.append(bars);
   return wrap;
 }
 let lastBossHp = null;
 
-const unitFor = (p) => game.mode === 'kart' ? `${p.distance || 0}m`
-  : game.mode === 'heist' ? `${p.coins || 0} gold`
-  : game.mode === 'cards' ? `${(p.cards || []).length}/8 cards`
-  : game.mode === 'tug' ? `pulled ${p.hits || 0}`
-  : game.mode === 'tower' ? `${p.blocks || 0} blocks`
-  : game.mode === 'treasure' ? `${p.coins || 0} coins`
-  : game.mode === 'snow' ? `${p.hits || 0} blocks`
-  : game.mode === 'balloon' ? `${p.score} · ${p.balloons || 0} left`
+const unitFor = (p) => game.mode === 'tower' ? `${p.blocks || 0} blocks`
+  : game.mode === 'boss' ? `${p.hits || 0} in`
+  : game.mode === 'robot' ? `${p.boosts || 0} boost${(p.boosts || 0) === 1 ? '' : 's'}`
+  : game.mode === 'volcano' ? `${Math.round(p.height || 0)} up` + (p.safe ? '' : ' · caught')
   : String(p.score);
 
 /* Who climbed and who slipped. The comparison is against where everyone stood at
@@ -1303,37 +2097,63 @@ function announce() {
   step(3, 500); step(2, 1900); step(1, 3300);
 }
 
+/* How much room is actually left under the bar for the last screen.
+ *
+ * Every CSS answer to this needs the bar's height as a number, and the bar
+ * wraps on a narrow projector, so the number is wrong exactly when it matters.
+ * Measuring costs one read per paint and is right on every screen. */
+function fitFinale() {
+  const node = document.querySelector('.finale');
+  if (!node) return;
+  const stage = node.parentElement;
+  const pad = stage ? parseFloat(getComputedStyle(stage).paddingBottom) || 0 : 0;
+  node.style.removeProperty('--fit');
+  const top = node.getBoundingClientRect().top + window.scrollY;
+  node.style.setProperty('--fit', Math.max(420, window.innerHeight - top - pad) + 'px');
+}
+addEventListener('resize', fitFinale);
+
 function overView() {
   const top = game.players.slice(0, 3);
   const root = el('div', { class: 'finale' });
 
   let headline = 'Final scores', sub = game.quizTitle;
   if (game.mode === 'laser') {
-    const red = game.teams.red, blue = game.teams.blue;
-    const winner = red.hp === blue.hp ? null : (red.hp > blue.hp ? red : blue);
-    headline = winner ? `${winner.name} wins` : 'A draw';
-    sub = `${red.name} ${Math.max(0, red.hp)} HP · ${blue.name} ${Math.max(0, blue.hp)} HP`;
-  } else if (game.mode === 'snow') {
-    // a team game is decided by whose fort is still standing, not by who scored most
-    const red = game.teams.red, blue = game.teams.blue;
-    const winner = red.blocks === blue.blocks ? null : (red.blocks > blue.blocks ? red : blue);
-    headline = winner ? `${winner.name} wins` : 'A draw';
-    sub = `${red.name} ${Math.max(0, red.blocks)} blocks · ${blue.name} ${Math.max(0, blue.blocks)} blocks`;
-  } else if (game.mode === 'balloon') {
-    const floating = game.players.filter(p => (p.balloons || 0) > 0);
-    headline = top[0] ? `${top[0].name} wins` : 'Final scores';
-    sub = floating.length
-      ? `${floating.length} still floating · ${top[0] ? top[0].score + ' points' : ''}`.trim()
-      : 'Every balloon popped';
+    /* This used to compare game.teams.red.hp with game.teams.blue.hp. Those
+       start at zero and are only ever subtracted from, so both were always
+       zero and every laser game in the app's history ended "A draw · Crimson
+       0 HP · Cobalt 0 HP" however it had actually gone. The score that works
+       is the one the board has been showing all game: what the side scored. */
+    /* Worked out the same way the scoreboard has been working it out all game:
+       what each side scored. The board does not load the rules, so this adds
+       the two sides up here rather than importing a file for one sum. */
+    const sides = { red: 0, blue: 0 };
+    (game.players || []).forEach(p => {
+      sides[p.team === 'blue' ? 'blue' : 'red'] += Math.max(0, p.score || 0);
+    });
+    const name = (t) => (game.teams && game.teams[t] && game.teams[t].name)
+      || (t === 'red' ? 'Crimson' : 'Cobalt');
+    const ahead = sides.red === sides.blue ? '' : (sides.red > sides.blue ? 'red' : 'blue');
+    headline = ahead ? `${name(ahead)} wins` : 'A draw';
+    sub = `${name('red')} ${sides.red} · ${name('blue')} ${sides.blue}`;
+  } else if (game.mode === 'tower') {
+    const towers = game.towers || {};
+    const slots = game.towerSlots || 4;
+    const tall = ['red', 'blue', 'green']
+      .map(t => ({ t, n: Math.floor((((towers[t] || {}).blocks || []).length) / slots) }))
+      .sort((a, b) => b.n - a.n);
+    const label = { red: 'Crimson', blue: 'Cobalt', green: 'Clover' };
+    const drawn = tall[1] && tall[0].n === tall[1].n;
+    headline = drawn ? 'A draw' : `${label[tall[0].t]} wins`;
+    sub = drawn ? `${tall[0].n} floors each`
+      : `${tall[0].n} floor${tall[0].n === 1 ? '' : 's'} up` +
+        (tall[1] ? ` · ${label[tall[1].t]} ${tall[1].n}` : '');
   } else if (game.mode === 'boss') {
     const boss = game.boss || { hp: 0, name: 'The boss' };
     headline = boss.hp === 0 ? `The class beat ${boss.name}` : `${boss.name} survived`;
     sub = boss.hp === 0 ? 'Every right answer landed a blow.' : `${boss.hp} HP left. Closer next lesson.`;
   } else if (top[0]) {
-    const win = { kart: `${top[0].distance}m driven`, tower: `${top[0].blocks} blocks high`,
-                  heist: `${top[0].coins} gold`, cards: `${(top[0].cards || []).length} of 8 cards`,
-                  tug: `pulled ${top[0].hits}`,
-                  treasure: `${top[0].coins} coins` }[game.mode];
+    const win = { volcano: `${Math.round(top[0].height || 0)} up the wall` }[game.mode];
     headline = `${top[0].name} wins`;
     sub = win || `${top[0].score} points`;
   }
@@ -1346,15 +2166,30 @@ function overView() {
   // announce() owns this once it is on screen: data-static keeps the update pass
   // from stripping the classes that light each place up
   const podium = el('div', { class: 'podium', 'data-static': '' });
-  [top[1], top[0], top[2]].forEach((p) => {
+  const scene = el('div', { class: 'set' },
+    el('div', { class: 'backdrop' }), el('div', { class: 'ground' }));
+  const hall = el('div', { class: 'hall' });
+  podium.append(scene, hall);
+
+  // each place is a block standing on the floor: the CSS puts them where they go,
+  // so the order they are built in does not matter
+  [top[0], top[1], top[2]].forEach((p, i) => {
     if (!p) return;
-    const place = p === top[0] ? 1 : p === top[1] ? 2 : 3;
-    podium.append(el('div', { class: 'stand p' + place, 'data-place': place },
+    const place = i + 1;
+    const tint = place === 1 ? '#E8A400' : place === 2 ? '#93A0BC' : '#B4713A';
+    hall.append(el('div', { class: 'stand p' + place, 'data-place': place },
       el('div', { class: 'spot' }),
-      el('div', { class: 'medal', html: Sprite.icon('medal', 30, place === 1 ? '#E8A400' : place === 2 ? '#93A0BC' : '#B4713A') }),
-      el('div', { class: 'mini-face', html: Sprite.face(p.avatar, 54) }),
-      el('div', { class: 'who' }, p.name),
-      el('div', { class: 'pts' }, game.mode === 'laser' ? p.score + ' dmg' : unitFor(p))));
+      el('div', { class: 'medal', html: Sprite.icon('medal', 34, tint) }),
+      el('div', { class: 'who-box' },
+        el('div', { class: 'mini-face', html: Sprite.face(p.avatar, place === 1 ? 94 : 74) })),
+      el('div', { class: 'block' },
+        el('div', { class: 'front' },
+          el('div', { class: 'num' }, String(place)),
+          el('div', { class: 'plate' },
+            el('div', { class: 'who' }, p.name),
+            el('div', { class: 'pts' }, game.mode === 'laser' ? p.score + ' dmg' : unitFor(p)))),
+        el('div', { class: 'top' }),
+        el('div', { class: 'side' }))));
   });
   root.append(podium);
 
@@ -1371,6 +2206,7 @@ function overView() {
 $('#end').onclick = () => {
   // Same rule as Start: never a dead button. A board that cannot end the game
   // says so when asked, rather than refusing quietly.
+  if (!pin) return toast('There is no game on this board yet', 'bad');
   if (!hostToken) {
     return toast('End this game from the device that made it, or make a new one', 'bad');
   }
@@ -1392,22 +2228,78 @@ $('#end').onclick = () => {
   });
 };
 
+/* A board with no game on it.
+ *
+ * Opening the board's own address — livequoldek.web.app — with no PIN left it
+ * asking the server for a game called nothing, failing, and sitting on
+ * "Reconnecting…" for ever with six dashes where the PIN goes. There was
+ * nothing to reconnect to: no game had been named. A teacher watched a
+ * reconnect that could never finish, could not join it from a phone because it
+ * did not exist, and could not end it for the same reason.
+ *
+ * So a board with no PIN says so, and offers the two ways out: type the PIN of
+ * a game that is already running, or go and start one. */
+function noGame() {
+  $('#stage').innerHTML = `<div class="card pad empty" style="text-align:center">
+    <span class="em">${Sprite.icon('ghost', 48)}</span>
+    <h2 style="margin:10px 0 6px">No game on this board yet</h2>
+    <p class="muted" style="margin-bottom:18px">Type the PIN of a game that is already
+      running, or start one from a quiz.</p>
+    <div class="row" style="justify-content:center;gap:10px;flex-wrap:wrap">
+      <input class="input mono" id="pinbox" inputmode="numeric" maxlength="6"
+             placeholder="123456" style="width:150px;text-align:center;font-size:1.3rem">
+      <button class="btn primary" id="pingo">Open it</button>
+      <a class="btn" href="${HUB}">Start a new one</a>
+    </div></div>`;
+  const box = $('#pinbox'), go = $('#pingo');
+  const open = () => {
+    const want = String(box.value || '').replace(/\D/g, '').slice(0, 6);
+    if (want.length !== 6) return toast('A PIN is six digits', 'bad');
+    location.href = location.pathname + '?pin=' + want;
+  };
+  go.onclick = open;
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
+  box.focus();
+}
+
 /* The board must survive a dropped wifi packet: only a 404 means the game has
- * really gone, anything else is worth asking again for. */
+ * really gone, anything else is worth asking again for. But a reconnect that
+ * has failed a dozen times running is not a dropped packet, and saying
+ * "Reconnecting…" for ever is a lie — so after a while it says what it is
+ * actually doing and gives a way out. */
 let retries = 0;
 function refresh() {
+  if (!pin) return;
   return api(`/games/${pin}`).then(state => { retries = 0; apply(state); }).catch(err => {
     if (err && err.status === 404) return fail();
     retries += 1;
-    if (!game) $('#stage').innerHTML = `<div class="card pad empty"><span class="em">${Sprite.icon('ghost', 48)}</span>
-      Reconnecting…</div>`;
+    if (!game) {
+      const stuck = retries >= 6;
+      $('#stage').innerHTML = `<div class="card pad empty" style="text-align:center">
+        <span class="em">${Sprite.icon('ghost', 48)}</span>
+        ${stuck ? `<h2 style="margin:10px 0 6px">Cannot reach game ${esc(pin)}</h2>
+          <p class="muted" style="margin-bottom:16px">It may have finished, or this
+            device may be offline. Tried ${retries} times.</p>
+          <div class="row" style="justify-content:center;gap:10px">
+            <button class="btn primary" id="again">Try again now</button>
+            <a class="btn" href="${location.pathname}">Use another PIN</a>
+          </div>`
+        : 'Reconnecting…'}</div>`;
+      const again = $('#again');
+      if (again) again.onclick = () => { retries = 0; refresh(); };
+    }
     setTimeout(refresh, Math.min(8000, 600 * retries));
   });
 }
-refresh();
-connect();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
-window.addEventListener('online', refresh);
+
+if (pin) {
+  refresh();
+  connect();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('online', refresh);
+} else {
+  noGame();
+}
 </script>
 </body>
 </html>

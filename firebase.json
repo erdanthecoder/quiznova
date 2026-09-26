@@ -141,6 +141,82 @@
           ]
         }
       ]
+    },
+    {
+      "//": "The name people were given, kept working. The board itself is a folder on the main site now, because a browser keeps the sign-in session per origin and a board on its own address could never see it.",
+      "site": "teachboard-quoldek",
+      "public": "docs-teach",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "headers": [
+        {
+          "source": "**/*.@(js|css|svg)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://quoldek.web.app/teach",
+          "type": 302
+        }
+      ]
+    },
+    {
+      "//": "The name people were given, kept working. The board itself is a folder on the main site now, because a browser keeps the sign-in session per origin and a board on its own address could never see it.",
+      "site": "studentboard-quoldek",
+      "public": "docs-student",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "headers": [
+        {
+          "source": "**/*.@(js|css|svg)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://quoldek.web.app/student",
+          "type": 302
+        }
+      ]
     }
   ]
 }

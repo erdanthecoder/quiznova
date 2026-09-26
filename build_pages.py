@@ -18,13 +18,15 @@ OUT = os.path.join(ROOT, "docs")
 # so a class types playquoldek.web.app rather than a path with a filename on it.
 PLAY_OUT = os.path.join(ROOT, "docs-play")
 PLAY_HOST = "playquoldek.web.app"
-PLAY_ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "nova.js", "quizbank.js", "realtime.js",
-               "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "oneintwo.js"]
+PLAY_ASSETS = ["theme.mp3", "nova.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js",
+               "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "oneintwo.js"]
 
 # And the board gets its own address, so the screen at the front of the room is a
 # site of its own rather than a page inside the studio.
 LIVE_OUT = os.path.join(ROOT, "docs-live")
 LIVE_HOST = "livequoldek.web.app"
+# Where the quizzes live, for the sites that only carry a board.
+HUB_URL = "https://quoldek.web.app/quiz"
 LIVE_ASSETS = PLAY_ASSETS + ["qr.js", "music.js"]
 
 # And homework gets the shortest address of the three, because it is the one a
@@ -36,8 +38,22 @@ HOMEWORK_OUT = os.path.join(ROOT, "docs-homework")
 # the whole link short enough to read off a board: hwquoldek.web.app/ab2c9k
 HOMEWORK_HOST = "hwquoldek.web.app"
 
-PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html"]
-ASSETS = ["nova.css", "fonts.css", "logo.svg", "sprites.js", "progress.js", "launch.js", "music.js", "nova.js", "qr.js", "learnkyrgyz.js", "oneintwo.js", "quizbank.js", "realtime.js", "arena.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js"]
+# And since 4.0 there are two more, because a teacher and a student want
+# different things the moment they sign in and a single page that tries to be
+# both is second best at each. Signing in decides which of these two you land
+# on, and it decides it against the account rather than this browser, so it is
+# the same answer on the laptop at home.
+TEACH_OUT = os.path.join(ROOT, "docs-teach")
+TEACH_HOST = "teachboard-quoldek.web.app"
+STUDENT_OUT = os.path.join(ROOT, "docs-student")
+STUDENT_HOST = "studentboard-quoldek.web.app"
+BOARD_ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js",
+                "launch.js", "duet.js", "nova.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js",
+                "rules.js", "live.js", "nova-local.js", "account.js", "boards.js", "oneintwo.js"]
+
+PAGES = ["quiznova.html", "studio.html", "take.html", "host.html", "play.html", "whatsnew.html", "show.html", "start.html",
+         "signin.html", "teachboard.html", "studentboard.html"]
+ASSETS = ["theme.mp3", "nova.css", "boards.css", "dash.css", "fonts.css", "logo.svg", "sprites.js", "covers.js", "bridge.js", "progress.js", "launch.js", "duet.js", "boards.js", "music.js", "show.js", "nova.js", "qr.js", "quizbank.js", "realtime.js", "arena.js", "strike.js", "run.js", "tower.js", "eagle.js", "paste.js", "rules.js", "live.js", "nova-local.js", "account.js", "learnkyrgyz.js", "oneintwo.js"]
 
 
 def copy_fonts(where):
@@ -71,16 +87,25 @@ def build():
 
         # the in-browser API must load right after the shared runtime
         html = html.replace('<script src="/sprites.js"></script>', '<script src="sprites.js"></script>')
+        html = html.replace('<script src="/bridge.js"></script>', '<script src="bridge.js"></script>')
         html = html.replace('<script src="/progress.js"></script>', '<script src="progress.js"></script>')
         html = html.replace('<script src="/launch.js"></script>', '<script src="launch.js"></script>')
+        html = html.replace('<script src="/duet.js"></script>', '<script src="duet.js"></script>')
+        html = html.replace('<script src="/eagle.js"></script>', '<script src="eagle.js"></script>')
         html = html.replace('<script src="/music.js"></script>', '<script src="music.js"></script>')
         html = html.replace('<script src="/arena.js"></script>', '')   # the bundle already adds it
+        html = html.replace('<script src="/strike.js"></script>', '')   # ditto
+        html = html.replace('<script src="/run.js"></script>', '')      # ditto
+        html = html.replace('<script src="/tower.js"></script>', '')    # ditto
         html = html.replace('<script src="/quizbank.js"></script>', '')  # ditto
         html = html.replace('<script src="/nova.js"></script>',
                             '<script src="nova.js"></script>\n'
                             '<script src="quizbank.js"></script>\n'
                             '<script src="realtime.js"></script>\n'
                             '<script src="arena.js"></script>\n'
+                            '<script src="strike.js"></script>\n'
+                            '<script src="run.js"></script>\n'
+                            '<script src="tower.js"></script>\n'
                             '<script src="paste.js"></script>\n'
                             '<script src="rules.js"></script>\n'
                             '<script src="live.js"></script>\n'
@@ -90,6 +115,12 @@ def build():
         html = html.replace('<script src="/qr.js"></script>', '<script src="qr.js"></script>')
         html = html.replace('<script src="/learnkyrgyz.js"></script>', '<script src="learnkyrgyz.js"></script>')
         html = html.replace('href="/nova.css"', 'href="nova.css"')
+        html = html.replace('href="/boards.css"', 'href="boards.css"')
+        html = html.replace('href="/dash.css"', 'href="dash.css"')
+        html = html.replace('<script src="/boards.js"></script>', '<script src="boards.js"></script>')
+        # the bundle inserted at /nova.js already carries these two
+        html = html.replace('<script src="/rules.js"></script>', '')
+        html = html.replace('<script src="/account.js"></script>', '')
         html = html.replace('href="/fonts.css"', 'href="fonts.css"')
         html = html.replace('href="/logo.svg"', 'href="logo.svg"')
 
@@ -143,6 +174,9 @@ def build():
             "  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='\n"
             "  : 'https://" + PLAY_HOST + "/?pin=';\n"
             "window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : '" + LIVE_HOST + "';\n"
+            # The board's own site holds the board and nothing else, so a way
+            # back to the quizzes has to be an address rather than a path.
+            "window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : '" + HUB_URL + "';\n"
             "window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL\n"
             "  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='\n"
             "  : 'https://" + HOMEWORK_HOST + "/';", 1)
@@ -157,6 +191,13 @@ def build():
     build_play(stamps)
     build_live(stamps)
     build_homework(stamps)
+    # the boards, and the join page, all live on the one origin now
+    build_at_path("teachboard.html", "teach", "the teacher's board")
+    build_at_path("studentboard.html", "student", "the student's board")
+    build_at_path("play.html", "play", "the join page")
+    # and the addresses they used to have send people there
+    build_redirect(TEACH_OUT, TEACH_HOST, "https://quoldek.web.app/teach/", "the teacher's board")
+    build_redirect(STUDENT_OUT, STUDENT_HOST, "https://quoldek.web.app/student/", "the student's board")
 
 
 def build_play(stamps):
@@ -220,6 +261,63 @@ def build_live(stamps):
     open(os.path.join(LIVE_OUT, ".nojekyll"), "w").close()
     print("built docs-live/:", ", ".join(sorted(os.listdir(LIVE_OUT))))
 
+
+
+def build_at_path(page, folder, label):
+    """A dashboard, as a folder on the main site rather than a site of its own.
+
+    This is the whole point of the change. A browser keeps storage — and the
+    sign-in session with it — per origin. While the boards were separate
+    addresses, signing in on quoldek.web.app produced a session that simply did
+    not exist on teachboard-quoldek.web.app, so the board found nobody and sent
+    people back to sign in, which sent them to the board, for ever. The same
+    split meant coins earned on the join page were in different storage from the
+    board that shows them.
+
+    No amount of handing things across the boundary fixes that properly. Sharing
+    one origin does, completely, and the names the boards had are kept as
+    addresses that redirect here.
+
+    Asset links become absolute, because a page in a folder cannot reach
+    "nova.css" the way a page at the root can.
+    """
+    out = os.path.join(OUT, folder)
+    os.makedirs(out, exist_ok=True)
+    html = open(os.path.join(OUT, page), encoding="utf-8").read()
+
+    # nova.css?v=… -> /nova.css?v=…, and the same for every script
+    html = re.sub(r'(href|src)="(?!/|https?:|data:|#)([\w.-]+\.(?:css|js|svg))', r'\1="/\2', html)
+    html = html.replace('href="fonts/', 'href="/fonts/')
+
+    # every link that used to cross to another site is now a path on this one
+    html = html.replace("https://quoldek.web.app/", "/")
+    html = html.replace("https://teachboard-quoldek.web.app/", "/teach/")
+    html = html.replace("https://studentboard-quoldek.web.app/", "/student/")
+    html = html.replace("https://playquoldek.web.app/", "/play/")
+
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(html)
+    print(f"built docs/{folder}/ ({label})")
+
+
+def build_redirect(out, host, to, label):
+    """An address whose only job is to send people to where the thing now lives.
+
+    The names stay — somebody who types teachboard-quoldek.web.app still gets
+    the teacher's board — but they arrive on the one origin where their account
+    and their coins actually are.
+    """
+    os.makedirs(out, exist_ok=True)
+    for name in os.listdir(out):
+        path = os.path.join(out, name)
+        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+    # Firebase does the redirect itself; this page is only for anything that
+    # somehow gets past it, and for somebody with a very old cached copy
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(
+        '<!DOCTYPE html><meta charset="utf-8">'
+        f'<meta http-equiv="refresh" content="0;url={to}">'
+        f'<title>Quoldek</title><a href="{to}">Continue to Quoldek</a>')
+    open(os.path.join(out, ".nojekyll"), "w").close()
+    print(f"built {os.path.basename(out)}/ ({host} -> {to}, {label})")
 
 
 def build_homework(stamps):

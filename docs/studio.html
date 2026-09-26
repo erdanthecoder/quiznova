@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Quoldek — classroom quizzes">
 <meta property="og:description" content="A teaching tool for classrooms: write or paste a quiz, put it on the board, and the class answers on their own devices.">
-<link rel="stylesheet" href="nova.css?v=4c8347b4">
+<link rel="stylesheet" href="nova.css?v=9d7cfb2b">
 <style>
 .studio{display:grid;grid-template-columns:250px minmax(0,1fr) 380px;gap:22px;max-width:1560px;margin:0 auto;padding:22px;align-items:start}
 .col{position:sticky;top:94px;max-height:calc(100vh - 116px);overflow:auto}
@@ -201,6 +201,16 @@ tr:hover td{background:var(--paper)}
 .modecard .body{display:block;padding:13px 15px 16px}
 .modecard strong{display:block;font-size:1.06rem;margin-bottom:2px}
 .modecard .sub{font-size:.83rem;color:var(--ink-soft);line-height:1.34}
+.modecard .plan{display:block;line-height:0;border-bottom:var(--line-w) solid var(--line);position:relative}
+.modecard .plan svg{width:100%;height:auto;display:block}
+.modecard .plan::after{content:'The map';position:absolute;left:8px;bottom:6px;
+  font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;opacity:.72;line-height:1}
+
+/* the badge on a mode that is only here for a while */
+.modecard{position:relative}
+.modecard .ltd{position:absolute;top:10px;right:10px;padding:4px 10px;border-radius:99px;
+  background:rgba(12,8,28,.82);border:1.5px solid rgba(255,197,61,.5);color:#FFC53D;
+  font-weight:800;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -300,18 +310,23 @@ tr:hover td{background:var(--paper)}
   </aside>
 </main>
 
-<script src="sprites.js?v=a7a8749e"></script>
-<script src="launch.js?v=b9d6e0d6"></script>
+<script src="sprites.js?v=ba27b0b1"></script>
 
-<script src="nova.js?v=30a2cc36"></script>
-<script src="quizbank.js?v=f18e8cbc"></script>
+<script src="launch.js?v=387da9d2"></script>
+<script src="duet.js?v=dcf1dcae"></script>
+
+<script src="nova.js?v=9fa1dfb0"></script>
+<script src="quizbank.js?v=cab5d77f"></script>
 <script src="realtime.js?v=75e1623c"></script>
-<script src="arena.js?v=fb3b6182"></script>
+<script src="arena.js?v=5dd682fe"></script>
+<script src="strike.js?v=0d07d142"></script>
+<script src="run.js?v=963fd974"></script>
+<script src="tower.js?v=fbdb38cb"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=2b1ca27f"></script>
-<script src="live.js?v=1cdb2620"></script>
-<script src="nova-local.js?v=340f2f93"></script>
-<script src="account.js?v=ff127e8f"></script>
+<script src="rules.js?v=debcec46"></script>
+<script src="live.js?v=7fadac6b"></script>
+<script src="nova-local.js?v=44c67ff9"></script>
+<script src="account.js?v=1f2bba77"></script>
 <script src="oneintwo.js?v=b1383ca2"></script>
 <script src="qr.js?v=b8307384"></script>
 <script>
@@ -320,6 +335,7 @@ window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
   : 'https://playquoldek.web.app/?pin=';
 window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : 'https://quoldek.web.app/quiz';
 window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
   ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
   : 'https://hwquoldek.web.app/';
@@ -337,8 +353,12 @@ function paintIcons(root = document) {
 document.addEventListener('DOMContentLoaded', () => paintIcons());
 paintIcons();
 
-const quizId = qs('id');
-if (!quizId) location.href = 'index.html';
+/* Arriving with no quiz at all is not a mistake: "Write a new quiz", on the
+   teacher's board and anywhere else, links straight here. It used to bounce
+   the teacher back to the quiz list — a flash of "quiz not found" and then the
+   page they came from, which is exactly what was reported. A studio asked to
+   open nothing makes something to open. */
+let quizId = qs('id');
 
 let quiz = null;
 let focused = null;          // question id being edited
@@ -350,6 +370,12 @@ const myColour = ['#7c5cff','#22d3ee','#34e0a1','#ffc857','#ff5d8f'][Math.abs(cl
 
 /* ── loading & saving ─────────────────────────── */
 async function boot() {
+  if (!quizId) {
+    const made = await api('/quizzes', { method: 'POST', body: { title: 'Untitled quiz' } });
+    quizId = made.id;
+    // so a refresh, a bookmark or the back button all land on the real quiz
+    try { history.replaceState(null, '', 'studio.html?id=' + quizId); } catch { /* old browser */ }
+  }
   quiz = await api('/quizzes/' + quizId);
   $('#title').value = quiz.title;
   $('#desc').value = quiz.description || '';
@@ -358,6 +384,11 @@ async function boot() {
   heartbeat();
   aiStatus();
   greet();
+
+  /* Arriving with host=1 means "I came here to put this on the board", which is
+   * what the teacher's dashboard sends. It opens the same picker the Present
+   * button opens — one flow, not a second copy of it that can drift. */
+  if (qs('host') && quiz.questions.length) $('#present').click();
 }
 
 function markSaving() { const s = $('#save'); s.textContent = 'saving…'; s.className = 'chip'; }
@@ -926,8 +957,15 @@ $('#present').onclick = () => {
  * the short site; a board being run from a laptop keeps its own address, so a
  * game still works with no internet at all. */
 /* Written out rather than hard-coded, because how many games there are depends
-   on whether the 3.0 update has opened yet. */
-const gameCount = () => ((window.NovaLaunch && !NovaLaunch.out()) ? 'eight' : 'eleven');
+   on which updates have opened. Counted rather than named, so the next release
+   does not need this line changed as well. */
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+               'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen'];
+function gameCount() {
+  const all = window.NovaRules ? Object.keys(NovaRules.MODES) : [];
+  const open = (window.NovaLaunch ? NovaLaunch.openModes(all) : all).length;
+  return WORDS[open] || String(open);
+}
 
 const joinAddress = () => (window.QUOLDEK_JOIN
   ? window.QUOLDEK_JOIN.replace(/^https?:\/\//, '').replace(/\/?\?pin=.*$/, '')
@@ -944,11 +982,22 @@ const joinAddress = () => (window.QUOLDEK_JOIN
       const list = box.querySelector('#mode-list');
       let modes = [];
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
-      // the 3.0 games are held back until the update opens at midday
+      // anything from a release that has not opened yet is held back
       if (window.NovaLaunch) modes = NovaLaunch.openModes(modes);
-      if (!modes.length) modes = [{ id: 'normal', icon: 'target', label: 'Normal',
-                                    blurb: 'Fastest right answer scores the most', maps: [] }];
+      // and anything whose limited run is over has gone
+      if (window.NovaRules && NovaRules.openModes) modes = NovaRules.openModes(modes);
+      // a fallback for a page that could not reach the server; it has to name a
+      // mode that still exists
+      if (!modes.length) modes = [{ id: 'tower', icon: 'bricks', label: 'Tower Build',
+                                    blurb: 'Build tall and sway, or stop and brace before the wind',
+                                    maps: [] }];
       showModes(modes);
+
+      /* Arriving with a mode named — from a link that already knows what it
+         wants played — skips the first screen. It is the same two presses as
+         before, minus the one the link already made. */
+      const wanted = modes.find(m => m.id === qs('mode'));
+      if (wanted) showMaps(wanted);
 
       function showModes(all) {
         list.innerHTML = '';
@@ -958,6 +1007,16 @@ const joinAddress = () => (window.QUOLDEK_JOIN
                      el('span', { class: 'body' },
                         el('strong', {}, m.label),
                         el('span', { class: 'sub' }, m.blurb)));
+          /* A limited edition says how long is left of it. A mode that quietly
+             vanishes in December is a mode a teacher plans a lesson around and
+             then cannot find. */
+          if (m.limited && window.NovaRules && NovaRules.modeDaysLeft) {
+            const days = NovaRules.modeDaysLeft(m.id);
+            if (days) {
+              btn.append(el('span', { class: 'ltd' },
+                'Limited \u00b7 ' + days + ' day' + (days === 1 ? '' : 's') + ' left'));
+            }
+          }
           btn.dataset.mode = m.id;
           list.append(btn);
         });
@@ -968,13 +1027,34 @@ const joinAddress = () => (window.QUOLDEK_JOIN
       function showMaps(mode) {
         const maps = mode.maps && mode.maps.length ? mode.maps : [{ id: '', label: 'Default' }];
         box.querySelector('#pick-title').textContent = 'Pick the map';
-        box.querySelector('#pick-sub').innerHTML = `${esc(mode.label)} · choose where the class plays`;
+        box.querySelector('#pick-sub').innerHTML = `${esc(mode.label)} · pick one and the game starts`;
         list.innerHTML = '';
         maps.forEach(mp => {
+          /* Straight into the game.
+           *
+           * There was a third screen here — seconds a question, points a
+           * question, and six switches — between a teacher and a class that is
+           * already waiting. Everything on it has a sensible answer, and a
+           * teacher standing in front of thirty children has neither the time
+           * nor the reason to make eight decisions about a starter quiz. The
+           * defaults do what the quiz says, with streaks and late joining on
+           * and the answers shuffled. */
           const btn = el('button', { class: 'modecard', 'data-map': mp.id,
-            onclick: () => showSettings(mode, mp.id) });
-          btn.append(el('span', { class: 'art map-' + mp.id, html: Sprite.scene(mode.id, 320) }),
-                     el('span', { class: 'body' }, el('strong', {}, mp.label)));
+            onclick: () => launch(mode.id, mp.id,
+              { kind: 'questions', value: 0 },
+              { seconds: 0, points: 0, streaks: true, shuffle: false,
+                mix: true, lateJoin: true, doubleLast: false, music: true }) });
+          /* The map's own picture. This used to draw the mode's illustration
+             three times with a CSS tint over it, so a teacher choosing between
+             the Neon Arena, a Bunker and a Moon Base was shown the same picture
+             three times and asked to pick one. */
+          btn.append(el('span', { class: 'art map-' + mp.id, html: Sprite.map(mp.id, 320, mode.id) }));
+          /* and under it the plan of the place, drawn from the same walls the
+             game is played in, so the choice is between three shapes. */
+          if (mode.id === 'laser' && window.NovaArena && NovaArena.plan) {
+            btn.append(el('span', { class: 'plan', html: NovaArena.plan(mp.id, 320) }));
+          }
+          btn.append(el('span', { class: 'body' }, el('strong', {}, mp.label)));
           list.append(btn);
         });
         list.append(el('button', { class: 'btn ghost', style: 'grid-column:1/-1;margin-top:4px',
@@ -986,105 +1066,11 @@ const joinAddress = () => (window.QUOLDEK_JOIN
           } }, 'Back to the games'));
       }
 
-      /* Third step: when it ends. Playing every question is what most people
-         want, but a lesson with ten minutes left wants the clock to decide, and
-         a race to a score is a different game entirely. */
-      function showSettings(mode, map) {
-        box.querySelector('#pick-title').textContent = 'Set the game up';
-        box.querySelector('#pick-sub').textContent =
-          `${mode.label} · everything here is for this game only, the quiz itself is not touched`;
-        list.innerHTML = '';
-        list.className = 'setup';
-
-        /* What the teacher picks here rides on the game, not the quiz — so a fast
-           five minutes before lunch does not permanently rewrite a quiz that is
-           also set for homework. Everything defaults to what the quiz already says. */
-        let goal = { kind: 'questions', value: 0 };
-        const setup = { seconds: 0, points: 0, streaks: true, shuffle: false,
-                        mix: false, lateJoin: true, doubleLast: false, music: true };
-
-        const section = (title, body) => {
-          const sec = el('div', { class: 'sect' }, el('h4', {}, title));
-          sec.append(body);
-          list.append(sec);
-          return sec;
-        };
-
-        // ── how it ends
-        const ends = el('div', { class: 'modegrid endgrid' });
-        const endOptions = [
-          { kind: 'questions', value: 0, title: 'All the questions', sub: 'It ends when the quiz runs out' },
-          { kind: 'points', value: 500, title: 'First to 500', sub: 'A short race' },
-          { kind: 'points', value: 1000, title: 'First to 1,000', sub: 'A longer race' },
-          { kind: 'time', value: 5, title: '5 minutes', sub: 'Whoever is ahead wins' },
-          { kind: 'time', value: 10, title: '10 minutes', sub: 'Most of a lesson' },
-          { kind: 'time', value: 15, title: '15 minutes', sub: 'A full session' }
-        ];
-        endOptions.forEach(o => {
-          const btn = el('button', { class: 'endcard', 'data-goal': o.kind + ':' + o.value,
-            onclick: () => {
-              goal = { kind: o.kind, value: o.value };
-              ends.querySelectorAll('.endcard').forEach(b => b.classList.remove('on'));
-              btn.classList.add('on');
-            } });
-          btn.append(el('span', { class: 'endmark',
-                                  html: Sprite.icon(o.kind === 'time' ? 'clock' : o.kind === 'points' ? 'medal' : 'flag', 26) }),
-                     el('span', { class: 'body' }, el('strong', {}, o.title), el('span', { class: 'sub' }, o.sub)));
-          if (o.kind === 'questions') btn.classList.add('on');
-          ends.append(btn);
-        });
-        section('How it ends', ends);
-
-        /* A row of choices where one is always picked. `values` are what goes on
-           the wire; `labels` are what a person reads. */
-        const choose = (key, values, labels) => {
-          const row = el('div', { class: 'seg' });
-          values.forEach((v, i) => {
-            const btn = el('button', { type: 'button', 'data-set': key + ':' + v,
-              onclick: () => {
-                setup[key] = v;
-                row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-                btn.classList.add('on');
-              } }, labels[i]);
-            if (setup[key] === v) btn.classList.add('on');
-            row.append(btn);
-          });
-          return row;
-        };
-
-        section('Seconds a question',
-          choose('seconds', [0, 10, 15, 20, 30, 45, 60],
-                 ['As the quiz says', '10s', '15s', '20s', '30s', '45s', '60s']));
-        section('Points a question',
-          choose('points', [0, 50, 100, 200, 500],
-                 ['As the quiz says', '50', '100', '200', '500']));
-
-        // ── the switches
-        const switches = el('div', { class: 'switches' });
-        const toggles = [
-          ['streaks', 'Streak bonus', 'Right answers in a row are worth more'],
-          ['doubleLast', 'Double the last question', 'A chance to catch up at the end'],
-          ['shuffle', 'Shuffle the questions', 'A different order every game'],
-          ['mix', 'Shuffle the answers', 'Off for questions like "all of the above"'],
-          ['lateJoin', 'Let people join late', 'Somebody arriving after the start can still play'],
-          ['music', 'Music on the big screen', 'A quiet tune. Nothing on the phones.']
-        ];
-        toggles.forEach(([key, title, sub]) => {
-          const row = el('label', { class: 'musicrow' });
-          const input = el('input', { type: 'checkbox', id: 'set-' + key });
-          input.checked = !!setup[key];
-          input.onchange = () => { setup[key] = input.checked; };
-          row.append(input, el('span', {}, el('strong', {}, title), el('span', { class: 'sub' }, sub)));
-          switches.append(row);
-        });
-        section('And these', switches);
-
-        const go = el('button', { class: 'btn primary lg block', id: 'start-game',
-          onclick: () => launch(mode.id, map, goal, setup) }, 'Start the game');
-        list.append(go);
-        list.append(el('button', { class: 'btn ghost block', style: 'margin-top:8px',
-          onclick: () => { list.className = 'modegrid'; showMaps(mode); } }, 'Back to the maps'));
-      }
+      /* The screen that used to be here asked a teacher to set up a game they
+         had already chosen: seconds, points, when it ends, and six switches. It
+         has gone. The one thing on it that was doing real work — shuffling the
+         answers, which is off in no quiz worth playing — is on by default now,
+         so the game a teacher gets by pressing twice is the game they wanted. */
 
       async function launch(mode, map, goal, setup) {
         try {
@@ -1106,7 +1092,16 @@ document.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(true); toast('Saved', 'good'); }
 });
 
-boot().catch(err => { document.body.innerHTML = `<div class="empty" style="padding-top:120px"><span class="em">${Sprite.icon('warn', 40)}</span>${esc(err.message)}<br><a class="btn sm" style="margin-top:16px" href="index.html">Back to quizzes</a></div>`; });
+boot().catch(err => {
+  /* A browser with no room left cannot be helped from here — the panel that
+     shows what is using it lives on the quiz list — so say so and send them
+     there, rather than showing the raw failure twice. */
+  const full = err && err.storageFull;
+  document.body.innerHTML = `<div class="empty" style="padding-top:120px">`
+    + `<span class="em">${Sprite.icon('warn', 40)}</span>${esc(err.message)}<br>`
+    + `<a class="btn sm ${full ? 'primary' : ''}" style="margin-top:16px" href="index.html">`
+    + `${full ? 'Free up room' : 'Back to quizzes'}</a></div>`;
+});
 
 /* The homework link.
  *
@@ -1128,6 +1123,13 @@ async function homeworkLink(quiz) {
     return host + code;
   } catch { return fallback; }
 }
+
+/* The studio is part of the teacher's own site, so it wants an account too. A
+   quiz already open in this browser is not lost by it — the sign-in page comes
+   back here afterwards. */
+window.addEventListener('load', () => {
+  if (window.NovaAccount) NovaAccount.requireAccount();
+});
 </script>
 </body>
 </html>

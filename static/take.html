@@ -96,19 +96,50 @@ const hasPayload = location.hash.includes('d=');
    or the query, which is the short one a teacher can actually send to a class. */
 const shortCode = (function () {
   const fromQuery = (qs('c') || '').trim();
-  const fromPath = (location.pathname.replace(/^\/+|\/+$/g, '') || '');
+  /* The last piece of the path, not the whole of it. A code only counted when
+     it was the entire path, so hwquoldek.web.app/abc123 worked and anything
+     with a folder in front of it — a preview build, a test mount, a link
+     somebody tidied — quietly became "this link is missing its quiz". */
+  const fromPath = (location.pathname.split('/').filter(Boolean).pop() || '');
   const code = fromQuery || fromPath;
   return /^[a-hjkmnp-z2-9]{6}$/i.test(code) ? code.toLowerCase() : '';
 })();
 let quiz = null, order = [], answers = {}, step = -1, startedAt = 0, name = Nova.store.get('studentName') || '';
 
+/* Fetching the quiz behind a homework code, with an end to it.
+ *
+ * A class on school wifi is the whole audience for this page, and a request
+ * with no timeout on a bad connection is a child sitting in front of a blank
+ * screen with nothing to read and nothing to press. So: a limit, one quiet
+ * retry, and then a sentence and a button — never nothing.
+ */
+function fetchQuiz(ms) {
+  const asked = shortCode ? NovaLive.sharedQuiz(shortCode) : api('/quizzes/' + quizId);
+  let timer;
+  const gaveUp = new Promise((_, no) => {
+    timer = setTimeout(() => no(Object.assign(new Error('slow'), { slow: true })), ms);
+  });
+  return Promise.race([asked, gaveUp]).finally(() => clearTimeout(timer));
+}
+
 async function boot() {
   if (!quizId && !hasPayload && !shortCode) return fail('This link is missing its quiz.');
   try {
-    quiz = shortCode ? await NovaLive.sharedQuiz(shortCode) : await api('/quizzes/' + quizId);
+    quiz = await fetchQuiz(9000);
   } catch (err) {
-    return fail(shortCode ? 'That homework link is not valid any more.'
-                          : 'This quiz link is not valid any more.');
+    if (err && err.slow) {
+      // one more go before saying anything: most of these come back second time
+      try { quiz = await fetchQuiz(12000); }
+      catch (again) {
+        return fail(again && again.slow
+          ? 'That is taking a long time. Check the wifi, then try again.'
+          : (shortCode ? 'That homework link is not valid any more.'
+                       : 'This quiz link is not valid any more.'), true);
+      }
+    } else {
+      return fail(shortCode ? 'That homework link is not valid any more.'
+                            : 'This quiz link is not valid any more.');
+    }
   }
   quiz.settings = quiz.settings || {};
   if (!quiz.questions.length) return fail('Your teacher has not added any questions yet.');
@@ -118,7 +149,13 @@ async function boot() {
   cover();
 }
 
-const fail = (msg) => { $('#app').innerHTML = `<div class="card pad empty"><span class="em" data-icon="ghost"></span>${esc(msg)}</div>`; };
+const fail = (msg, retry) => {
+  $('#app').innerHTML = `<div class="card pad empty"><span class="em" data-icon="ghost"></span>${esc(msg)}`
+    + (retry ? `<div style="margin-top:14px"><button class="btn primary" id="again">Try again</button></div>` : '')
+    + `</div>`;
+  const again = document.getElementById('again');
+  if (again) again.onclick = () => { $('#app').innerHTML = '<div class="card pad empty">Looking…</div>'; boot(); };
+};
 
 function cover() {
   const totalPoints = quiz.questions.reduce((s, q) => s + (q.points || 100), 0);
@@ -250,13 +287,43 @@ async function submit(force) {
   submitting = true;
   clearTimeout(advanceTimer);
   $('#app').innerHTML = '<div class="card pad center" style="min-height:40vh"><div class="thinking">Marking…</div></div>';
+  const seconds = Math.round((Date.now() - startedAt) / 1000);
   try {
-    const result = await api(`/quizzes/${quizId}/submit`, {
-      method: 'POST',
-      body: { name, answers, seconds: Math.round((Date.now() - startedAt) / 1000) }
-    });
+    /* Homework is marked here, on the child's own device.
+     *
+     * The submit used to go to /quizzes/<id>/submit, which looks the quiz up in
+     * this browser's own store — and a child doing homework never had it there:
+     * it arrived from a six-character code or inside the link. So every piece of
+     * homework ever handed in came back "Could not submit: Quiz not found". The
+     * quiz is already on this page, answers and all, so marking it needs nobody
+     * else; only a quiz this device actually owns goes to the store, where the
+     * teacher's results page reads it. */
+    const mine = !shortCode && !hasPayload && quizId;
+    const result = mine
+      ? await api(`/quizzes/${quizId}/submit`,
+                  { method: 'POST', body: { name, answers, seconds } })
+      : markHere();
     showResult(result);
   } catch (err) { submitting = false; fail('Could not submit: ' + err.message); }
+}
+
+/* The same marking the studio does, done on this page against the quiz it is
+   already holding. Every question, what was given, what was wanted, and why. */
+function markHere() {
+  let score = 0, total = 0;
+  const breakdown = quiz.questions.map(q => {
+    const given = answers[q.id];
+    const right = Nova.gradeAnswer ? Nova.gradeAnswer(q, given) : false;
+    total += q.points || 100;
+    if (right) score += q.points || 100;
+    const wanted = (q.choices || []).filter(c => c.correct).map(c => c.id);
+    return { id: q.id, correct: right, given,
+             expected: wanted.length ? wanted : q.answer,
+             explanation: q.explanation || '' };
+  });
+  return { id: 'local', name: name || 'Anonymous', at: Date.now(),
+           score, total, seconds: Math.round((Date.now() - startedAt) / 1000),
+           answers, breakdown };
 }
 
 function showResult(result) {

@@ -14,7 +14,108 @@
   const KEY = 'nova:quizzes';
   const RESP = 'nova:responses';
   const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch { return d; } };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* full or private */ } };
+
+  /* Writing, and knowing whether it worked.
+   *
+   * This used to swallow every storage failure. A browser that had run out of
+   * room for this site would take a new quiz, return it, and save nothing — so
+   * the page opened the studio on an id that did not exist and the teacher was
+   * told "Quiz not found". Signing in with a fresh account changed nothing,
+   * because storage belongs to the browser and not to the account, which is
+   * exactly how it looked from the classroom: nobody could make a quiz at all.
+   *
+   * So a failed write is now a failed write. Before giving up it clears what is
+   * genuinely disposable — the host tokens of games that finished weeks ago —
+   * and tries once more. It never throws away a quiz or a child's marks to make
+   * room for something else; if there is no room, it says so and says what to
+   * do about it. */
+  const writeRaw = (k, v) => {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+    catch { return false; }
+  };
+
+  /** Host tokens for old games: one per game ever hosted on this device, and
+      worthless the moment the game ends. */
+  function sweepStale() {
+    let freed = 0;
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('nova:host:')) { localStorage.removeItem(key); freed += 1; }
+      }
+    } catch { /* storage is off entirely */ }
+    return freed;
+  }
+
+  /** Roughly how much of this site's storage is in use, in whole megabytes. */
+  function roomUsed() {
+    let n = 0;
+    try {
+      for (const key of Object.keys(localStorage)) {
+        n += key.length + (localStorage.getItem(key) || '').length;
+      }
+    } catch { return 0; }
+    return n / 1048576;
+  }
+
+  /* What is taking up the room, so a teacher who cannot save can see it rather
+     than be told to guess. Sizes are what the browser actually stores: the
+     characters of the key and its value. */
+  Nova.storage = {
+    used: () => roomUsed(),
+    /** Every quiz, largest first, with what it costs and what is in it. */
+    items() {
+      const all = read(KEY, {});
+      return Object.values(all).map(q => ({
+        id: q.id, title: q.title || 'Untitled quiz',
+        questions: (q.questions || []).length,
+        pictures: (q.questions || []).filter(x => x.image).length,
+        mb: JSON.stringify(q).length / 1048576
+      })).sort((a, b) => b.mb - a.mb);
+    },
+    /** What the marks of games already played are costing. */
+    resultsMb() {
+      try { return (localStorage.getItem(RESP) || '').length / 1048576; }
+      catch { return 0; }
+    },
+    /** Drop the pictures out of every quiz, keeping every question and answer.
+        A picture is usually the whole of the problem: one photograph pasted in
+        can be bigger than a term of questions. */
+    dropPictures() {
+      const all = read(KEY, {});
+      let gone = 0;
+      for (const q of Object.values(all)) {
+        for (const question of q.questions || []) {
+          if (question.image) { question.image = ''; gone += 1; }
+        }
+      }
+      if (gone) writeOrSay(KEY, all, 'your quizzes');
+      return gone;
+    },
+    /** The marks from games already played, which a teacher may have finished
+        with. Never touched without being asked. */
+    clearResults() {
+      try { localStorage.removeItem(RESP); return true; } catch { return false; }
+    }
+  };
+
+  const write = (k, v) => {
+    if (writeRaw(k, v)) return true;
+    sweepStale();
+    if (writeRaw(k, v)) return true;
+    return false;
+  };
+
+  /** The same write, for the places where losing it silently is not an option. */
+  function writeOrSay(k, v, what) {
+    if (write(k, v)) return;
+    const mb = roomUsed();
+    throw Object.assign(new Error(
+      `This browser has run out of room to keep ${what}`
+      + (mb ? ` — Quoldek is using about ${mb.toFixed(1)}MB here` : '')
+      + '. Delete a quiz you have finished with, or remove a picture from one,'
+      + ' and try again. Nothing already saved has been lost.'),
+      { status: 507, storageFull: true });
+  }
   const rid = (n = 8) => Math.random().toString(36).slice(2, 2 + n);
   const now = () => Date.now();
 
@@ -43,7 +144,9 @@
 
   const allQuizzes = () => read(KEY, {});
   const saveQuizzes = (all) => {
-    write(KEY, all);
+    // loudly, because a quiz that was not written down is a quiz the teacher
+    // is about to lose the next time they close the tab
+    writeOrSay(KEY, all, 'your quizzes');
     // a signed-in teacher gets a copy kept for them; see account.js
     if (window.NovaAccount) window.NovaAccount.pushSoon();
   };
@@ -71,6 +174,11 @@
     }
     return false;
   }
+
+  /* Marking one answer, for a page that is holding the quiz itself — homework
+     on a child's phone is marked there, because the quiz never reaches that
+     device's store. */
+  Nova.gradeAnswer = (question, given) => grade(question, given);
 
   /* ── share links: the quiz travels inside the URL ───── */
   const toB64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -449,8 +557,14 @@ Rules:
                          score, total, seconds: body.seconds || 0, answers, breakdown };
         const store = allResponses();
         (store[quiz.id] = store[quiz.id] || []).push(record);
-        write(RESP, store);
-        return record;   // note: stored on this device — see README on collecting results
+        /* A child who has just finished should still see their score, so a full
+           browser does not throw here — but the teacher has to know the mark
+           did not get written down, rather than finding an empty results page
+           later and blaming the child. */
+        const kept = write(RESP, store);
+        return kept ? record   // note: stored on this device — see README on collecting results
+          : Object.assign({}, record, { kept: false,
+              warning: 'This device has no room left, so this result was shown but not saved.' });
       }
       if (tail === '/responses') {
         const rows = allResponses()[quiz.id] || [];
@@ -722,64 +836,17 @@ Rules:
     new MutationObserver(addCard).observe(grid, { childList: true });
   }
 
-  /* Signing in is offered, never demanded: the button says what it is for, and
-   * everything on the page works exactly the same without it. */
-  function mountAccountButton() {
-    const top = document.querySelector('.topbar-inner');
-    if (!top || !window.NovaAccount || document.getElementById('acct')) return;
-    const newBtn = document.getElementById('top-new');
+  /* There used to be a second sign-in button here.
+   *
+   * It came from when signing in was optional and only meant "keep my quizzes
+   * across computers" — a Google button that sat in the corner offering itself.
+   * Since an account is required to be on this site at all, the header says who
+   * you are and where your board is, and this one said "Sign in" beside it even
+   * when you were already signed in. Two sign-ins, one account, and no way to
+   * tell which was the real one. It is gone; the header does the whole job.
+   */
 
-    const button = document.createElement('button');
-    button.id = 'acct';
-    button.className = 'btn sm';
-    top.insertBefore(button, newBtn || null);
-
-    const paint = (user) => {
-      if (user) {
-        button.innerHTML = (user.photo
-            ? `<img src="${user.photo.replace(/"/g, '')}" alt="" width="20" height="20" style="border-radius:50%">`
-            : Sprite.icon('spark', 16)) +
-          ` <span class="hide-sm">${Nova.esc(user.name.split(' ')[0])}</span>`;
-        button.title = `Signed in as ${user.email}. Your quizzes are saved to this account.`;
-      } else {
-        button.innerHTML = Sprite.icon('key', 16) + ' Sign in';
-        button.title = 'Sign in with Google so your quizzes follow you to another computer';
-      }
-    };
-    NovaAccount.onChange(paint);
-
-    button.onclick = () => {
-      const user = NovaAccount.user;
-      if (!user) {
-        button.disabled = true;
-        NovaAccount.signIn()
-          .then(() => Nova.toast('Signed in. Your quizzes are saved to this account.', 'good'))
-          .catch(err => Nova.toast(err.message || 'Could not sign in.', 'bad'))
-          .finally(() => { button.disabled = false; });
-        return;
-      }
-      Nova.modal(`
-        <h2 style="margin-bottom:6px">Signed in</h2>
-        <p class="muted tiny" style="margin-bottom:18px">
-          ${Nova.esc(user.email)}<br><br>
-          Your quizzes are kept for this account, so they are here on any computer you sign in on.
-          They stay in this browser too, so nothing is lost if you sign out.
-        </p>
-        <div class="row" style="justify-content:flex-end;gap:10px">
-          <button class="btn ghost" id="acct-close">Close</button>
-          <button class="btn danger" id="acct-out">Sign out</button>
-        </div>`, {
-        onMount(box, close) {
-          box.querySelector('#acct-close').onclick = close;
-          box.querySelector('#acct-out').onclick = () => {
-            NovaAccount.signOut().then(() => { close(); Nova.toast('Signed out. Your quizzes are still in this browser.'); });
-          };
-        }
-      });
-    };
-  }
-
-  function mountAll() { mountKeyButton(); mountImportButton(); mountAccountButton(); }
+  function mountAll() { mountKeyButton(); mountImportButton(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountAll);
   else mountAll();
 

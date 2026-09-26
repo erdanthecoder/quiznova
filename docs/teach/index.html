@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your dashboard · Quoldek</title>
+<link href="/fonts.css?v=40a238ef" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg?v=662a6df7">
+<meta name="theme-color" content="#7C4DFF">
+<meta name="description" content="A teacher's dashboard: start a live game, discover ready-made quizzes, keep your library, and see how the class did. Every game free.">
+<meta name="category" content="Education">
+<link rel="stylesheet" href="/nova.css?v=9d7cfb2b">
+<link rel="stylesheet" href="/boards.css?v=f6f648d2">
+<link rel="stylesheet" href="/dash.css?v=a3b951df">
+</head>
+<body class="light">
+
+<div id="app"></div>
+
+<script src="/sprites.js?v=ba27b0b1"></script>
+<script src="/covers.js"></script>
+<script src="/progress.js?v=4849abb2"></script>
+<script src="/launch.js?v=387da9d2"></script>
+<script src="/duet.js?v=dcf1dcae"></script>
+<script src="/nova.js?v=9fa1dfb0"></script>
+<script src="/quizbank.js?v=cab5d77f"></script>
+<script src="/realtime.js?v=75e1623c"></script>
+<script src="/arena.js?v=5dd682fe"></script>
+<script src="/strike.js?v=0d07d142"></script>
+<script src="/run.js?v=963fd974"></script>
+<script src="/tower.js?v=fbdb38cb"></script>
+<script src="/paste.js?v=3032c005"></script>
+<script src="/rules.js?v=debcec46"></script>
+<script src="/live.js?v=7fadac6b"></script>
+<script src="/nova-local.js?v=44c67ff9"></script>
+<script src="/account.js?v=1f2bba77"></script>
+<script src="/oneintwo.js?v=b1383ca2"></script>
+
+
+
+<script src="/boards.js?v=9e889308"></script>
+<script>
+window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+window.QUOLDEK_JOIN = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'play.html?pin='
+  : '/play/?pin=';
+window.QUOLDEK_LIVE = window.QUOLDEK_LOCAL ? '' : 'livequoldek.web.app';
+window.QUOLDEK_HUB = window.QUOLDEK_LOCAL ? '/quiz' : '/quiz';
+window.QUOLDEK_HOMEWORK = window.QUOLDEK_LOCAL
+  ? location.href.replace(/[^/]*$/, '') + 'take.html?c='
+  : 'https://hwquoldek.web.app/';
+/* The teacher's dashboard.
+ *
+ * What was here was one scrolling page: a greeting, nine quizzes and some
+ * links. It answered one of the four questions a teacher actually arrives
+ * with, and it answered it by showing them everything at once.
+ *
+ * The four questions, which is also what every teacher tool a teacher already
+ * has puts down its left-hand side:
+ *
+ *   Home      what am I doing right now
+ *   Discover  what is already written that I could use this morning
+ *   Library   what have I got
+ *   Reports   how did they actually do
+ *
+ * The shape is borrowed on purpose. A teacher opening this for the first time
+ * on a Monday should not have to learn where anything is — and the one place
+ * worth being different is the part that matters: every game here is free, and
+ * Discover says so on every card rather than putting a padlock on half of them.
+ *
+ * Everything is drawn from what is really on this device: the quizzes in this
+ * browser, the homework marks children have actually sent back, and a question
+ * engine that can write a quiz on any of thirty topics at any year group. None
+ * of it is a placeholder waiting for a server.
+ */
+const { el, esc, qs } = Nova;
+const B = NovaBoards, P = NovaProgress;
+const app = document.getElementById('app');
+const HUB = 'https://quoldek.web.app';
+
+/* Which section is showing. It lives in the address so a teacher can keep a
+   tab open on Reports, and so the back button does what they expect. */
+let where = (location.hash || '#home').slice(1).split('?')[0] || 'home';
+let seek = '';                       // what is in the search box
+let subject = 'all', year = 'all';   // the Discover filters
+let openReport = '';                 // which report is expanded
+
+/* ── the rail ─────────────────────────────────────────── */
+const NAV = [
+  ['home', 'Home', 'home'],
+  ['discover', 'Discover', 'search'],
+  ['library', 'Library', 'book'],
+  ['reports', 'Reports', 'chart']
+];
+
+function rail() {
+  const bar = el('nav', { class: 'rail' });
+  bar.append(el('div', { class: 'rail-top' },
+    el('span', { html: Sprite.logo(30) }), el('b', {}, 'Quoldek')));
+  bar.append(el('a', { class: 'rail-new', href: HUB + '/studio.html' },
+    el('span', { style: 'line-height:0', html: Sprite.icon('plus', 17, '#fff') }), 'Create'));
+
+  NAV.forEach(([id, label, icon]) => {
+    const b = el('button', { class: 'rail-link' + (where === id ? ' on' : '') },
+      el('span', { html: Sprite.icon(icon, 19) }), label);
+    b.onclick = () => go(id);
+    bar.append(b);
+  });
+
+  const state = P.read();
+  const lv = P.levelFor(state.lifetime);
+  bar.append(el('div', { class: 'rail-tail' },
+    el('p', { class: 'rail-note' },
+      `Level ${lv.level} · ${state.coins} coins`,
+      el('br'),
+      'Every game mode is free. There is nothing to upgrade to.')));
+  return bar;
+}
+
+function go(id) {
+  where = id;
+  openReport = '';
+  history.replaceState(null, '', '#' + id);
+  draw();
+  window.scrollTo(0, 0);
+}
+addEventListener('hashchange', () => {
+  const next = (location.hash || '#home').slice(1).split('?')[0] || 'home';
+  if (next !== where) { where = next; draw(); }
+});
+
+/* ── the things a teacher has ─────────────────────────────
+ *
+ * Two editions keep quizzes in two places. On the web they are in this browser
+ * and Nova.allQuizzes reads them with no waiting, which is the one that has to
+ * stay instant: a dashboard that is blank until the network answers is a
+ * dashboard that is blank in a school. In the desktop app there is a real
+ * server and no local copy at all, so the list is asked for once and kept.
+ */
+let served = null;                   // what the server said, on the editions that have one
+const mine = () => {
+  if (Nova.allQuizzes) {
+    return Object.values(Nova.allQuizzes())
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+  return (served || []).slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+};
+
+/** Ask the server for them, on the editions where that is where they live. */
+async function pullQuizzes() {
+  if (Nova.allQuizzes) return;       // nothing to pull: they are already here
+  try {
+    const out = await Nova.api('/quizzes');
+    served = (out && out.quizzes) || [];
+  } catch { served = served || []; }
+  draw();
+}
+
+/* How many questions a quiz has.
+ *
+ * The two editions hand this over differently: in the browser a quiz is the
+ * whole thing, questions and all, while the desktop server's listing sends a
+ * summary with `questions` already counted. Reading `.length` off a number
+ * gives undefined, which is how a card comes to say "undefined questions". */
+const countOf = (q) => Array.isArray(q && q.questions) ? q.questions.length
+  : (typeof (q && q.questions) === 'number' ? q.questions : 0);
+
+/** Every homework mark on this device, by quiz. */
+function marks() {
+  try {
+    const raw = localStorage.getItem('nova:responses');
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+/* A cover that is always the same colour for the same quiz, so a teacher finds
+   one by where it is and what colour it is, the way they find a real folder. */
+const SKINS = ['var(--grad-brand)', 'var(--grad-laser)', 'var(--grad-mint)',
+               'var(--grad-sun)', 'linear-gradient(120deg,#6C4CF1,#FF5D73)',
+               'linear-gradient(120deg,#12BE8E,#FFC53D)'];
+function skin(seed) {
+  let n = 0;
+  for (const ch of String(seed)) n = (n * 31 + ch.charCodeAt(0)) % 99991;
+  return SKINS[n % SKINS.length];
+}
+const initials = (t) => String(t || '?').trim().split(/\s+/).slice(0, 2)
+  .map(w => w[0]).join('').toUpperCase() || '?';
+
+/** One quiz, as a card, with whatever a teacher can do to it underneath. */
+function quizCard(q, acts) {
+  const n = countOf(q);
+  /* A picture, worked out from the title — "Quick times tables test" gets the
+     array of dots. A shelf of cards with a letter on each one is a filing
+     cabinet; a shelf with pictures is something a child leans over to look at.
+     A title that matches nothing keeps the coloured cover with its initials,
+     which is still better than a blank. */
+  const art = Sprite.coverNameFor(q.title);
+  return el('div', { class: 'card2' },
+    art
+      ? el('div', { class: 'cover art' }, el('span', { class: 'art-in', html: Sprite.cover(art, 300) }))
+      : el('div', { class: 'cover', style: 'background:' + skin(q.id || q.title) },
+          el('b', {}, initials(q.title))),
+    el('div', { class: 'body' },
+      el('b', {}, q.title || 'Untitled'),
+      el('small', {}, `${n} ${n === 1 ? 'question' : 'questions'}${acts.note ? ' · ' + acts.note : ''}`),
+      el('div', { class: 'acts' }, ...(acts.buttons || []))));
+}
+
+/* ── Home ─────────────────────────────────────────────── */
+function home() {
+  const wrap = el('div', { class: 'wrap' });
+  const name = (NovaAccount.user && NovaAccount.user.name) || 'Teacher';
+  const qs2 = mine();
+  const questions = qs2.reduce((n, q) => n + countOf(q), 0);
+
+  wrap.append(el('h1', {}, hello() + ', ' + firstWord(name) + '.'));
+  wrap.append(el('p', { class: 'lede' }, qs2.length
+    ? `${qs2.length} ${qs2.length === 1 ? 'quiz' : 'quizzes'} in your library, ${questions} questions between them.`
+    : 'Nothing written yet. Discover has a few hundred ready to go, or paste a list you already have.'));
+
+  const jump = el('div', { class: 'jump' });
+  [
+    ['Write a quiz', 'From nothing, or paste a list and let Quoldek sort it out.', 'var(--grad-brand)', 'pencil', HUB + '/studio.html'],
+    ['Find one ready-made', 'Thirty topics, any year group, all free.', 'var(--grad-mint)', 'search', '#discover'],
+    ['Open a board by PIN', 'The screen at the front of the room.', 'var(--grad-sun)', 'screen', 'https://livequoldek.web.app/'],
+    ['Set homework', 'A short code, and it marks itself.', 'var(--grad-laser)', 'book', 'https://hwquoldek.web.app/']
+  ].forEach(([title, say, grad, icon, href]) => {
+    const a = el('a', { href },
+      el('i', { style: 'background:' + grad }, el('span', { style: 'line-height:0', html: Sprite.icon(icon, 19, '#fff') })),
+      el('b', {}, title), el('span', {}, say));
+    if (href.startsWith('#')) a.onclick = (e) => { e.preventDefault(); go(href.slice(1)); };
+    jump.append(a);
+  });
+  wrap.append(el('section', { class: 'block' }, jump));
+
+  // pick up where you left off
+  if (qs2.length) {
+    const cards = el('div', { class: 'cards' });
+    qs2.slice(0, 4).forEach(q => cards.append(quizCard(q, {
+      note: 'edited ' + (Nova.ago ? Nova.ago(q.updatedAt) : 'recently'),
+      buttons: [
+        el('a', { class: 'btn primary sm', href: HUB + '/studio.html?id=' + encodeURIComponent(q.id) + '&host=1' }, 'Play'),
+        el('a', { class: 'btn ghost sm', href: HUB + '/studio.html?id=' + encodeURIComponent(q.id) }, 'Edit')
+      ]
+    })));
+    const head = el('div', { class: 'block-head' }, el('h2', {}, 'Carry on where you left off'));
+    const all = el('a', { href: '#library' }, 'All ' + qs2.length + ' →');
+    all.onclick = (e) => { e.preventDefault(); go('library'); };
+    head.append(all);
+    wrap.append(el('section', { class: 'block' }, head, cards));
+  }
+
+  // the most recent marks, if any have come back
+  const recent = reportRows().slice(0, 3);
+  if (recent.length) {
+    const head = el('div', { class: 'block-head' }, el('h2', {}, 'Latest marks'));
+    const all = el('a', { href: '#reports' }, 'All reports →');
+    all.onclick = (e) => { e.preventDefault(); go('reports'); };
+    head.append(all);
+    wrap.append(el('section', { class: 'block' }, head,
+      ...recent.map(r => reportCard(r, false))));
+  }
+
+  // and a few from Discover, so the shelf is never bare
+  const picks = catalogue().slice(0, 4);
+  const head2 = el('div', { class: 'block-head' }, el('h2', {}, 'Ready to play right now'));
+  const more = el('a', { href: '#discover' }, 'Discover →');
+  more.onclick = (e) => { e.preventDefault(); go('discover'); };
+  head2.append(more);
+  const shelf = el('div', { class: 'cards' });
+  picks.forEach(p => shelf.append(readyCard(p)));
+  wrap.append(el('section', { class: 'block' }, head2, shelf));
+
+  return wrap;
+}
+
+/* ── Discover ─────────────────────────────────────────────
+ *
+ * Every other tool's version of this page is a shop: half the tiles have a
+ * padlock on them and the good ones are behind the school's subscription. Ours
+ * cannot be, because there is nothing to sell — so the badge on every card says
+ * Free and means it.
+ *
+ * What is on the shelf is not a list somebody typed. The question engine can
+ * write on thirty topics at any year group, so the catalogue is every topic
+ * crossed with every year, and the questions are made the moment a teacher
+ * takes one. That is why there is no "no results for your class" here.
+ */
+const YEARS = [1, 2, 3, 4, 5, 6];
+const SUBJECT_OF = {};
+function catalogue() {
+  const out = [];
+  const subjects = QuizBank.SUBJECTS || {};
+  /* Year first, then topic. Ordered the other way round the shelf opened with
+     six addition quizzes in a row whose pictures were identical and whose only
+     difference was a small tag in the corner — which is exactly the thing the
+     pictures were drawn to stop. This way the first screen is thirty different
+     drawings, and picking a year still gives that year's whole shelf. */
+  YEARS.forEach(y => {
+    Object.keys(subjects).forEach(sub => {
+      subjects[sub].forEach(topicId => {
+        const topic = (QuizBank.TOPICS || []).find(t => t.id === topicId);
+        if (!topic) return;
+        SUBJECT_OF[topicId] = sub;
+        out.push({
+          id: topicId + '-y' + y, topic, subject: sub, year: y,
+          title: cap(topic.label) + ' · Year ' + y,
+          count: 12
+        });
+      });
+    });
+  });
+  return out;
+}
+const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
+const SUBJECT_NAME = { maths: 'Maths', english: 'English', science: 'Science',
+                       humanities: 'Humanities', kyrgyz: 'Kyrgyz' };
+
+function readyCard(p) {
+  const play = el('button', { class: 'btn primary sm' }, 'Play');
+  play.onclick = () => take(p, true, play);
+  const save = el('button', { class: 'btn ghost sm' }, 'Save');
+  save.onclick = () => take(p, false, save);
+  /* Every topic has its own drawn picture. It is what makes a shelf of a
+     hundred and sixty-eight of these scannable at all: a teacher finds the
+     fractions one by the pizza before they have read a word. The year sits in
+     a corner tag, where it can be seen without shouting over the art. */
+  return el('div', { class: 'card2' },
+    el('div', { class: 'cover art' },
+      el('span', { class: 'art-in', html: Sprite.cover(p.topic.id, 300) }),
+      el('span', { class: 'free' }, 'Free'),
+      el('span', { class: 'yr' }, 'Year ' + p.year)),
+    el('div', { class: 'body' },
+      el('b', {}, cap(p.topic.label)),
+      el('small', {}, SUBJECT_NAME[p.subject] + ' · ' + p.count + ' questions'),
+      el('div', { class: 'acts' }, play, save)));
+}
+
+/** Write the quiz for real, put it in the library, and go if they asked to. */
+async function take(p, andPlay, button) {
+  const was = button.textContent;
+  button.textContent = 'Writing…';
+  button.disabled = true;
+  try {
+    const made = QuizBank.generate(p.topic.label + ' year ' + p.year, p.count, []);
+    if (!made.questions.length) throw new Error('That one came out empty — try another.');
+    /* starter:false matters. A new quiz is handed back with one blank question
+       in it so the editor is never an empty screen — but a quiz taken from
+       Discover is not being edited, it is being played, and a blank first
+       question means a class stares at nothing for twenty seconds. */
+    const quiz = await Nova.api('/quizzes', { method: 'POST',
+      body: { title: p.title, questions: [], starter: false } });
+    const id = (quiz.quiz ? quiz.quiz.id : quiz.id);
+    await Nova.api('/quizzes/' + id + '/ops', { method: 'POST', body: {
+      ops: made.questions.map(q => ({ op: 'add_question', question: {
+        type: 'mc', text: q.text, points: 100, time: 20,
+        explanation: q.why || '',
+        choices: q.options.map(o => ({ text: o, correct: o === q.correct }))
+      } }))
+    } });
+    /* A quiz appearing in a list is a number going up. Twenty questions have
+       just been written for this teacher in about a second, and the moment is
+       worth marking. */
+    if (!andPlay && Nova.confetti) Nova.confetti();
+    Nova.toast(andPlay ? 'Ready — opening it now' : 'Saved to your library', 'good');
+    if (andPlay) { location.href = HUB + '/studio.html?id=' + encodeURIComponent(id) + '&host=1'; return; }
+    button.textContent = 'Saved';
+    if (Nova.allQuizzes) draw(); else await pullQuizzes();
+  } catch (err) {
+    button.textContent = was;
+    button.disabled = false;
+    Nova.toast(err.message || 'That did not save', 'bad');
+  }
+}
+
+function discover() {
+  const wrap = el('div', { class: 'wrap' });
+  wrap.append(el('h1', {}, 'Discover'));
+  wrap.append(el('p', { class: 'lede' },
+    'Ready-made quizzes on thirty topics, written for the year group you pick.'));
+
+  wrap.append(el('div', { class: 'banner' },
+    el('span', { style: 'line-height:0', html: Sprite.icon('coin', 30, '#04241B') }),
+    el('div', { style: 'flex:1;min-width:200px' },
+      el('b', {}, 'Everything here is free'),
+      el('span', {}, 'Every quiz, every game mode, every year group. No padlocks, no plan to upgrade to.'))));
+
+  // the filters
+  const subs = el('div', { class: 'chips' });
+  [['all', 'Everything']].concat(Object.keys(SUBJECT_NAME).map(k => [k, SUBJECT_NAME[k]]))
+    .forEach(([id, label]) => {
+      const c = el('button', { class: 'chip' + (subject === id ? ' on' : '') }, label);
+      c.onclick = () => { subject = id; draw(); };
+      subs.append(c);
+    });
+  const yrs = el('div', { class: 'chips' });
+  [['all', 'Any year']].concat(YEARS.map(y => [String(y), 'Year ' + y])).forEach(([id, label]) => {
+    const c = el('button', { class: 'chip' + (year === id ? ' on' : '') }, label);
+    c.onclick = () => { year = id; draw(); };
+    yrs.append(c);
+  });
+  wrap.append(subs, yrs);
+
+  const want = seek.trim().toLowerCase();
+  const shown = catalogue().filter(p =>
+    (subject === 'all' || p.subject === subject) &&
+    (year === 'all' || String(p.year) === year) &&
+    (!want || p.topic.label.toLowerCase().includes(want)
+           || (p.topic.words || []).some(w => w.includes(want))
+           || SUBJECT_NAME[p.subject].toLowerCase().includes(want)));
+
+  /* One button that picks for you. A hundred and sixty-eight is enough choice
+     to be a decision, and a teacher with four minutes before the bell does not
+     want to make one. */
+  const lucky = el('button', { class: 'btn sm' }, 'Surprise me');
+  lucky.onclick = () => {
+    const pool = shown.length ? shown : catalogue();
+    take(pool[Math.floor(Math.random() * pool.length)], true, lucky);
+  };
+  wrap.append(el('div', { class: 'block-head' },
+    el('h2', {}, shown.length + (shown.length === 1 ? ' quiz' : ' quizzes')), lucky));
+
+  if (!shown.length) {
+    wrap.append(el('div', { class: 'empty' },
+      'Nothing matches that. Try a different subject, or write your own — the co-pilot can draft it from a sentence.'));
+  } else {
+    const grid = el('div', { class: 'cards' });
+    shown.slice(0, 60).forEach(p => grid.append(readyCard(p)));
+    wrap.append(grid);
+    if (shown.length > 60) {
+      wrap.append(el('p', { class: 'note' }, `Showing 60 of ${shown.length}. Narrow it with a subject or a year.`));
+    }
+  }
+  return wrap;
+}
+
+/* ── Library ──────────────────────────────────────────── */
+function library() {
+  const wrap = el('div', { class: 'wrap' });
+  const want = seek.trim().toLowerCase();
+  const all = mine();
+  const shown = want
+    ? all.filter(q => String(q.title || '').toLowerCase().includes(want)
+        || (Array.isArray(q.questions) ? q.questions : [])
+             .some(x => String(x.text || '').toLowerCase().includes(want)))
+    : all;
+
+  wrap.append(el('h1', {}, 'Library'));
+  wrap.append(el('p', { class: 'lede' },
+    'Kept in this browser and copied to your account, so they follow you to the laptop at home.'));
+
+  if (!all.length) {
+    wrap.append(el('div', { class: 'empty' },
+      'Nothing here yet. Take one from Discover, or write your own.'));
+    const row = el('div', { class: 'row wrap-r', style: 'margin-top:16px;gap:10px;justify-content:center' },
+      el('a', { class: 'btn primary', href: HUB + '/studio.html' }, 'Write a quiz'));
+    const d = el('button', { class: 'btn' }, 'Browse Discover');
+    d.onclick = () => go('discover');
+    row.append(d);
+    wrap.append(row);
+    return wrap;
+  }
+
+  wrap.append(el('div', { class: 'block-head' },
+    el('h2', {}, shown.length === all.length
+      ? `${all.length} ${all.length === 1 ? 'quiz' : 'quizzes'}`
+      : `${shown.length} of ${all.length}`)));
+
+  if (!shown.length) {
+    wrap.append(el('div', { class: 'empty' }, 'Nothing here matches "' + esc(seek) + '".'));
+    return wrap;
+  }
+  const grid = el('div', { class: 'cards' });
+  shown.forEach(q => grid.append(quizCard(q, {
+    note: 'edited ' + (Nova.ago ? Nova.ago(q.updatedAt) : 'recently'),
+    buttons: [
+      el('a', { class: 'btn primary sm', href: HUB + '/studio.html?id=' + encodeURIComponent(q.id) + '&host=1' }, 'Play'),
+      el('a', { class: 'btn ghost sm', href: HUB + '/studio.html?id=' + encodeURIComponent(q.id) }, 'Edit')
+    ]
+  })));
+  wrap.append(grid);
+  return wrap;
+}
+
+/* ── Reports ──────────────────────────────────────────────
+ *
+ * What a teacher is actually after here is not the leaderboard — it is which
+ * question the class fell over, and which child needs five minutes tomorrow.
+ * So both of those are on the page rather than behind a tab.
+ */
+function reportRows() {
+  const byQuiz = marks();
+  /* Look in both places a quiz can live. Reading only the browser's copy meant
+     that on the desktop edition — where they live on the server — every report
+     was headed "a quiz that has since been deleted" while the quiz was sitting
+     in the library two clicks away. */
+  const local = Nova.allQuizzes ? Nova.allQuizzes() : {};
+  const byId = {};
+  (served || []).forEach(q => { byId[q.id] = q; });
+  Object.keys(local).forEach(id => { byId[id] = local[id]; });
+  return Object.keys(byQuiz).map(id => {
+    const rows = byQuiz[id] || [];
+    if (!rows.length) return null;
+    const quiz = byId[id] || whole[id];
+    const scores = rows.map(r => r.total ? Math.round(r.score / r.total * 100) : 0);
+    return {
+      id, rows, quiz,
+      title: (quiz && quiz.title) || 'A quiz that has since been deleted',
+      when: Math.max(...rows.map(r => r.at || 0)),
+      average: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+    };
+  }).filter(Boolean).sort((a, b) => b.when - a.when);
+}
+
+/* The desktop server's listing is a summary: title, when, and how many
+   questions — not the questions themselves. A report is mostly useless without
+   them ("the class got 62%" is not something a teacher can act on), so the one
+   being opened is fetched in full and kept. */
+const whole = {};
+async function loadWhole(id) {
+  if (whole[id]) return;
+  try {
+    const out = await Nova.api('/quizzes/' + encodeURIComponent(id));
+    whole[id] = (out && out.quiz) ? out.quiz : out;
+  } catch { whole[id] = { questions: [] }; }
+  draw();
+}
+
+function reportCard(r, expandable) {
+  const card = el('div', { class: 'rep' });
+  const top = el('div', { class: 'rep-top' },
+    el('b', {}, r.title),
+    el('span', { class: 'sp' }),
+    el('div', { class: 'rep-figs' },
+      el('div', { class: 'rep-fig' }, el('b', {}, String(r.rows.length)),
+        el('span', {}, r.rows.length === 1 ? 'child' : 'children')),
+      el('div', { class: 'rep-fig' }, el('b', {}, r.average + '%'), el('span', {}, 'average')),
+      el('div', { class: 'rep-fig' }, el('b', {}, Nova.ago ? Nova.ago(r.when) : '—'), el('span', {}, 'last one in'))));
+  card.append(top);
+
+  if (!expandable) return card;
+  top.onclick = () => { openReport = openReport === r.id ? '' : r.id; draw(); };
+  if (openReport !== r.id) return card;
+
+  const body = el('div', { class: 'rep-body' });
+
+  /* Per question, because "the class got 62%" tells a teacher nothing they can
+     do anything about on Tuesday morning. */
+  let questions = Array.isArray(r.quiz && r.quiz.questions) ? r.quiz.questions : [];
+  if (!questions.length && whole[r.id]) {
+    questions = Array.isArray(whole[r.id].questions) ? whole[r.id].questions : [];
+  }
+  if (!questions.length && !whole[r.id]) loadWhole(r.id);
+  if (questions.length) {
+    body.append(el('h4', {}, 'Question by question'));
+    questions.forEach((q, i) => {
+      const asked = r.rows.filter(x => (x.breakdown || []).some(b => b.id === q.id)).length;
+      const right = r.rows.filter(x => (x.breakdown || []).some(b => b.id === q.id && b.correct)).length;
+      const pc = asked ? Math.round(right / asked * 100) : 0;
+      body.append(el('div', { class: 'qline' + (pc < 50 ? ' hard' : '') },
+        el('div', { class: 't' },
+          el('b', {}, (i + 1) + '. ' + (q.text || 'Untitled question')),
+          el('span', {}, pc + '%')),
+        el('div', { class: 'barb' }, el('i', { style: 'width:' + pc + '%' }))));
+    });
+  }
+
+  body.append(el('h4', {}, 'Who did what'));
+  r.rows.slice().sort((a, b) => (b.score / (b.total || 1)) - (a.score / (a.total || 1))).forEach(row => {
+    const pc = row.total ? Math.round(row.score / row.total * 100) : 0;
+    body.append(el('div', { class: 'who' + (pc < 50 ? ' low' : '') },
+      el('b', {}, row.name || 'Anonymous'),
+      el('div', { class: 'barb' }, el('i', { style: 'width:' + pc + '%' })),
+      el('div', { class: 'pc' }, pc + '%')));
+  });
+
+  /* The one line a teacher came for. */
+  const struggling = r.rows.filter(x => x.total && (x.score / x.total) < 0.5).map(x => x.name || 'Anonymous');
+  if (struggling.length) {
+    body.append(el('h4', {}, 'Might want five minutes tomorrow'));
+    body.append(el('p', { style: 'margin:0;font-weight:750' }, struggling.join(', ')));
+  }
+  card.append(body);
+  return card;
+}
+
+function reports() {
+  const wrap = el('div', { class: 'wrap' });
+  wrap.append(el('h1', {}, 'Reports'));
+  wrap.append(el('p', { class: 'lede' },
+    'Every homework that has come back, with the question the class fell over at the top of it.'));
+
+  const rows = reportRows();
+  if (!rows.length) {
+    wrap.append(el('div', { class: 'empty' },
+      'No marks yet. Set a quiz as homework — the class types the code at hwquoldek.web.app and the marks land here.'));
+    wrap.append(el('p', { class: 'note', style: 'text-align:center' },
+      'Marks are kept on the device the child used and on this one. A live game shows its scores on the board at the time.'));
+    return wrap;
+  }
+  wrap.append(el('div', { class: 'block-head' },
+    el('h2', {}, rows.length + (rows.length === 1 ? ' quiz has marks' : ' quizzes have marks'))));
+  rows.forEach(r => wrap.append(reportCard(r, true)));
+  return wrap;
+}
+
+/* ── putting it on the screen ─────────────────────────── */
+function draw() {
+  const name = (NovaAccount.user && NovaAccount.user.name) || 'Teacher';
+
+  const box = el('input', {
+    type: 'search',
+    placeholder: where === 'discover' ? 'Search ready-made quizzes…'
+      : where === 'reports' ? 'Search your quizzes…' : 'Search your library…',
+    value: seek
+  });
+  box.oninput = () => {
+    seek = box.value;
+    const body = document.getElementById('body');
+    if (body) body.replaceChildren(section());
+  };
+  /* Redrawing the whole page on every keystroke would take the focus off the
+     box the teacher is typing into, so only the part below it is rebuilt. */
+
+  const top = el('div', { class: 'page-top' },
+    el('label', { class: 'seek' },
+      el('span', { html: Sprite.icon('search', 17) }), box),
+    B.topbar({ name, role: 'teacher', bare: true, face: Sprite.face(faceFor(name), 38) }));
+
+  const page = el('div', { class: 'page' }, top,
+    el('div', { id: 'body' }, section()));
+  app.replaceChildren(el('div', { class: 'dash' }, rail(), page));
+}
+
+function section() {
+  if (where === 'discover') return discover();
+  if (where === 'library') return library();
+  if (where === 'reports') return reports();
+  return home();
+}
+
+const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || 'there';
+function hello() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+/* A face that is always the same face for the same name, so a teacher's own
+   picture on their own board does not change every time they open it. */
+function faceFor(name) {
+  let n = 0;
+  for (const ch of String(name)) n = (n * 31 + ch.charCodeAt(0)) % 100000;
+  return n;
+}
+
+/* Painted last, on purpose: draw() reaches every helper in this file, and a
+   const declared below a call that needs it is a page that throws on load. */
+if (B.guard('teacher')) { draw(); pullQuizzes(); }
+</script>
+</body>
+</html>

@@ -192,6 +192,34 @@ class Server {
       }
     }
 
+    /* ── the quiz folder, and an account that has its own copy ──
+     *
+     * Signing in makes the quizzes follow you: what is written here should be
+     * on the website and on the next computer, and what was written there
+     * should be here. The merge happens on this side because this is where the
+     * folder is — a browser cannot read it, and doing it in two places is how
+     * two copies of a merge drift apart.
+     *
+     * Neither side is the master. The same quiz edited in two places keeps
+     * whichever was edited last, which is the only answer that never silently
+     * throws away somebody's work.
+     */
+    if (seg[0] === 'sync' && method === 'POST') {
+      const theirs = Array.isArray(body.quizzes) ? body.quizzes : [];
+      const mine = this.store.all();
+      let pulled = 0;
+      for (const q of theirs) {
+        if (!q || typeof q.id !== 'string' || !Array.isArray(q.questions)) continue;
+        const here = mine[q.id];
+        if (!here || (q.updatedAt || 0) > (here.updatedAt || 0)) {
+          this.store.save(q);
+          pulled++;
+        }
+      }
+      // whatever the folder holds now is what should go up
+      return this.send(res, 200, { pulled, quizzes: Object.values(this.store.all()) });
+    }
+
     if (seg[0] === 'quizzes' && seg.length >= 2) {
       const quiz = this.store.get(seg[1]);
       if (!quiz) return this.fail(res, 404, 'That quiz is not here.');
@@ -259,9 +287,10 @@ class Server {
         const player = this.games.answer(game, body);
         return this.send(res, 200, { correct: player.correct, score: player.score, hp: player.hp,
                                      streak: player.streak, state: game.state,
-                                     distance: player.distance, blocks: player.blocks,
-                                     coins: player.coins, chest: player.chest,
-                                     balloons: player.balloons, hits: player.hits,
+                                     blocks: player.blocks, height: player.height,
+                                     // Boss Battle: what the answer loaded, and what with
+                                     loaded: player.loaded, blade: player.blade,
+                                     hits: player.hits,
                                      gain: player.lastGain });
       }
       if (tail === 'team' && method === 'POST') {
@@ -282,7 +311,49 @@ class Server {
         if (player) player.target = String(body.target || '');
         return this.send(res, 200, { ok: true });
       }
-
+      /* The three things a player decides for themselves. None needs the host
+       * token — they are the player's own — but all three are checked against
+       * the game's state rather than trusting what arrived. The app was missing
+       * all of them, which meant fishing and the factory were played here
+       * without the decisions that are the point of them. */
+      if (tail === 'boost' && method === 'POST') {
+        return this.send(res, 200, this.games.boost(game, body));
+      }
+      if (tail === 'monster' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        const hit = this.games.forceMonster(game);
+        return this.send(res, 200, { ok: true, hit, view: this.games.publicView(game) });
+      }
+      if (tail === 'swing' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        const out = R.bossSwing(game);
+        this.games.changed(game);
+        return this.send(res, 200, { ok: true, swing: out, view: this.games.publicView(game) });
+      }
+      if (tail === 'settle' && method === 'POST') {
+        if (!isHost) return this.send(res, 403, { error: 'Only the host can control the game.' });
+        // whatever clock has run out: the gorilla climbing down, or the hatch shutting
+        if (game.mode === 'tower') this.games.settleGorilla(game);
+        else this.games.settleSafe(game);
+        this.games.changed(game);
+        return this.send(res, 200, { ok: true, view: this.games.publicView(game) });
+      }
+      if (tail === 'safe' && method === 'POST') {
+        return this.send(res, 200, this.games.safe(game, body));
+      }
+      if (tail === 'place' && method === 'POST') {
+        return this.send(res, 200, this.games.place(game, body));
+      }
+      if (tail === 'strike' && method === 'POST') {
+        return this.send(res, 200, this.games.strike(game, body));
+      }
+      if (tail === 'move' && method === 'POST') {
+        const player = game.players[body.playerId];
+        if (!player) return this.fail(res, 404, 'Not in this game.');
+        const out = R.chooseMove(game, player, body.move, body.on || '');
+        if (out.ok) this.games.changed(game);
+        return this.send(res, 200, Object.assign({ view: this.games.publicView(game) }, out));
+      }
       // everything past here is the teacher's alone
       if (!isHost) return this.fail(res, 403, 'Only the host can control the game.');
       if (tail === 'start' && method === 'POST') return this.send(res, 200, this.games.start(game));

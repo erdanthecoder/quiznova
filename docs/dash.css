@@ -1,0 +1,207 @@
+/* The teacher's dashboard: a rail down the side and one section at a time.
+ *
+ * Built the way every teacher tool a teacher already uses is built, because a
+ * teacher opening this for the first time on a Monday morning should not have
+ * to learn where anything is. Kahoot's is Home / Discover / Library / Reports
+ * down the left, and that shape is not an accident — it is the four questions a
+ * teacher actually has: what now, what is out there, what have I got, and how
+ * did they do.
+ *
+ * The rail collapses to a row across the top on a phone, because a teacher
+ * checking last night's homework on the bus is a real thing that happens and a
+ * sidebar at 390 pixels wide is not.
+ */
+
+.dash {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  align-items: start;
+  min-height: 100vh;
+}
+
+/* ── the rail ─────────────────────────────────────────── */
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 14px;
+  background: var(--card);
+  border-right: var(--line-w) solid var(--line);
+}
+.rail-top { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
+.rail-top b { font-size: 1.22rem; letter-spacing: -.02em; }
+.rail-top span { line-height: 0; }
+
+.rail-new {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-bottom: 12px; padding: 13px 16px;
+  border: var(--line-w) solid var(--line); border-radius: var(--r-md);
+  background: var(--grad-brand); color: #fff; font: inherit; font-weight: 900;
+  cursor: pointer; box-shadow: var(--pop-2); text-decoration: none;
+}
+.rail-new:hover { transform: translateY(-1px); }
+.rail-new:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+
+.rail-link {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 13px; border: 0; border-radius: var(--r-md);
+  background: transparent; color: var(--text); font: inherit; font-weight: 800;
+  text-align: left; cursor: pointer; width: 100%;
+}
+.rail-link span { line-height: 0; flex: none; opacity: .72; }
+.rail-link:hover { background: var(--paper-2); }
+.rail-link.on { background: rgba(108, 76, 241, .13); color: var(--grape); }
+.rail-link.on span { opacity: 1; }
+.rail-tail { margin-top: auto; padding-top: 14px; border-top: 2px solid var(--line-soft); }
+.rail-note { font-size: .76rem; color: var(--faint); line-height: 1.5; padding: 0 6px; }
+
+/* ── the page beside it ───────────────────────────────── */
+.page { min-width: 0; padding: 0 0 70px; }
+.page-top {
+  position: sticky; top: 0; z-index: 12;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px clamp(16px, 3vw, 30px);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--line-soft);
+}
+.seek { flex: 1 1 260px; display: flex; align-items: center; gap: 9px;
+  padding: 10px 14px; border: 2px solid var(--line-soft); border-radius: 99px;
+  background: var(--card); }
+.seek span { line-height: 0; opacity: .5; flex: none; }
+.seek input { flex: 1; border: 0; background: none; font: inherit; color: var(--text); outline: none; }
+
+.wrap { max-width: 1120px; padding: clamp(18px, 3vw, 30px) clamp(16px, 3vw, 30px) 0; }
+.wrap h1 { margin: 0 0 6px; font-size: clamp(1.6rem, 3.4vw, 2.3rem); letter-spacing: -.02em; }
+.wrap .lede { margin: 0 0 26px; color: var(--muted); font-size: 1.02rem; }
+.block { margin-bottom: 34px; }
+.block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.block-head h2 { margin: 0; font-size: 1.15rem; }
+.block-head a { font-size: .87rem; font-weight: 800; color: var(--grape); text-decoration: none; }
+.block-head a:hover { text-decoration: underline; }
+
+/* ── the four things a teacher does ───────────────────── */
+.jump { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 14px; }
+.jump a {
+  display: block; padding: 17px 18px; border-radius: var(--r-md);
+  border: var(--line-w) solid var(--line); background: var(--card);
+  box-shadow: var(--pop-2); text-decoration: none; color: var(--text);
+}
+.jump a:hover { transform: translateY(-2px); }
+.jump a b { display: block; font-size: 1rem; margin-bottom: 3px; }
+.jump a span { display: block; font-size: .83rem; color: var(--muted); line-height: 1.45; }
+.jump i { display: block; width: 38px; height: 38px; border-radius: 11px; margin-bottom: 11px;
+  display: flex; align-items: center; justify-content: center; }
+
+/* ── cards: a quiz, yours or somebody's ───────────────── */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(238px, 1fr)); gap: 16px; }
+.card2 {
+  display: flex; flex-direction: column;
+  border: var(--line-w) solid var(--line); border-radius: var(--r-md);
+  background: var(--card); box-shadow: var(--pop-2); overflow: hidden;
+}
+.card2 { transition: transform .22s cubic-bezier(.2,.9,.25,1), box-shadow .22s ease; }
+.card2:hover { transform: translateY(-4px); box-shadow: 0 9px 0 var(--ink); }
+.card2 .cover { height: 104px; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; border-bottom: var(--line-w) solid var(--line); }
+.card2 .cover b { font-size: 2rem; color: rgba(255, 255, 255, .95); font-weight: 900; letter-spacing: -.03em; }
+
+/* The drawn picture fills the cover. It leans in a touch when the card is
+   hovered, which is the whole of the animation: a shelf where nothing moves is
+   a shelf, and a shelf where everything moves is a fairground. */
+.card2 .cover.art { padding: 0; }
+/* The picture's own wrapper, named rather than picked out as "the span in
+   there" — the badges are spans in there too, and a rule that filled every one
+   of them to 100% blew the Free badge up to the size of the whole cover and
+   painted it over the artwork. */
+.card2 .cover .art-in { display: block; width: 100%; height: 100%; line-height: 0;
+  transition: transform .35s cubic-bezier(.2,.9,.25,1); }
+.card2 .cover .art-in svg { width: 100%; height: 100%; display: block; }
+.card2:hover .cover .art-in { transform: scale(1.07); }
+
+/* The year, in the corner, quiet enough not to argue with the picture. */
+.card2 .yr { position: absolute; left: 9px; bottom: 9px; padding: 3px 10px; border-radius: 99px;
+  background: rgba(10, 6, 24, .74); color: #fff; font-size: .7rem; font-weight: 900;
+  letter-spacing: .04em; backdrop-filter: blur(3px); }
+.card2 .body { padding: 13px 14px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.card2 .body b { font-size: .97rem; line-height: 1.3; }
+.card2 .body small { color: var(--faint); font-size: .79rem; }
+.card2 .acts { display: flex; gap: 7px; margin-top: auto; padding-top: 11px; }
+.card2 .acts .btn { flex: 1; justify-content: center; }
+
+/* A free badge, on everything, because everything is free and that is the
+   single loudest difference between this and what a school is paying for. */
+.free { position: absolute; top: 9px; right: 9px; padding: 3px 9px; border-radius: 99px;
+  background: var(--mint); color: #05231A; font-size: .68rem; font-weight: 900;
+  letter-spacing: .08em; text-transform: uppercase; border: 2px solid var(--line); }
+.tag { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: .72rem;
+  font-weight: 800; background: var(--paper-2); border: 2px solid var(--line-soft); color: var(--muted); }
+
+/* ── filters on Discover ──────────────────────────────── */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip {
+  padding: 8px 15px; border-radius: 99px; border: 2px solid var(--line-soft);
+  background: var(--card); font: inherit; font-weight: 800; font-size: .87rem;
+  color: var(--muted); cursor: pointer;
+}
+.chip:hover { border-color: var(--line); }
+.chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+.banner {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 18px 20px; margin-bottom: 26px; border-radius: var(--r-lg);
+  border: var(--line-w) solid var(--line); background: var(--grad-mint);
+  box-shadow: var(--pop-2); color: #04241B;
+}
+.banner b { font-size: 1.1rem; display: block; }
+.banner span { font-size: .9rem; opacity: .85; }
+
+/* ── reports ──────────────────────────────────────────── */
+.rep { border: var(--line-w) solid var(--line); border-radius: var(--r-md);
+  background: var(--card); box-shadow: var(--pop-2); margin-bottom: 16px; overflow: hidden; }
+.rep-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 15px 17px; cursor: pointer; }
+.rep-top b { font-size: 1rem; }
+.rep-top .sp { flex: 1; }
+.rep-figs { display: flex; gap: 20px; flex-wrap: wrap; }
+.rep-fig b { display: block; font-size: 1.22rem; line-height: 1.1; }
+.rep-fig span { font-size: .72rem; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+.rep-body { padding: 0 17px 17px; border-top: 2px solid var(--line-soft); }
+.rep-body h4 { margin: 16px 0 9px; font-size: .78rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); }
+
+.who { display: flex; align-items: center; gap: 11px; padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft); }
+.who:last-child { border-bottom: 0; }
+.who b { flex: 1; font-weight: 800; font-size: .93rem; }
+.who .barb { width: clamp(80px, 22vw, 190px); height: 10px; border-radius: 99px;
+  background: var(--line-soft); overflow: hidden; flex: none; }
+.who .barb i { display: block; height: 100%; border-radius: 99px; background: var(--mint); }
+.who .pc { width: 48px; text-align: right; font-weight: 900; font-size: .9rem; flex: none; }
+.who.low .barb i { background: var(--coral); }
+
+.qline { padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.qline:last-child { border-bottom: 0; }
+.qline .t { display: flex; gap: 12px; align-items: baseline; }
+.qline .t b { flex: 1; font-weight: 700; font-size: .9rem; line-height: 1.4; }
+.qline .t span { font-weight: 900; font-size: .88rem; flex: none; }
+.qline .barb { margin-top: 6px; height: 8px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+.qline .barb i { display: block; height: 100%; border-radius: 99px; background: var(--indigo); }
+.qline.hard .barb i { background: var(--coral); }
+
+/* ── a phone ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .dash { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; flex-direction: row; align-items: center;
+    overflow-x: auto; gap: 4px; padding: 10px 12px;
+    border-right: 0; border-bottom: var(--line-w) solid var(--line); }
+  .rail-top { padding: 0 10px 0 4px; }
+  .rail-top b { font-size: 1.05rem; }
+  .rail-new { width: auto; margin: 0 8px 0 0; padding: 10px 15px; flex: none; }
+  .rail-link { width: auto; flex: none; padding: 10px 13px; white-space: nowrap; }
+  .rail-tail { display: none; }
+  .page-top { position: static; }
+}

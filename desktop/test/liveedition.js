@@ -1,0 +1,459 @@
+/* The live edition, end to end — the one that has never had a test.
+ *
+ * quoldek.web.app and livequoldek.web.app do not run a server. The pages talk
+ * to Supabase directly through static/live.js, which re-implements the whole
+ * game API in the browser. Every other suite here drives the Node server
+ * instead, so that engine — the one a real classroom actually uses — has been
+ * shipped untested this entire time. Three separate live-only breakages have
+ * reached a teacher standing in front of a class.
+ *
+ * So: serve the real built docs-live/ and docs-play/ over a local file server,
+ * stub fetch for the Supabase host with an in-memory table store that speaks
+ * the small slice of PostgREST live.js relies on, and play a whole game.
+ * Nothing is mocked above that line — the pages, live.js and rules.js are the
+ * shipped files, byte for byte.
+ */
+const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const { chromium } = require('playwright');
+
+const ROOT = path.join(__dirname, '..', '..');
+const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+let fails = 0, checks = 0;
+const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${d ? '  — ' + d : ''}`); }
+                          else console.log(`ok    ${n}${d ? '  — ' + d : ''}`); };
+
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+                '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml',
+                '.mp3': 'audio/mpeg', '.woff2': 'font/woff2' };
+
+/* Firebase Hosting rewrites every unknown path to /index.html on these sites.
+ * That is load-bearing for this test: it is exactly what turned a missing API
+ * into a 200 full of HTML rather than an honest 404. */
+function serve(dir, playDir) {
+  return http.createServer((req, res) => {
+    const clean = decodeURIComponent(req.url.split('?')[0]);
+    /* Both sites off one origin, so the board and the phone share the tables the
+       way they share a Supabase. In production they are two hosts; the engine
+       under test talks to the database, not to the other page. */
+    const play = clean === '/play' || clean.startsWith('/play/');
+    const base = play ? playDir : dir;
+    const rel = play ? clean.replace(/^\/play\/?/, '') : clean.slice(1);
+    let file = path.join(base, rel || 'index.html');
+    if (!file.startsWith(base) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      file = path.join(base, 'index.html');
+    }
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+    res.end(fs.readFileSync(file));
+  });
+}
+const listen = (srv) => new Promise(r => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
+
+/* The smallest Supabase that live.js cannot tell from the real one: four
+ * tables, eq filters, select, and the Prefer headers it sends. */
+const SUPABASE_STUB = `
+/* The tables live in localStorage rather than in a page variable, because a
+   board that navigates and a phone in another tab have to see the same rows —
+   the same way they see the same Supabase. */
+window.__read = () => { try { return JSON.parse(localStorage.getItem('__db')) || {}; }
+                        catch { return {}; } };
+window.__write = (db) => { try { localStorage.setItem('__db', JSON.stringify(db)); } catch {} };
+Object.defineProperty(window, '__db', { get: () => window.__read() });
+(function () {
+  const real = window.fetch.bind(window);
+  window.fetch = async function (input, init) {
+    const url = typeof input === 'string' ? input : input.url;
+    if (!/supabase\\.co/.test(url)) return real(input, init);
+    const opts = init || {};
+    const method = (opts.method || 'GET').toUpperCase();
+    const u = new URL(url);
+    const table = u.pathname.replace('/rest/v1/', '');
+    const db = window.__read();
+    const rows = db[table] || (db[table] = []);
+
+    // ?col=eq.value and ?col=gte.value, which is all live.js ever sends
+    const wants = [];
+    u.searchParams.forEach((v, k) => {
+      if (k === 'select' || k === 'order' || k === 'limit') return;
+      const [op, ...rest] = v.split('.');
+      wants.push({ k, op, v: rest.join('.') });
+    });
+    const hit = (row) => wants.every(w => {
+      const got = row[w.k];
+      if (w.op === 'eq') return String(got) === w.v;
+      if (w.op === 'gte') return new Date(got) >= new Date(w.v);
+      return true;
+    });
+    const body = opts.body ? JSON.parse(opts.body) : null;
+    const reply = (code, data) => new Response(data === undefined ? '' : JSON.stringify(data),
+      { status: code, headers: { 'content-type': 'application/json' } });
+
+    if (method === 'GET') return reply(200, rows.filter(hit));
+    if (method === 'POST') {
+      const list = Array.isArray(body) ? body : [body];
+      list.forEach(r => rows.push(Object.assign(
+        { created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          joined_at: new Date().toISOString(), at: new Date().toISOString(), score: 0,
+          // the live games table carries a revision, and so must this
+          rev: 0 }, r)));
+      window.__write(db);
+      const minimal = /return=minimal/.test((opts.headers || {}).prefer || '');
+      return reply(201, minimal ? undefined : list);
+    }
+    if (method === 'PATCH') {
+      /* A conditional write — PATCH with ?rev=eq.N — changes nothing when the
+         row has moved on, and says so by returning no rows. Without that here,
+         the stub would happily let a stale write land and the guard would look
+         like it worked when it did not. */
+      const touched = rows.filter(hit);
+      touched.forEach(r => Object.assign(r, body));
+      window.__write(db);
+      const wants = /return=representation/.test((opts.headers || {}).prefer || '');
+      return reply(200, wants ? touched : undefined);
+    }
+    if (method === 'DELETE') {
+      db[table] = rows.filter(r => !hit(r));
+      window.__write(db);
+      return reply(204, undefined);
+    }
+    return reply(405, { message: 'no' });
+  };
+})();
+`;
+
+(async () => {
+  const liveSrv = serve(path.join(ROOT, 'docs-live'), path.join(ROOT, 'docs-play'));
+  const livePort = await listen(liveSrv);
+  const liveBase = `http://127.0.0.1:${livePort}`;
+  const playBase = `${liveBase}/play`;
+
+  const browser = await chromium.launch({ executablePath: CHROME, headless: false });
+  const ctx = await browser.newContext();
+  // every page in this run shares one in-memory Supabase, the way a class does
+  await ctx.addInitScript(SUPABASE_STUB);
+
+  const board = await ctx.newPage({ viewport: { width: 1280, height: 800 } });
+  const berrs = [];
+  board.on('pageerror', e => berrs.push(e.message));
+
+  /* ── make a game the way the studio does: through the live engine ── */
+  await board.goto(liveBase, { waitUntil: 'domcontentloaded' });
+  await board.waitForTimeout(1200);
+
+  ok('the board loads its own engine', await board.evaluate(() => !!window.NovaLive),
+     'NovaLive present');
+  ok('and the rules it plays by', await board.evaluate(() => !!window.NovaRules));
+
+  const made = await board.evaluate(async () => {
+    const quiz = { id: 'q1', title: 'Lesson', questions: [
+      { id: 'a', type: 'mc', text: 'Two plus two?', points: 100, time: 30,
+        choices: [{ id: 'a1', text: '4', correct: true }, { id: 'a2', text: '5' }] },
+      { id: 'b', type: 'mc', text: 'Capital of France?', points: 100, time: 30,
+        choices: [{ id: 'b1', text: 'Paris', correct: true }, { id: 'b2', text: 'Rome' }] }
+    ] };
+    try {
+      return await window.NovaLive.handle('/games', 'POST',
+        { quizId: 'q1', quiz, mode: 'normal', map: '' });
+    } catch (e) { return { error: e.message }; }
+  });
+  ok('a game can be made on the live site', made && made.pin && !made.error,
+     made && (made.error || 'pin ' + made.pin));
+  if (!made || !made.pin) { console.log('\ncannot continue without a game'); process.exit(1); }
+  const pin = made.pin, ht = made.hostToken;
+
+  /* ── the board opens on it, the way a teacher is sent there ── */
+  await board.goto(`${liveBase}/?pin=${pin}#h=${ht}`, { waitUntil: 'domcontentloaded' });
+  await board.waitForTimeout(2500);
+
+  const seen = (await board.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ');
+  ok('the board reaches the game rather than reconnecting for ever',
+     !/Reconnecting|Cannot reach/.test(seen), seen.slice(0, 90));
+  ok('and shows the PIN a class has to type',
+     new RegExp(pin).test(seen), seen.slice(0, 60));
+
+  /* ── a phone joins ── */
+  const phone = await ctx.newPage({ viewport: { width: 390, height: 820 } });
+  const perrs = [];
+  phone.on('pageerror', e => perrs.push(e.message));
+  await phone.goto(`${playBase}/?pin=${pin}`, { waitUntil: 'domcontentloaded' });
+  await phone.waitForTimeout(1200);
+  await phone.locator('input').first().fill('Cal');
+  await phone.locator('button:has-text("Join the game")').first().click();
+  await phone.waitForTimeout(1600);
+
+  const joined = await board.evaluate(() =>
+    (window.__db.quiznova_live_players || []).map(p => p.name));
+  ok('a phone can join a live game', joined.includes('Cal'), JSON.stringify(joined));
+
+  await board.waitForTimeout(2200);
+  ok('and the board counts them in',
+     /1 player/.test((await board.evaluate(() => document.body.innerText))),
+     (await board.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 70));
+
+  /* ── the teacher starts it ── */
+  await board.locator('#start').click().catch(() => {});
+  await board.waitForTimeout(2200);
+  const state = await board.evaluate(() =>
+    (window.__db.quiznova_live_games[0] || {}).data?.state);
+  ok('the teacher can start it', state === 'question', String(state));
+
+  await phone.waitForTimeout(1800);
+  ok('and the question reaches the phone',
+     await phone.locator('.opt-btn').count() > 0,
+     (await phone.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 60));
+
+  /* ── and end it ── */
+  await board.locator('#end').click().catch(() => {});
+  await board.waitForTimeout(700);
+  await board.locator('#yes').click().catch(() => {});
+  await board.waitForTimeout(2000);
+  const ended = await board.evaluate(() =>
+    (window.__db.quiznova_live_games[0] || {}).data?.state);
+  ok('and end it', ended === 'over', String(ended));
+
+  /* ── Robot Run on the live site, scramble and all ──
+   *
+   * The live edition has no server: everything the desktop edition does in
+   * games.js is done again in the browser, and the two have drifted apart
+   * before. The scramble between decks is the newest place they could, so it
+   * is played here through the live engine itself. */
+  const run = await board.evaluate(async () => {
+    const out = {};
+    const quiz = { id: 'q2', title: 'Chase', questions: [
+      { id: 'a', type: 'mc', text: 'Two plus two?', points: 100, time: 30,
+        choices: [{ id: 'a1', text: '4', correct: true }, { id: 'a2', text: '5' }] }] };
+    const L = window.NovaLive;
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q2', quiz, mode: 'robot', map: 'station' });
+    const pin = game.pin;
+    const one = await L.handle(`/games/${pin}/join`, 'POST', { name: 'Ana', avatar: 3 });
+    const two = await L.handle(`/games/${pin}/join`, 'POST', { name: 'Ben', avatar: 5 });
+    const id = (j) => (j.player ? j.player.id : j.id);
+    await L.handle(`/games/${pin}/start`, 'POST', { hostToken: game.hostToken });
+
+    // fill the escape bar the way a class does, one boost at a time
+    for (let n = 1; n <= 30; n++) {
+      const r = await L.handle(`/games/${pin}/boost`, 'POST', { playerId: id(one), seq: n });
+      if (r && r.escape >= 100) break;
+    }
+    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.state = view.state;
+    out.zones = (view.zones || []).length;
+
+    // one child gets in, and then the same zone is tried again
+    const z = (view.zones || [])[0] || { id: 'z0' };
+    const claim = await L.handle(`/games/${pin}/safe`, 'POST', { playerId: id(one), zone: z.id });
+    out.claim = { ok: claim.ok, zone: claim.zone, why: claim.why };
+    const second = await L.handle(`/games/${pin}/safe`, 'POST', { playerId: id(two), zone: z.id });
+    out.secondOk = !!(second && second.ok);
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.counts = view.zoneCounts;
+    out.livesBefore = view.lives;
+
+    // the board settles it, because nothing else on the live site is awake to
+    await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.after = view.state; out.round = view.round; out.lives = view.lives;
+    out.escape = view.escape;
+    return out;
+  });
+  ok('the live site opens the hatches when the escape bar fills',
+     run.state === 'safe' && run.zones >= 2, `state ${run.state}, ${run.zones} zones`);
+  ok('a child can take a place in a zone on the live site',
+     run.claim && run.claim.ok, (run.claim && (run.claim.zone || run.claim.why)) || 'no answer');
+  ok('and a zone that is full turns the next one away',
+     run.secondOk === false || run.counts, JSON.stringify(run.counts));
+  ok('the live board can settle the scramble itself',
+     run.after === 'running' && run.round === 2 && run.escape === 0,
+     `deck ${run.round}, state ${run.after}, escape ${run.escape}`);
+  ok('and whoever was left out costs the class a life',
+     run.lives === run.livesBefore - 1, `${run.livesBefore} → ${run.lives} lives`);
+
+  /* ── and Tallest Tower's gorilla on the live site ──
+   *
+   * He takes a floor, sits on the tower, freezes it, puts a green column on
+   * the other two and then climbs down when the board asks. Every one of those
+   * steps is a place the browser engine could have drifted from the server's. */
+  const ape = await board.evaluate(async () => {
+    const L = window.NovaLive;
+    // several questions, because a block is earned one question at a time
+    const quiz = { id: 'q3', title: 'Build', questions: [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+      id: 'q' + n, type: 'mc', text: 'Question ' + n, points: 100, time: 60,
+      choices: [{ id: 'r' + n, text: 'right', correct: true },
+                { id: 'w' + n, text: 'wrong' }] })) };
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q3', quiz, mode: 'tower', map: 'site' });
+    const pin = game.pin;
+    const ids = [];
+    for (const name of ['Ana', 'Ben', 'Cal']) {
+      const j = await L.handle(`/games/${pin}/join`, 'POST', { name, avatar: ids.length * 7 });
+      ids.push(j.player ? j.player.id : j.id);
+    }
+    await L.handle(`/games/${pin}/start`, 'POST', { hostToken: game.hostToken });
+
+    /* Blocks are earned by answering, so the tower is built the long way —
+       through the same two calls a phone makes. */
+    const out = {};
+    const seq = {};
+    /* Tallest Tower is self-paced now: every phone holds the whole quiz and
+       each child answers at their own speed, so there is no shared question and
+       nothing for the host to advance. An answer names the question it belongs
+       to, and a right one is a block straight away. */
+    const quizOf = (v) => v.quiz || [];
+    const rightOf = (q) => (q.choices.find(c => /right/.test(c.text)) || q.choices[0]).id;
+    let view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.selfPaced = view.state === 'building' && quizOf(view).length > 0;
+    for (let round = 0; round < 6; round++) {
+      const set = quizOf(view);
+      if (!set.length) break;
+      const q = set[round % set.length];
+      for (const id of ids) {
+        await L.handle(`/games/${pin}/answer`, 'POST',
+                       { playerId: id, questionId: q.id, answer: rightOf(q), speed: 0.9 });
+        seq[id] = (seq[id] || 0) + 1;
+        await L.handle(`/games/${pin}/place`, 'POST',
+                       { playerId: id, offset: 0, seq: seq[id] });
+      }
+      view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    }
+
+    const pre = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.built = Object.fromEntries(Object.entries(pre.towers || {})
+      .map(([t, v]) => [t, (v.blocks || []).length]));
+    out.state = pre.state;
+    const hit = await L.handle(`/games/${pin}/monster`, 'POST', { hostToken: game.hostToken });
+    out.hit = hit && hit.hit;
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    out.sitting = out.hit ? view.towers[out.hit].apeUntil > Date.now() : false;
+    out.marks = Object.fromEntries(Object.entries(view.towers).map(([t, v]) => [t, v.mark]));
+
+    // a block dropped on his tower goes nowhere
+    const stuck = (view.players || []).find(p => p.team === out.hit);
+    if (stuck) {
+      const q = quizOf(view)[0];
+      if (q) {
+        await L.handle(`/games/${pin}/answer`, 'POST',
+                       { playerId: stuck.id, questionId: q.id, answer: rightOf(q), speed: 0.9 });
+      }
+      seq[stuck.id] = (seq[stuck.id] || 0) + 1;
+      const drop = await L.handle(`/games/${pin}/place`, 'POST',
+                                  { playerId: stuck.id, offset: 0, seq: seq[stuck.id] });
+      out.ape = !!drop.ape;
+    }
+
+    // and the board climbs him down
+    view = await L.handle(`/games/${pin}`, 'GET', { hostToken: game.hostToken });
+    if (out.hit) view.towers[out.hit].apeUntil = 1;
+    await L.handle(`/games/${pin}/settle`, 'POST', { hostToken: game.hostToken });
+    return out;
+  });
+  ok('a tower game leaves everybody on their own question, with no host to wait for',
+     ape.selfPaced === true, ape.selfPaced ? 'the whole quiz is on every phone'
+                                          : 'the class is still in lock-step');
+  ok('the gorilla climbs the winning tower on the live site too', !!ape.hit,
+     `${ape.hit} — the three towers were at ${JSON.stringify(ape.built)} blocks`);
+  ok('and he sits on it there as well', ape.sitting === true, JSON.stringify(ape.marks));
+  ok('a block dropped under him lands nowhere on the live site', ape.ape === true,
+     ape.ape === undefined ? 'nobody was on his tower' : String(ape.ape));
+
+  /* ── two devices at once, which is what a classroom is ──
+   *
+   * Everything above drives the live engine one caller at a time, and that is
+   * how every one of these modes passed while none of them worked in a room.
+   * The board writes the whole game on every poll; so does a phone every time
+   * it puts a boost in or swings a knife. Whoever wrote last used to erase the
+   * other, so the escape bar never moved and the boss never lost health.
+   *
+   * The phone here is a second page — its own document, its own copy of the
+   * engine — sharing the tables with the board, exactly as in a classroom. */
+  const phone2 = await ctx.newPage({ viewport: { width: 390, height: 820 } });
+  const p2errs = [];
+  phone2.on('pageerror', e => p2errs.push(e.message));
+  await phone2.goto(`${playBase}/`, { waitUntil: 'domcontentloaded' });
+  await phone2.waitForTimeout(800);
+
+  const chase = await board.evaluate(async () => {
+    const L = window.NovaLive;
+    const quiz = { id: 'q4', title: 'Chase', questions: [
+      { id: 'a', type: 'mc', text: 'Two plus two?', points: 100, time: 30,
+        choices: [{ id: 'a1', text: '4', correct: true }, { id: 'a2', text: '5' }] }] };
+    const game = await L.handle('/games', 'POST',
+      { quizId: 'q4', quiz, mode: 'robot', map: 'station' });
+    const j = await L.handle(`/games/${game.pin}/join`, 'POST', { name: 'Ana', avatar: 3 });
+    await L.handle(`/games/${game.pin}/start`, 'POST', { hostToken: game.hostToken });
+    return { pin: game.pin, hostToken: game.hostToken, id: j.player ? j.player.id : j.id };
+  });
+
+  /* The board reads the game — a poll beginning — and then the phone boosts
+     while that read is still in the board's hands. The board then writes what
+     it read. Before the guard, the boost was gone. */
+  const stale = await (async () => {
+    const held = await board.evaluate(async (pin) => {
+      // what a poll holds between reading the game and writing it back
+      window.__held = await window.NovaLive.readRaw(pin);
+      return window.__held.escape || 0;
+    }, chase.pin).catch(() => null);
+    if (held === null) return { skipped: true };
+    await phone2.evaluate(async (c) => {
+      await window.NovaLive.handle(`/games/${c.pin}/boost`, 'POST', { playerId: c.id, seq: 1 });
+    }, chase);
+    const wrote = await board.evaluate(async (pin) => {
+      try {
+        await window.NovaLive.writeRaw(pin, window.__held);
+        return 'landed';
+      } catch (err) { return err && err.stale ? 'refused' : 'error: ' + err.message; }
+    }, chase.pin);
+    const after = await board.evaluate(async (pin) =>
+      (await window.NovaLive.readRaw(pin)).escape || 0, chase.pin);
+    return { wrote, after };
+  })();
+  ok('a write made from a game that has moved on is refused, not silently applied',
+     stale.wrote === 'refused', String(stale.wrote));
+  ok("and the phone's boost is still there afterwards",
+     stale.after > 0, `the escape bar is at ${stale.after}`);
+
+  /* And the whole thing together: the phone boosts while the board keeps
+     polling, and every boost has to survive. */
+  const together = await (async () => {
+    const boosts = phone2.evaluate(async (c) => {
+      let sent = 0;
+      for (let n = 2; n <= 9; n++) {
+        try {
+          await window.NovaLive.handle(`/games/${c.pin}/boost`, 'POST',
+                                       { playerId: c.id, seq: n });
+          sent += 1;
+        } catch { /* counted by what the game says, not by what we hoped */ }
+      }
+      return sent;
+    }, chase);
+    const polls = board.evaluate(async (c) => {
+      let n = 0;
+      for (; n < 10; n++) {
+        await window.NovaLive.handle(`/games/${c.pin}`, 'GET', { hostToken: c.hostToken });
+        await new Promise(r => setTimeout(r, 60));
+      }
+      return n;
+    }, chase);
+    const [sent] = await Promise.all([boosts, polls]);
+    const view = await board.evaluate(async (c) =>
+      window.NovaLive.handle(`/games/${c.pin}`, 'GET', { hostToken: c.hostToken }), chase);
+    const ana = (view.players || []).find(p => p.name === 'Ana') || {};
+    return { sent, boosts: ana.boosts || 0, escape: view.escape || 0 };
+  })();
+  ok('every boost put in while the board is polling is still counted',
+     together.boosts === 9, `${together.sent} sent, ${together.boosts} counted`);
+  ok('and the room can actually see the escape bar move',
+     together.escape >= 81, `the bar is at ${together.escape}`);
+  ok('no errors on the phone that was playing', p2errs.length === 0,
+     p2errs.slice(0, 2).join(' | '));
+
+  ok('no errors on the live board', berrs.length === 0, berrs.slice(0, 3).join(' | '));
+  ok('no errors on the live phone', perrs.length === 0, perrs.slice(0, 3).join(' | '));
+
+  await board.screenshot({ path: path.join(__dirname, 'shots', 'live-board.png') }).catch(() => {});
+  await browser.close();
+  liveSrv.close();
+  console.log(`\n${checks - fails}/${checks} passed`);
+  process.exit(fails ? 1 : 0);
+})().catch(e => { console.error('CRASH', e.stack); process.exit(1); });

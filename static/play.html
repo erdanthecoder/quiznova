@@ -134,6 +134,17 @@
 .mcard.gap{background:rgba(255,255,255,.1);border-style:dashed;border-color:rgba(255,255,255,.3)}
 
 /* a little track, tower, fort or bar, depending on the game */
+/* Fishing: three places to cast, priced in odds rather than in words, because a
+   child deciding whether to gamble needs the number and not an adjective. */
+.casts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px;width:100%}
+.cast{padding:9px 6px;border-radius:13px;font:inherit;color:inherit;cursor:pointer;
+  background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.14);
+  transition:transform .13s,border-color .13s,background .13s}
+.cast:hover{transform:translateY(-2px)}
+.cast b{display:block;font-size:.85rem;font-weight:900}
+.cast span{display:block;font-size:.68rem;font-weight:750;opacity:.72;margin-top:2px}
+.cast.on{background:rgba(43,168,255,.2);border-color:#2BA8FF;
+  box-shadow:0 0 0 3px rgba(43,168,255,.22)}
 .minitrack{width:100%;height:22px;border-radius:99px;background:rgba(0,0,0,.32);position:relative;
   border:1px solid var(--line-soft);overflow:hidden}
 .minitrack i{position:absolute;top:2px;bottom:2px;left:2px;border-radius:99px;
@@ -159,6 +170,85 @@
 .energy i{display:block;height:100%;width:100%;border-radius:99px;
   background:linear-gradient(90deg,#12BE8E,#7BC62D);transition:width .12s linear}
 .energy i.low{background:linear-gradient(90deg,#FF6B5A,#FFC53D)}
+
+/* ── the superpower you are holding ──
+   A chip reading "Rapid fire" tells you what you have and nothing about how
+   long you have it for, which is the half that decides whether to charge or
+   sit tight. So: the mark of the power, its name, and a bar that runs out. */
+.power-slot{position:absolute;left:10px;top:10px;display:flex;align-items:center;gap:9px;
+  padding:7px 13px 7px 8px;border-radius:99px;background:rgba(8,5,20,.72);
+  border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px);
+  opacity:0;transform:translateY(-6px);transition:.18s ease;pointer-events:none}
+.power-slot.on{opacity:1;transform:none}
+.power-slot .mark{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center}
+.power-slot .mark svg{width:16px;height:16px;display:block}
+.power-slot .txt{display:flex;flex-direction:column;gap:3px;min-width:78px}
+.power-slot b{font-size:.72rem;font-weight:900;letter-spacing:.04em;color:#fff;line-height:1}
+.power-slot .clock{height:4px;border-radius:99px;background:rgba(255,255,255,.2);overflow:hidden}
+.power-slot .clock i{display:block;height:100%;width:100%;border-radius:99px;transition:width .1s linear}
+
+/* and the shout when you pick one up */
+.power-shout{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(.7);
+  padding:10px 20px;border-radius:99px;font-weight:900;font-size:1rem;letter-spacing:.03em;
+  color:#fff;background:rgba(8,5,20,.8);border:2px solid currentColor;
+  opacity:0;pointer-events:none;white-space:nowrap}
+.power-shout.go{animation:shout 1100ms ease forwards}
+@keyframes shout{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}
+  18%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}
+  28%{transform:translate(-50%,-50%) scale(1)}
+  72%{opacity:1;transform:translate(-50%,-58%) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-72%) scale(1)}}
+@media (prefers-reduced-motion:reduce){.power-shout.go{animation:none;opacity:1}}
+
+/* ── the weapon in your hand ──
+   "Everyone has a different knife" was true in the code and invisible on the
+   screen: at the size a blade is drawn out in the ring it is a scratch. So the
+   thing you earned is drawn once, big, on a card of its own, with its name
+   under it — the blade, the guard, the wrapped grip and the pommel. */
+.blade-card{display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:16px;
+  background:rgba(10,7,24,.66);border:1px solid rgba(255,255,255,.14)}
+.blade-card canvas{display:block;width:132px;height:46px;flex:none}
+.blade-card .who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.blade-card b{font-size:.92rem;font-weight:900;line-height:1.1}
+.blade-card span{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--faint,#8b86a6)}
+
+/* the charge meter: how close the next boost is */
+/* Renamed from .charge, which a seven-pixel meter elsewhere on this page
+   already owned — it won, and this came out as a sliver with the words
+   spilling over the top of it. */
+.boostmeter{position:relative;flex:0 0 auto;height:36px;border-radius:99px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  overflow:hidden;display:flex;align-items:center}
+.boostmeter i{position:absolute;inset:0;width:0;border-radius:99px;
+  background:linear-gradient(90deg,#2BA8FF,#12BE8E);transition:width .25s ease}
+.boostmeter i.full{background:linear-gradient(90deg,#FFC53D,#FF9A3D)}
+.boostmeter span{position:relative;z-index:1;width:100%;text-align:center;
+  font-size:.76rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+/* the scramble between decks: a deck seen from above, and a finger on it */
+.deck{position:relative;flex:0 1 auto;aspect-ratio:10/7;min-height:200px;border-radius:20px;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 0%,#18314C,#080E18);
+  border:2px solid rgba(255,255,255,.10);touch-action:none;cursor:grab}
+.deck canvas{position:absolute;inset:0;width:100%;height:100%}
+.deckclock{flex:none;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;font-weight:900}
+.deckclock b{font-size:1.9rem;font-variant-numeric:tabular-nums}
+.deckclock b.low{color:#F4364C}
+.zonebar{flex:0 0 auto;display:grid;gap:8px;
+  grid-template-columns:repeat(auto-fit,minmax(88px,1fr))}
+.zonebtn{border:2px solid rgba(18,190,142,.45);background:rgba(18,190,142,.12);
+  color:#BFF6E4;border-radius:16px;padding:12px 6px;font-weight:900;font-size:.82rem;
+  display:flex;flex-direction:column;gap:2px;align-items:center;cursor:pointer}
+.zonebtn b{font-size:1.15rem}
+.zonebtn.full{border-color:rgba(244,54,76,.55);background:rgba(244,54,76,.12);color:#FFB3BC}
+.zonebtn.mine{border-color:#12BE8E;background:rgba(18,190,142,.3);color:#fff}
+.zonebtn:active{transform:scale(.97)}
+.deckstate{flex:none;text-align:center;font-weight:900;letter-spacing:.04em;
+  padding:12px;border-radius:16px;background:rgba(255,255,255,.07)}
+.deckstate.in{background:rgba(18,190,142,.22);color:#9CF0D3}
+.deckstate.out{background:rgba(255,197,61,.18);color:#FFD98A}
+
 .opt-btn.right{outline:4px solid #12BE8E}
 .opt-btn.wrong{outline:4px solid #F4364C;opacity:.75}
 
@@ -185,17 +275,41 @@
 .cross::after{top:50%;left:-8px;right:-8px;height:2px;margin-top:-1px}
 .cross.bang{animation:bang .28s var(--ease)}
 @keyframes bang{0%{transform:scale(.7);box-shadow:0 0 0 12px rgba(255,197,61,.35)}100%{transform:none}}
-.gamepad{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
-.gamepad .stick{width:112px;height:112px;border-radius:50%;position:relative;touch-action:none;flex:none;
+.gamepad{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center;justify-items:center;margin-top:12px}
+.gamepad .stick{width:126px;height:126px;border-radius:50%;position:relative;touch-action:none;flex:none;
   background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.13),rgba(255,255,255,.04));
   border:2px solid rgba(255,255,255,.16)}
 .gamepad .knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;
   background:linear-gradient(180deg,#8E7BFF,#5B3FE8);box-shadow:0 6px 0 -1px rgba(0,0,0,.4);transition:transform .08s}
-.gamepad .fire{flex:1;height:112px;border:none;border-radius:24px;cursor:pointer;font:inherit;font-weight:900;
-  font-size:1.5rem;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#FF6B5A,#E01F35);
-  box-shadow:0 8px 0 -2px rgba(0,0,0,.45)}
-.gamepad .fire:active{transform:translateY(4px);box-shadow:0 4px 0 -2px rgba(0,0,0,.45)}
 .chip.warn{border-color:var(--amber);color:var(--amber)}
+/* the arena's link chip: only ever shown when it is bad news */
+.chip.bad{border-color:#F4364C;color:#FFB3BC;font-weight:900}
+/* where you stand, between questions */
+/* the streak badge: the number is the thing children chase */
+.streak{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:8px 16px;
+  border-radius:999px;background:linear-gradient(90deg,#FF9A3D,#FFC53D);color:#2A1B00;
+  animation:streakpop .45s cubic-bezier(.2,1.4,.4,1) both}
+.streak i{display:flex}
+.streak i svg{width:22px;height:22px;fill:#2A1B00}
+.streak b{font-size:1.5rem;font-weight:900;line-height:1}
+.streak span{font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;opacity:.75}
+@keyframes streakpop{from{transform:scale(.4) rotate(-8deg);opacity:0}}
+
+/* the double-points question, said on the phone too */
+.doubler{flex:none;text-align:center;padding:10px;border-radius:14px;margin-bottom:8px;
+  background:linear-gradient(90deg,#FFC53D,#FF8A3D);color:#2A1B00;font-weight:900;
+  letter-spacing:.12em;font-size:.82rem;animation:doublepop .5s ease both}
+@keyframes doublepop{from{transform:scale(.7);opacity:0}}
+.standing{margin-top:12px;flex:none;display:flex;align-items:baseline;justify-content:center;gap:10px;
+  padding:12px 16px;border-radius:18px;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.12)}
+.standing b{font-size:1.7rem;font-weight:900;letter-spacing:-.02em}
+.standing span{font-size:.86rem;font-weight:800;opacity:.8}
+/* the boss, on the phone: a card you can swipe across */
+.duel{position:relative;flex:0 1 auto;aspect-ratio:5/4;min-height:210px;
+  border-radius:20px;overflow:hidden;border:2px solid rgba(255,255,255,.10);
+  touch-action:none;cursor:crosshair;background:#0B0722}
+.duel canvas{position:absolute;inset:0;width:100%;height:100%}
 
 /* the result takes over the screen, the way it does on a games console */
 .big{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -252,6 +366,83 @@
 @keyframes breathe{50%{transform:scale(1.18);opacity:.75}}
 
 /* choosing a character */
+/* The move: the row of choices under the question. It has to read at a glance
+ * on a phone held under a desk, so each one is a short verb and one line saying
+ * what it costs. A choice whose terms you cannot see is not a choice. */
+/* Monster Run: the chase on top, the question underneath, both in view. A
+ * child who has to scroll to answer is a child who gets caught. */
+.runshell{position:relative;flex:0 0 auto;height:38vh;min-height:190px;max-height:340px;
+  border-radius:18px;overflow:hidden;border:2px solid rgba(0,0,0,.5);
+  box-shadow:0 14px 34px -18px rgba(0,0,0,.9)}
+.runshell canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.runq{margin-top:4px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;gap:10px}
+.runq-text{font-size:1.02rem;font-weight:800;line-height:1.3;margin-bottom:10px;color:#fff}
+.runq .opts{flex:0 1 auto}
+
+/* Hold to boost. Big, because it is pressed under a desk while the eyes are on
+ * the robot, and it says what it wants rather than showing an icon. */
+.boostbtn{margin-top:2px;flex:none;border:0;border-radius:18px;padding:18px 12px;
+  font-size:1rem;font-weight:900;letter-spacing:.09em;color:#fff;cursor:pointer;
+  touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  background:linear-gradient(180deg,#FFB020,#E07000);
+  box-shadow:0 7px 0 #9C4E00,0 12px 24px rgba(224,112,0,.38);
+  transition:transform .08s ease,filter .08s ease}
+.boostbtn:active{transform:translateY(4px) scale(.98);box-shadow:0 3px 0 #9C4E00}
+/* The hold, drawn. A button that says HOLD TO BOOST and then shows nothing at
+   all while a thumb is on it leaves a child guessing whether it is working,
+   and letting go early wastes the boost they earned. The bar fills in exactly
+   the time the hold takes, so the moment it is full is the moment to let go. */
+.boostbtn{position:relative;overflow:hidden}
+.boostbtn .fill{position:absolute;left:0;top:0;bottom:0;width:0;
+  background:rgba(255,255,255,.35);pointer-events:none}
+.boostbtn.holding .fill{width:100%;transition:width var(--hold,550ms) linear}
+.boostbtn.done{animation:boostpop .34s ease both}
+@keyframes boostpop{40%{transform:scale(1.06);box-shadow:0 0 0 8px rgba(255,197,61,.35)}}
+.boostbtn:disabled{background:rgba(255,255,255,.08);box-shadow:none;color:rgba(255,255,255,.45);
+  cursor:default;letter-spacing:.06em}
+
+/* The sword pad. Both buttons are as big as a thumb can miss, because a child
+ * in a ten-second fight is watching the boss, not their own hands. */
+.aimstick{background:radial-gradient(circle at 50% 42%,rgba(255,176,32,.22),rgba(255,176,32,.06) 68%)}
+.aimstick .knob{background:linear-gradient(180deg,#FFB020,#E07000)}
+.padlabel{position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:.6rem;
+  font-weight:800;letter-spacing:.14em;opacity:.5;pointer-events:none}
+
+.swordpad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;flex:none}
+.swordpad button{border:0;border-radius:20px;padding:26px 10px;font-size:1.05rem;font-weight:900;
+  letter-spacing:.08em;color:#fff;cursor:pointer;touch-action:manipulation;
+  transition:transform .08s ease,filter .08s ease;user-select:none;-webkit-user-select:none}
+.swordpad button:active{transform:scale(.94);filter:brightness(1.2)}
+.swordpad .swing{background:linear-gradient(180deg,#FFB020,#E07000);
+  box-shadow:0 8px 0 #9C4E00,0 14px 26px rgba(224,112,0,.4)}
+.swordpad .dodge{background:linear-gradient(180deg,#2BA8FF,#1466C8);
+  box-shadow:0 8px 0 #0B4184,0 14px 26px rgba(20,102,200,.4)}
+.swordpad button:active{box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.moves{display:grid;gap:8px;margin:12px 0 4px}
+.moves.two{grid-template-columns:1fr 1fr}
+.move{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;
+  padding:13px 15px;border-radius:14px;cursor:pointer;
+  border:2px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.07);
+  color:#fff;transition:transform .16s var(--ease),border-color .16s,background .16s}
+.move:active{transform:scale(.97)}
+.move b{font-size:.97rem;font-weight:800;letter-spacing:-.01em;color:#fff}
+/* .82 rather than .72, and white rather than the page ink: this is read at
+   arm's length under a desk, and at .72 on a dark card it was not readable at
+   all — the terms of the choice have to be legible or it is not a choice */
+.move span{font-size:.76rem;opacity:.82;line-height:1.3;color:#E9ECF5}
+.move.on{border-color:#FFC53D;background:rgba(255,197,61,.18);
+  box-shadow:0 0 0 4px rgba(255,197,61,.22)}
+.move.on b{color:#FFD86B}
+.move.on span{opacity:.95}
+.move:disabled{opacity:.45;cursor:default}
+/* whoever or whatever the move is aimed at */
+.aim{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.aim button{display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;
+  font-size:.8rem;font-weight:700;cursor:pointer;border:2px solid transparent;
+  background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
+.aim button.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 18%,transparent)}
+.aim svg{width:18px;height:18px}
 .picker{margin-top:18px}
 .picker .preview{display:flex;justify-content:center;line-height:0;margin-bottom:4px}
 .picker .preview svg{width:118px;height:118px;transition:transform .25s var(--ease)}
@@ -288,8 +479,13 @@
 
 <script src="/sprites.js"></script>
 <script src="/launch.js"></script>
+<script src="/duet.js"></script>
 <script src="/progress.js"></script>
 <script src="/arena.js"></script>
+<script src="/strike.js"></script>
+<script src="/run.js"></script>
+<script src="/tower.js"></script>
+<script src="/rules.js"></script>
 <script src="/nova.js"></script>
 <script>
 const { $, api, el, esc, qs, toast, stream, store, confetti, SHAPES, modal } = Nova;
@@ -298,6 +494,8 @@ const drawFace = (p, size) => Sprite.face(p && p.avatar, size);
 const paintMark = () => { const m = document.getElementById('brand-mark');
                           if (m) m.innerHTML = Sprite.logo(76); };
 let pin = qs('pin'), me = null, game = null, drift = 0, ticker = null, picked = null, lastKey = '';
+
+let runner = null, runQ = 0, runStarting = false, runCardNode = null;
 let answeredIndex = -1;   // the question this device has already sent — sticky until the next one
 /* What this phone has done this game, counted here rather than asked for: the
    coins it earns are worked out on the device that earned them. */
@@ -349,7 +547,7 @@ function askPin() {
 }
 
 function askName() {
-  /* Building your own monster.
+  /* Building your own blook.
    *
    * Five things to choose: the colour and the silhouette, which are what tell
    * two players apart across a room, then the eyes, the mouth and the markings,
@@ -360,7 +558,7 @@ function askName() {
   const COUNTS = { colour: Sprite.COLOURS, shape: Sprite.SHAPES, eyes: Sprite.EYES,
                    mouth: Sprite.MOUTHS, pattern: Sprite.PATTERNS };
 
-  /* A monster made only of parts this phone actually owns. Used for the one a
+  /* A blook made only of parts this phone actually owns. Used for the one a
      child is shown before they touch anything and for "surprise me", so neither
      can hand over something that has not been earned. */
   const ownedPart = (key, n) => {
@@ -434,10 +632,10 @@ function askName() {
       el('div', { class: 'coins' },
         el('span', { class: 'c', html: Sprite.icon('coin', 20, '#FFC53D') }),
         String(state.coins)));
-    box.title = 'Kept on this phone. Play to earn coins and unlock more monsters.';
+    box.title = 'Kept on this phone. Play to earn coins and unlock more blooks.';
   }
 
-  /* Each swatch shows the monster you would get by changing only that one thing,
+  /* Each swatch shows the blook you would get by changing only that one thing,
    * so a child can see the choice rather than guess at it. */
   const paint = () => {
     pv.innerHTML = Sprite.face(chosen(), 118);
@@ -447,7 +645,7 @@ function askName() {
     const { key, n } = TABS[tab];
     choices.innerHTML = '';
     choices.className = 'choices' + (key === 'colour' ? ' swatches' : '');
-    // before the update opens, every monster is simply available, exactly as it
+    // before the update opens, every blook is simply available, exactly as it
     // was yesterday — nothing is teased and nothing is taken away
     const prog = (window.NovaLaunch && !NovaLaunch.out()) ? null : window.NovaProgress;
     for (let i = 0; i < n; i++) {
@@ -502,7 +700,7 @@ function askName() {
       const res = await api(`/games/${pin}/join`, { method: 'POST', body: { name, avatar: chosen() } });
       me = res.player;
       // the game keeps two players from looking alike, so say so rather than
-      // quietly handing back a different monster
+      // quietly handing back a different blook
       if (Number(me.avatar) !== chosen()) toast('Someone had that colour and shape. You got the next shape.');
       store.set('player:' + pin, me);
       connect();
@@ -559,6 +757,8 @@ function connect() {
 
 function apply(state) {
   game = state;
+  // the robot is chasing the room, so every phone has to know where the room is
+  if (runner && state.mode === 'robot') runner.setRoom(roomFromGame());
   drift = state.serverNow - Date.now();
   const mine = state.players.find(p => p.id === me?.id);
   if (mine) me = { ...me, ...mine };
@@ -577,7 +777,11 @@ function apply(state) {
     tally.bestRun = Math.max(tally.bestRun, mine.streak || 0, mine.best || 0);
   }
   document.body.classList.toggle('laser', state.mode === 'laser');
-  const key = state.state + ':' + state.index + ':' + (me?.answered ? 'a' : 'w');
+  /* A block arriving in your hand is as structural as a new question: it is a
+     different screen. Without it in the key the phone kept showing the
+     question it had just answered and the block sat there unplaceable. */
+  const key = state.state + ':' + state.index + ':' + (me?.answered ? 'a' : 'w')
+            + ':' + ((me?.ready || 0) > 0 ? 'block' : '-');
   const fresh = key !== lastKey;
   lastKey = key;
   if (fresh) render(true); else patch();
@@ -608,27 +812,11 @@ function hud() {
       me.team === 'red' ? 'Crimson' : 'Cobalt'));
     node.append(el('div', { class: 'stat' }, el('b', {}, me.down ? 'DOWN' : me.hp + ' HP'), el('span', {}, 'shield')));
   } else {
-    if (game.mode === 'snow') {
-      node.append(el('span', { class: 'chip ' + (me.team === 'red' ? '' : 'live'),
-        style: `border-color:${me.team === 'red' ? 'rgba(255,77,94,.5)' : 'rgba(79,107,255,.5)'}` },
-        me.team === 'red' ? 'Crimson' : 'Cobalt'));
-    }
-    const unit = { kart: ['distance', (me.distance || 0) + 'm'], tower: ['blocks', String(me.blocks || 0)],
-                   treasure: ['coins', String(me.coins || 0)], boss: ['damage', String(me.score)],
-                   snow: ['blocks off', String(me.hits || 0)], heist: ['gold', String(me.coins || 0)],
-                   cards: ['cards', `${(me.cards || []).length}/8`],
-                   tug: ['pulled', String(me.hits || 0)] }[game.mode]
+    const unit = { tower: ['blocks', String(me.blocks || 0)],
+                   boss: ['knives in', String(me.hits || 0)],
+                   volcano: ['up the wall', String(me.height || 0)] }[game.mode]
                  || ['points', String(me.score)];
     node.append(el('div', { class: 'stat' }, el('b', {}, unit[1]), el('span', {}, unit[0])));
-    // in Balloon Drop what is left is more urgent than the score
-    if (game.mode === 'balloon') {
-      const strip = el('div', { class: 'balloons hud-strip' });
-      for (let b = 0; b < 3; b++) {
-        strip.append(el('i', { class: b < (me.balloons || 0) ? '' : 'popped',
-                               style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-      }
-      node.append(strip);
-    }
   }
   if (me.streak >= 2) node.append(el('span', { class: 'chip warn' },
     el('span', { class: 'mini-face', html: Sprite.icon('flame', 14) }), String(me.streak)));
@@ -643,7 +831,66 @@ function render(fresh) {
 
   if (game.state === 'lobby') return app.append(lobbyCard());
   if (game.state === 'arena') return app.append(arenaCard());
+  if (game.state === 'strike') {
+    if (!strikeCardNode) strikeCardNode = strikeCard();
+    return app.append(strikeCardNode);
+  }
+  if (strikeCardNode) { if (duel) { duel.stop(); duel = null; } strikeCardNode = null; duelHp = null; }
+  /* The run is kept, not rebuilt.
+   *
+   * Every other screen is thrown away and redrawn when anything changes, which
+   * is fine for a screen made of text. This one holds a canvas with a chase
+   * running on it: rebuilding it handed the engine a canvas that was no longer
+   * in the page, so it carried on drawing where nobody could see, the new
+   * canvas stayed black, and the question panel came back empty. The game went
+   * blank the first time somebody else joined. */
+  if (game.state === 'running') {
+    if (safeCardNode) { stopSafe(); }
+    if (!runCardNode) runCardNode = runCard();
+    return app.append(runCardNode);
+  }
+  /* The scramble. Same rule as the run: kept and fed, never rebuilt, because it
+     is a canvas with a finger on it. */
+  if (game.state === 'safe') {
+    if (!safeCardNode) safeCardNode = safeCard();
+    feedSafe();
+    return app.append(safeCardNode);
+  }
+  if (safeCardNode) stopSafe();
+  runCardNode = null;
   if (arena) { arena.stop(); arena = null; }
+
+  /* Tallest Tower, at your own pace: a question of your own until you get one
+     right, then the block you earned to place. The drop card below already wins
+     over everything when a block is in hand. */
+  if (game.state === 'building' && !((me.ready || 0) > 0)) {
+    if (!buildCardNode) buildCardNode = buildCard();
+    return app.append(buildCardNode);
+  }
+  buildCardNode = null;
+
+  /* A block in hand comes before anything else on the screen.
+   *
+   * It first went in the gap after answering, which meant the reveal card won
+   * the moment the teacher moved on and a child was left holding a block they
+   * could not place. Nobody should ever be sat on one: if you have earned it,
+   * the screen you are looking at is the one you drop it from. */
+  const holding = game.mode === 'tower' && (me.ready || 0) > 0
+                  && game.state !== 'over' && game.state !== 'lobby';
+  if (!holding && dropper) {
+    dropper.stop(); dropper = null; dropBusy = false; dropCardNode = null;
+  }
+  /* Kept, not rebuilt — the same trap the run card fell into. render() runs on
+     every poll; building a fresh card each time hands the engine a canvas that
+     is no longer in the page, so it carries on drawing where nobody can see it
+     and the new canvas stays black. */
+  if (holding) {
+    if (!dropCardNode) dropCardNode = dropCard();
+    return app.append(dropCardNode);
+  }
+  if (game.state !== 'running' && runner) {
+    runner.stop(); runner = null; runStarting = false; runCardNode = null;
+  }
   if (game.state === 'over') return app.append(overCard());
   if (game.state === 'reveal') return app.append(revealCard());
   app.append(questionCard(fresh));
@@ -663,7 +910,7 @@ function lobbyCard() {
   card.append(panel);
 
   // both team games let a child choose a side before the whistle
-  if (game.mode === 'laser' || game.mode === 'snow') {
+  if (game.mode === 'laser') {
     const pick = el('div', { class: 'team-pick', style: 'flex:none' });
     ['red', 'blue'].forEach(side => {
       const count = game.players.filter(p => p.team === side).length;
@@ -676,11 +923,6 @@ function lobbyCard() {
     });
     card.append(el('p', { class: 'label', style: 'margin-top:14px;flex:none' }, 'Pick your team'), pick);
   }
-  if (game.mode === 'balloon') {
-    const strip = el('div', { class: 'balloons lobby', style: 'flex:none' });
-    for (let b = 0; b < 3; b++) strip.append(el('i', { style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-    card.append(strip);   // the mode's own blurb above already explains them
-  }
   return card;
 }
 
@@ -692,41 +934,714 @@ function lobbyCard() {
  */
 let arena = null, arenaQ = 0, arenaAsking = false;
 
+/* Monster Run, on the phone.
+ *
+ * The chase on top and the question underneath, both on screen at once, so a
+ * child never stops running to read. Nobody waits for anybody: this child is on
+ * their own question and the class is spread across the whole quiz, which is
+ * the point — it is a race, and a race where everybody moves together is a
+ * queue.
+ */
+/* ── the scramble between decks ──────────────────────────
+ *
+ * The run stops and the hatches open. There are a few green circles on the
+ * deck, each one holds only so many, and whoever is not standing in one when
+ * the clock runs out costs the whole class a life. It is the part of the mode
+ * that is a decision rather than a question: the near circle is nearly full,
+ * the far one is empty, and the clock is at four seconds.
+ *
+ * Drag your blook with a finger. Step inside a circle and the phone claims it;
+ * if somebody got the last place first, you are pushed back out and told so,
+ * and there is still time to run somewhere else.
+ */
+let safeCardNode = null, safeMe = null, safeRaf = null, safeBusy = false,
+    safeNote = '', safeNoteUntil = 0;
+
+function safeCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  card.append(el('div', { class: 'deckclock' },
+    el('span', { class: 'chip', id: 's-lives' }, ''),
+    el('b', { id: 's-clock' }, '15.0')));
+  const deck = el('div', { class: 'deck', id: 's-deck' });
+  deck.append(el('canvas', { id: 's-canvas' }));
+  card.append(deck);
+  /* Buttons as well as the drag. A thumb on a small screen is not a precise
+     thing, and a child who cannot make the drag work should still be able to
+     pick a zone and have their blook run to it — the decision is which zone,
+     not how steady your hand is. */
+  card.append(el('div', { class: 'zonebar', id: 's-zones' }));
+  card.append(el('div', { class: 'deckstate out', id: 's-state' },
+                'Drag yourself into a green zone, or tap one'));
+  safeMe = { x: 500, y: 350, tx: 500, ty: 350, zone: '' };
+  setTimeout(startSafe, 0);
+  return card;
+}
+
+/** Put the finger's place on the screen into deck coordinates. */
+function safePoint(deck, e) {
+  const box = deck.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) || e;
+  const fit = Math.min(box.width / 1000, box.height / 700);
+  const ox = (box.width - 1000 * fit) / 2, oy = (box.height - 700 * fit) / 2;
+  return { x: ((t.clientX - box.left) - ox) / fit,
+           y: ((t.clientY - box.top) - oy) / fit };
+}
+
+function startSafe() {
+  const deck = document.getElementById('s-deck');
+  const canvas = document.getElementById('s-canvas');
+  if (!deck || !canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let dragging = false;
+  const move = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const p = safePoint(deck, e);
+    safeMe.tx = Math.max(30, Math.min(970, p.x));
+    safeMe.ty = Math.max(30, Math.min(670, p.y));
+  };
+  const down = (e) => { dragging = true; move(e); };
+  const up = () => { dragging = false; };
+  deck.addEventListener('touchstart', down, { passive: false });
+  deck.addEventListener('touchmove', move, { passive: false });
+  deck.addEventListener('touchend', up);
+  deck.addEventListener('touchcancel', up);
+  deck.addEventListener('mousedown', down);
+  deck.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+
+  const frame = () => {
+    if (!document.getElementById('s-canvas')) { safeRaf = null; return; }
+    /* A blook walks, it does not teleport: capped so dragging across the deck
+       still takes a moment, which is what makes the clock matter. */
+    const dx = safeMe.tx - safeMe.x, dy = safeMe.ty - safeMe.y;
+    const d = Math.hypot(dx, dy);
+    const step = Math.min(d, 13);
+    if (d > 0.5) { safeMe.x += dx / d * step; safeMe.y += dy / d * step; }
+    drawSafe(canvas, ctx);
+    checkZone();
+    /* The clock has to run here rather than on the poll: a countdown that only
+       moves when the server answers is a countdown that jumps four seconds at a
+       time, and four seconds is a quarter of the whole scramble. */
+    feedSafe();
+    safeRaf = requestAnimationFrame(frame);
+  };
+  safeRaf = requestAnimationFrame(frame);
+  feedSafe();
+}
+
+/** Standing inside a circle claims it, once, and the server decides if it fits. */
+function checkZone() {
+  if (safeBusy) return;
+  const zones = game.zones || [];
+  const here = zones.find(z => Math.hypot(safeMe.x - z.x, safeMe.y - z.y) <= z.r * 0.82);
+  const want = here ? here.id : '';
+  if (want === safeMe.zone) return;
+  safeBusy = true;
+  api(`/games/${pin}/safe`, { method: 'POST', body: { playerId: me.id, zone: want } })
+    .then(out => {
+      if (out && out.ok) {
+        safeMe.zone = want;
+        if (want && navigator.vibrate) navigator.vibrate(18);
+        if (!want) {
+          // you gave the place up: say so, because somebody else can take it now
+          safeNote = 'You stepped out';
+          safeNoteUntil = Date.now() + 1000;
+        }
+      } else if (here) {
+        // somebody took the last place: pushed back out, with time to run on
+        safeNote = (out && out.why) || 'That one is full';
+        safeNoteUntil = Date.now() + 1400;
+        const a = Math.atan2(safeMe.y - here.y, safeMe.x - here.x);
+        safeMe.x = here.x + Math.cos(a) * (here.r + 34);
+        safeMe.y = here.y + Math.sin(a) * (here.r + 34);
+        safeMe.tx = safeMe.x; safeMe.ty = safeMe.y;
+        if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+      }
+      if (out && out.view) apply(out.view);
+    })
+    .catch(() => {})
+    .then(() => { safeBusy = false; });
+}
+
+function drawSafe(canvas, ctx) {
+  const box = canvas.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(box.width * dpr)), h = Math.max(1, Math.round(box.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const t = performance.now();
+
+  /* The same deck the board is showing, drawn by the same code. A phone with
+     its own smaller, paler copy of a screen is how one game comes to look like
+     two, so there is one painter and both screens call it. */
+  const pad = Math.min(w, h) * 0.02;
+  const scale = Math.min((w - pad * 2) / 1000, (h - pad * 2) / 700);
+  const deck = { scale, ox: (w - 1000 * scale) / 2, oy: (h - 700 * scale) / 2 };
+  const world = NovaRun.WORLDS[game.map] || NovaRun.WORLDS.station;
+
+  ctx.clearRect(0, 0, w, h);
+  NovaRun.paintDeck(ctx, { w, h, box: deck, world, t,
+    zones: game.zones || [], counts: game.zoneCounts || {}, mine: safeMe.zone });
+
+  ctx.save();
+  ctx.translate(deck.ox, deck.oy);
+  ctx.scale(deck.scale, deck.scale);
+
+  // where the finger is pulling you, so a long run across the deck is visible
+  if (Math.hypot(safeMe.tx - safeMe.x, safeMe.ty - safeMe.y) > 20) {
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.lineWidth = 6; ctx.setLineDash([12, 12]);
+    ctx.lineDashOffset = -t / 24;
+    ctx.beginPath(); ctx.moveTo(safeMe.x, safeMe.y);
+    ctx.lineTo(safeMe.tx, safeMe.ty); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* Everybody else on the deck, faint, because a child deciding between a full
+     zone and an empty one needs to see where the rest of the class went — and
+     then themselves, bright, on top. */
+  const mates = (game.players || []).filter(p => p.id !== me.id);
+  mates.forEach((p, i) => {
+    const z = (game.zones || []).find(x => x.id === p.zone);
+    const a = (i / Math.max(1, mates.length)) * Math.PI * 2;
+    const at = z ? { x: z.x + Math.cos(a) * z.r * 0.45, y: z.y + Math.sin(a) * z.r * 0.45 }
+                 : { x: 500 + Math.cos(a) * 150, y: 350 + Math.sin(a) * 105 };
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    NovaRun.paintWalker(ctx, p, { x: at.x, y: at.y, seed: i * 1.7 }, t, world);
+    ctx.restore();
+  });
+  NovaRun.paintWalker(ctx, { id: me.id, name: me.name, avatar: me.avatar,
+                             zone: safeMe.zone, you: true },
+                      { x: safeMe.x, y: safeMe.y, seed: 0 }, t, world);
+  // a marker over your own head, so thirty blooks is still obviously you
+  ctx.fillStyle = '#FFC53D';
+  ctx.beginPath();
+  const tipY = safeMe.y - 72 + Math.sin(t / 300) * 6;
+  ctx.moveTo(safeMe.x, tipY + 26);
+  ctx.lineTo(safeMe.x - 20, tipY - 6);
+  ctx.lineTo(safeMe.x + 20, tipY - 6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  if (Date.now() < safeNoteUntil) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `900 ${Math.max(15, h * 0.055)}px ui-sans-serif,system-ui,sans-serif`;
+    ctx.fillStyle = '#FFB3BC';
+    ctx.fillText(safeNote, w / 2, h * 0.11);
+    ctx.restore();
+  }
+}
+
+/** The clock and the two words that say whether you are all right. */
+function feedSafe() {
+  if (!safeCardNode) return;
+  /* Not read back from the game any more: the phone knows where its own feet
+     are, and a poll arriving a second after you stepped out used to put you
+     back in the zone you had just left. */
+  const clock = document.getElementById('s-clock');
+  if (clock) {
+    const left = game.safeEndsAt ? Math.max(0, game.safeEndsAt - drift - Date.now()) : 0;
+    clock.textContent = (left / 1000).toFixed(1);
+    clock.classList.toggle('low', left < 5000);
+  }
+  const lives = document.getElementById('s-lives');
+  if (lives) {
+    const n = game.lives === undefined ? 3 : game.lives;
+    lives.textContent = '♥'.repeat(Math.max(0, n)) || 'no lives left';
+  }
+  paintZoneBar();
+  const state = document.getElementById('s-state');
+  if (state) {
+    state.textContent = safeMe.zone ? 'You are safe — hold on'
+                                    : 'Drag yourself into a green zone, or tap one';
+    state.classList.toggle('in', !!safeMe.zone);
+    state.classList.toggle('out', !safeMe.zone);
+  }
+}
+
+/** The row of zones under the deck: built once, then only the numbers move. */
+function paintZoneBar() {
+  const bar = document.getElementById('s-zones');
+  if (!bar) return;
+  const zones = game.zones || [];
+  if (bar.childElementCount !== zones.length) {
+    bar.innerHTML = '';
+    zones.forEach((z, i) => {
+      const btn = el('button', { class: 'zonebtn', type: 'button' },
+        el('b', {}, 'Zone ' + (i + 1)), el('span', { class: 'n' }, ''));
+      btn.onclick = () => { safeMe.tx = z.x; safeMe.ty = z.y; };
+      bar.append(btn);
+    });
+  }
+  const counts = game.zoneCounts || {};
+  zones.forEach((z, i) => {
+    const btn = bar.children[i];
+    if (!btn) return;
+    const inside = counts[z.id] || 0;
+    const mine = safeMe.zone === z.id;
+    btn.querySelector('.n').textContent = inside + ' of ' + z.cap;
+    btn.classList.toggle('mine', mine);
+    btn.classList.toggle('full', !mine && inside >= z.cap);
+  });
+}
+
+function stopSafe() {
+  if (safeRaf) cancelAnimationFrame(safeRaf);
+  safeRaf = null; safeCardNode = null; safeBusy = false; safeMe = null;
+}
+
+function runCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', id: 'r-dist' }, '0 boosts'),
+    el('span', { class: 'chip', id: 'r-need' }, '3 right in a row to charge a boost')));
+  /* No chase on the phone. It used to run here, fighting the question for a
+     screen the size of a hand, while the board showed a progress bar over a
+     list of names. The robot belongs on the big screen where the whole class
+     can look up at it; the phone is the question, how close the next boost is,
+     and the button that spends it. */
+  card.append(el('div', { class: 'boostmeter' },
+    el('i', { id: 'r-charge' }),
+    el('span', { id: 'r-chargetxt' }, '')));
+  const boost = el('button', { class: 'boostbtn', id: 'r-boost', type: 'button', disabled: true },
+                   el('i', { class: 'fill' }), el('span', { id: 'r-boosttxt' }, 'ANSWER TO CHARGE'));
+  boost.style.setProperty('--hold', NovaRun.HOLD_MS + 'ms');
+  card.append(boost);
+  card.append(el('div', { class: 'runq', id: 'runq' }));
+  setTimeout(startRun, 0);
+  return card;
+}
+
+function startRun() {
+  /* Set before anything can yield. startRun is queued from render(), and a poll
+   * arriving in between could queue a second one before the first had assigned
+   * runner — two of these on one phone, both reporting. */
+  if (runner || runStarting) return;
+  runStarting = true;
+  runQ = 0;
+  runner = NovaRun.start({
+    canvas: null,                        // the chase is on the board, not here
+    world: game.map || 'station',
+    colour: Sprite.colourFor ? Sprite.colourFor(me.avatar || 0) : '#FFC53D',
+    onState: paintRunHud,
+    /* Every boost goes into the room's pot. It is sent one at a time, counted,
+       so a phone that reconnects and repeats itself cannot shove the whole
+       class through the door on its own. */
+    onBoost: (seq) => {
+      api(`/games/${pin}/boost`, { method: 'POST', body: { playerId: me.id, seq } })
+        .then(out => { if (out && out.view) apply(out.view); })
+        .catch(() => {});
+    }
+  });
+  runStarting = false;
+  runner.setRoom(roomFromGame());
+  askRunQuestion();
+  wireBoost();
+}
+
+/** What the room looks like right now, handed to the chase so every phone draws
+ *  the robot in the same place. */
+function roomFromGame() {
+  return { escape: game.escape || 0, target: game.escapeTarget || 100,
+           lives: game.lives === undefined ? 3 : game.lives, round: game.round || 1 };
+}
+
+function paintRunHud(st) {
+  const n = document.getElementById('r-need');
+  if (n) {
+    n.textContent = st.charged > 0
+      ? (st.charged === 1 ? 'Boost ready — hold it' : st.charged + ' boosts ready')
+      : st.need === 1 ? 'One more to charge a boost'
+      : `${st.need} right in a row to charge a boost`;
+    n.classList.toggle('live', st.charged > 0);
+  }
+  const b = document.getElementById('r-boost');
+  const btxt = document.getElementById('r-boosttxt');
+  if (b) b.disabled = st.charged <= 0;
+  if (btxt) btxt.textContent = st.charged > 0 ? 'HOLD TO BOOST' : 'ANSWER TO CHARGE';
+  const d = document.getElementById('r-dist');
+  if (d) d.textContent = st.spent + (st.spent === 1 ? ' boost' : ' boosts');
+
+  /* How close the next boost is, as a bar. Three right answers in a row is the
+     only thing on this screen a child is working towards, and "2 right in a row
+     to charge a boost" is a sentence, not a feeling. */
+  const c = document.getElementById('r-charge');
+  if (c) {
+    const done = st.charged > 0 ? 1 : (3 - st.need) / 3;
+    c.style.width = Math.round(done * 100) + '%';
+    c.classList.toggle('full', st.charged > 0);
+  }
+  const ct = document.getElementById('r-chargetxt');
+  if (ct) {
+    ct.textContent = st.charged > 0 ? 'Boost charged'
+      : (3 - st.need) + ' of 3 towards a boost';
+  }
+}
+
+/* Hold, not tap. Charging a boost by answering and then spending it with a
+ * deliberate press is the only part of this mode that is not reading, and
+ * firing it automatically on the third right answer would take that away. */
+function wireBoost() {
+  const btn = document.getElementById('r-boost');
+  if (!btn) return;
+  const down = (e) => {
+    e.preventDefault();
+    if (!runner || !runner.holdStart()) return;
+    btn.classList.remove('done');
+    btn.classList.add('holding');
+    if (navigator.vibrate) navigator.vibrate(12);
+  };
+  const up = (e) => {
+    e.preventDefault();
+    if (!runner) return;
+    const spent = runner.holdEnd();
+    btn.classList.remove('holding');
+    if (spent) {
+      // it went in: say so on the button itself, where the thumb already is
+      btn.classList.add('done');
+      const txt = document.getElementById('r-boosttxt');
+      if (txt) txt.textContent = 'BOOST IN';
+      setTimeout(() => btn.classList.remove('done'), 360);
+      if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+    }
+  };
+  btn.addEventListener('touchstart', down, { passive: false });
+  btn.addEventListener('touchend', up, { passive: false });
+  btn.addEventListener('touchcancel', up, { passive: false });
+  btn.addEventListener('mousedown', down);
+  btn.addEventListener('mouseup', up);
+  btn.addEventListener('mouseleave', up);
+}
+
+/* The next question, in the panel under the chase. There is always one waiting:
+ * a child who has just answered should be able to answer again immediately,
+ * because the monster did not stop while they read. */
+function askRunQuestion() {
+  const host = document.getElementById('runq');
+  if (!host) return;
+  const set = (game.quiz && game.quiz.length) ? game.quiz : [];
+  if (!set.length) { host.textContent = 'Waiting for the quiz…'; return; }
+  const q = set[runQ % set.length];
+  const asked = runQ;
+  runQ += 1;
+
+  host.innerHTML = '';
+  host.append(el('p', { class: 'runq-text' }, q.text || 'Question'));
+  const opts = el('div', { class: 'opts' + ((q.choices || []).length <= 2 ? ' one' : '') });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: `opt-btn a${i % 6}` });
+    btn.innerHTML = `${SHAPES[i % 6]}<span class="lbl">${esc(c.text || '')}</span>`;
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      opts.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      const right = !!c.correct;
+      btn.classList.add(right ? 'right' : 'wrong');
+      if (navigator.vibrate) navigator.vibrate(right ? [16, 36, 16] : 70);
+      // the question's own number, so a double-tap cannot answer it twice
+      if (runner) runner.answered(right, asked);
+      setTimeout(askRunQuestion, right ? 340 : 620);
+    };
+    opts.append(btn);
+  });
+  host.append(opts);
+}
+
+/* Ten seconds with a sword.
+ *
+ * Two buttons and nothing else. A thumbstick is a menu you operate badly, and
+ * ten seconds is not long enough to learn one — so the player is always facing
+ * the boss and the only questions are when to swing and when to roll. Both
+ * buttons are enormous on purpose: a child is looking at the boss, not at their
+ * own hands, and should not have to aim at a control. */
+/* Boss Battle: three minutes, thirty health, and nobody is in step.
+ *
+ * It used to run question by question with a ten-second fight between each, so
+ * a child who read quickly spent most of the mode watching and a child who read
+ * slowly was hurried by a clock that was not theirs. Now the whole quiz is on
+ * the phone and everybody works through it at their own pace: a right answer
+ * loads your knife, the knife takes one health off the boss, and then it needs
+ * two seconds before it can be used again.
+ *
+ * The boss itself is on the board, where a room can look up at it together —
+ * this screen is the question and the knife.
+ */
+function strikeCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', id: 's-hp' }, '30 left'),
+    el('span', { class: 'chip', id: 's-clock' }, '3:00'),
+    el('span', { class: 'chip', id: 's-hits' }, '0 in')));
+
+  card.append(bladeCard());
+  /* The boss itself, in the child's hand. Until now the phone was a STRIKE
+     button with a question under it: you never saw the thing you were fighting
+     and putting a knife in felt like filling in a form, because that is what it
+     was. Drag across it to cut — a tap does it too. */
+  card.append(el('div', { class: 'duel', id: 's-duel' }, el('canvas', { id: 's-boss' })));
+  card.append(el('div', { class: 'runq', id: 'strikeq' }));
+  setTimeout(startStrike, 0);
+  return card;
+}
+
+let strikeQ = 0, strikeAsking = false, strikeReload = 0, duelHp = null;
+
+/** One question at this child's own pace, out of the whole quiz. */
+function askStrikeQuestion() {
+  const host = document.getElementById('strikeq');
+  if (!host || strikeAsking) return;
+  const set = (game.quiz && game.quiz.length) ? game.quiz : [];
+  if (!set.length) { host.innerHTML = '<p class="tiny faint">Waiting for the quiz…</p>'; return; }
+  strikeAsking = true;
+  const q = set[strikeQ % set.length];
+  strikeQ += 1;
+  const asked = Date.now();
+
+  host.innerHTML = '';
+  host.append(el('div', { class: 'runq-text' }, q.text || 'Question'));
+  const opts = el('div', { class: 'opts' });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: `opt-btn a${i % 6}`, onclick: () => {
+      if (btn.classList.contains('right') || btn.classList.contains('wrong')) return;
+      /* Graded by the game, not here: a phone should not be able to load a
+         knife by claiming it got one right. */
+      const seconds = Math.max(1, Number(q.time) || 20);
+      const speed = Math.max(0, 1 - (Date.now() - asked) / (seconds * 1000));
+      api(`/games/${pin}/answer`, { method: 'POST',
+          body: { playerId: me.id, questionId: q.id, answer: c.id, speed } })
+        .then(out => {
+          btn.classList.add(out && out.right ? 'right' : 'wrong');
+          if (navigator.vibrate) navigator.vibrate(out && out.right ? [18, 40, 18] : 80);
+          if (out && out.view) apply(out.view);
+          setTimeout(() => { strikeAsking = false; askStrikeQuestion(); }, 620);
+        })
+        .catch(() => { strikeAsking = false; });
+    } });
+    const text = c.text || '';
+    btn.innerHTML = `${SHAPES[i % 6]}<span class="lbl${text.length > 16 ? ' long' : ''}">${esc(text)}</span>`;
+    opts.append(btn);
+  });
+  host.append(opts);
+}
+
+/* Your weapon, drawn by the same code that draws it in the ring on the board —
+   so the thing on the card and the thing you are putting in are one object
+   rather than a picture of one. Six shapes, from your blook, yours all game;
+   three metals, from how fast you answered. Every one of them takes exactly one
+   health off, which is the whole point of everybody carrying a different one. */
+function bladeCard() {
+  const tier = me.blade || 'stick';
+  const box = el('div', { class: 'blade-card' });
+  const canvas = el('canvas', { width: 264, height: 92 });
+  const shape = NovaStrike.shapeFor(me.avatar);
+  const name = NovaStrike.weaponName(me.avatar, tier);
+  box.append(canvas, el('span', { class: 'who' },
+    el('b', {}, name),
+    el('span', {}, 'one health a hit')));
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 264, 92);
+  ctx.save();
+  ctx.translate(52, 46);
+  ctx.rotate(-0.12);
+  NovaStrike.drawWeapon(ctx, 196, shape, tier);
+  ctx.restore();
+  return box;
+}
+
+let duel = null;
+
+function startStrike() {
+  askStrikeQuestion();
+  const canvas = document.getElementById('s-boss');
+  if (canvas && !duel) {
+    duel = NovaStrike.duel({
+      canvas,
+      name: (game.boss && game.boss.name) || 'The boss',
+      onCut: cut,
+      onEmpty: (reloading) => {
+        // say why nothing happened, rather than swallowing the swipe
+        toast(reloading ? 'Reloading — one knife every two seconds'
+                        : 'Answer a question to load your knife', 'warn');
+      }
+    });
+  }
+  paintStrikeHud();
+}
+
+/** One knife, put in. The server decides whether it lands. */
+function cut() {
+  api(`/games/${pin}/strike`, { method: 'POST', body: { playerId: me.id } })
+    .then(out => {
+      if (out && out.ok) {
+        strikeReload = Date.now() + (game.knifeReload || 2000);
+        if (duel) duel.struck();
+        if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
+      }
+      if (out && out.view) apply(out.view);
+    })
+    .catch(() => {});
+}
+
+/* The knife, the clock and the boss's health, three times a second. The button
+   says which of the three things it is doing — waiting for an answer, ready, or
+   reloading — because "disabled" on its own tells a child nothing. */
+function paintStrikeHud() {
+  if (!game || game.state !== 'strike') return;
+  const hp = document.getElementById('s-hp');
+  if (!hp) return;
+  const boss = game.boss || { hp: 0, max: 30 };
+  hp.textContent = boss.hp + ' left';
+  hp.classList.toggle('warn', boss.hp <= 5);
+
+  const clock = document.getElementById('s-clock');
+  if (clock) {
+    const left = Math.max(0, (game.endsAt || 0) - (Date.now() + drift));
+    const secs = Math.round(left / 1000);
+    clock.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    clock.classList.toggle('warn', secs <= 30);
+  }
+
+  const hits = document.getElementById('s-hits');
+  if (hits) hits.textContent = (me.hits || 0) + ' in';
+
+  if (duel) {
+    duel.setBoss({ hp: boss.hp, max: boss.max || 30,
+                   name: boss.name || 'The boss' });
+    duel.setKnife(me.loaded || 0, Math.max(0, strikeReload - Date.now()));
+    /* Two things the fight now does to you rather than the other way round: it
+       winds up where you can see it, and it puts you on the floor if it catches
+       you without a knife. */
+    const swingIn = (game.bossSwingAt || 0) - (Date.now() + drift);
+    duel.setSwing(game.bossSwingAt ? swingIn : null, game.bossTell || 2200);
+    duel.setDown(Math.max(0, (me.downUntil || 0) - (Date.now() + drift)));
+    // somebody else's knife landing shakes this screen too, so the fight feels
+    // like thirty children hitting the same thing rather than thirty solitaires
+    if (duelHp === null) duelHp = boss.hp;
+    if (boss.hp < duelHp) duel.struck();
+    duelHp = boss.hp;
+  }
+  requestAnimationFrame(paintStrikeHud);
+}
+
+/* wireSword is gone with the ten-second round. The fight is three minutes long
+   and self-paced now, and the only control is the knife button — there is
+   nothing to dodge, because the boss no longer sweeps a ring everybody is
+   standing in at the same moment. */
+
 function arenaCard() {
   const card = el('div', { class: 'play arena-wrap' });
   card.append(el('div', { class: 'qhead' },
+    /* One chip, not four. The power-up had its own slot on the arena with the
+       mark, the name and a clock that empties, and the chip above repeated it
+       in words; "In play" said what the screen already showed, since being out
+       puts a question in front of you. A phone held under a desk has room for
+       the game and almost nothing else. */
     el('span', { class: 'chip', id: 'a-score' }, '0'),
-    el('span', { class: 'chip', id: 'a-power' }, ''),
-    el('span', { class: 'chip', id: 'a-alive' }, 'In play')));
+    /* Whether this phone can actually reach the others. Laser Tag is the one
+       mode that needs a live connection between the devices rather than a
+       round trip through the game: seeing each other move, and landing a shot,
+       both ride on it. When it is missing the game used to carry on looking
+       perfectly normal — you could run about and fire, and nothing you did
+       reached anybody. That is what "nobody can hit anybody" looks like from
+       the floor, and nothing on the screen said a word about it. */
+    el('span', { class: 'chip', id: 'a-link', hidden: 'hidden' }, 'connecting')));
 
   const shell = el('div', { class: 'arena-shell' });
   const canvas = el('canvas', { class: 'arena-canvas', id: 'arena' });
   const bar = el('div', { class: 'energy' }, el('i', { id: 'a-energy' }));
-  shell.append(canvas, bar);
+  /* The superpower slot sits on the arena itself rather than in the row of
+     chips above it, because that is where your eyes already are. */
+  const slot = el('div', { class: 'power-slot', id: 'a-slot' });
+  slot.innerHTML = `<span class="mark" id="a-mark"></span>
+    <span class="txt"><b id="a-pname"></b>
+      <span class="clock"><i id="a-pclock"></i></span></span>`;
+  const shout = el('div', { class: 'power-shout', id: 'a-shout' });
+  shell.append(canvas, slot, shout, bar);
   card.append(shell);
 
   const pad = el('div', { class: 'gamepad' });
-  pad.innerHTML = `<div class="stick" id="stick"><span class="knob" id="knob"></span></div>
-    <button class="fire" id="fire">FIRE</button>`;
+  pad.innerHTML = `<div class="stick" id="stick"><span class="knob" id="knob"></span>
+      <span class="padlabel">MOVE</span></div>
+    <div class="stick aimstick" id="aim"><span class="knob" id="aimknob"></span>
+      <span class="padlabel">SHOOT</span></div>`;
   card.append(pad);
   setTimeout(startArena, 0);
   return card;
+}
+
+/* Did that reach anybody?
+ *
+ * Every device tells the others where it is several times a second, and the
+ * transport says whether it got through. A run of failures means this phone is
+ * on its own — a school network that will not pass a websocket is the usual
+ * reason — so the child is told, rather than left shooting at people who cannot
+ * see them. One success clears it; a handful of failures in a row raises it. */
+let linkMisses = 0, linkSaidAt = 0;
+function noteLink(sent) {
+  const chip = document.getElementById('a-link');
+  linkMisses = sent ? 0 : linkMisses + 1;
+  if (!chip) return sent;
+  const bad = linkMisses >= 8;
+  // only touch the DOM when the answer changes, at 10 sends a second
+  if (bad !== chip.dataset.bad || !chip.dataset.bad) {
+    chip.dataset.bad = String(bad);
+    chip.hidden = !bad;
+    if (bad) {
+      chip.textContent = 'offline';
+      chip.classList.add('bad');
+      if (Date.now() - linkSaidAt > 20000) {
+        linkSaidAt = Date.now();
+        toast('Cannot reach the other players — shots will not land', 'bad');
+      }
+    }
+  }
+  return sent;
 }
 
 function startArena() {
   const canvas = document.getElementById('arena');
   if (!canvas || arena) return;
   arena = NovaArena.start({
-    canvas, me,
-    send: (event, payload) => Nova.arenaSend && Nova.arenaSend(pin, event, payload),
+    canvas, me, map: game.map || 'arena',
+    // the game's pin is the one thing every device in the room agrees on, so
+    // it is what the superpowers are placed from
+    room: pin,
+    send: (event, payload) => noteLink(Nova.arenaSend && Nova.arenaSend(pin, event, payload)),
     onScore: (score) => { const n = document.getElementById('a-score'); if (n) n.textContent = score; },
     onSave: (score) => api(`/games/${pin}/score`, { method: 'POST', body: { playerId: me.id, score } })
                          .catch(() => {}),
-    onQuestion: () => askArenaQuestion()
+    onQuestion: () => askArenaQuestion(),
+    onPower: (label, colour) => shoutPower(label, colour)
   });
   if (Nova.arenaListen) Nova.arenaListen(pin, (event, payload) => arena && arena.heard(event, payload));
   wireStick();
   paintArenaHud();
+}
+
+/* The small drawing on a superpower's chip. The same six marks the orbs in the
+   arena carry, so the thing you ran for and the thing you are holding look like
+   the same thing. */
+const POWER_MARK = {
+  rapid:  '<path d="M4 4l4 4-4 4M10 4l4 4-4 4M16 4l4 4-4 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  triple: '<g fill="#fff"><circle cx="5" cy="12" r="2.6"/><circle cx="12" cy="12" r="2.6"/><circle cx="19" cy="12" r="2.6"/></g>',
+  spread: '<g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 20V6M12 20L5 8M12 20l7-12"/></g>',
+  speed:  '<path d="M14 2L5 13h5l-2 9 9-11h-5l2-9z" fill="#fff"/>',
+  shield: '<path d="M12 3l8 3.6v5.4c0 4.6-3.4 8.2-8 9.6-4.6-1.4-8-5-8-9.6V6.6z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>',
+  mystery:'<path d="M8.6 8.6a3.4 3.4 0 1 1 4.4 3.3c-.9.3-1 .9-1 1.7v.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18.4" r="1.6" fill="#fff"/>'
+};
+const POWER_COLOUR = { rapid: '#FFC53D', triple: '#FF7A45', spread: '#E8467C',
+                       speed: '#2BA8FF', shield: '#12BE8E', mystery: '#7C4DFF' };
+
+function shoutPower(label, colour) {
+  const n = document.getElementById('a-shout');
+  if (!n) return;
+  n.textContent = label;
+  n.style.color = colour || '#FFC53D';
+  n.classList.remove('go');
+  void n.offsetWidth;                                // restart the animation
+  n.classList.add('go');
 }
 
 function paintArenaHud() {
@@ -735,46 +1650,83 @@ function paintArenaHud() {
   if (!bar) return;                                  // the screen moved on
   bar.style.width = Math.max(0, arena.energy) + '%';
   bar.classList.toggle('low', arena.energy < 28);
-  const power = document.getElementById('a-power');
-  if (power) { power.textContent = arena.power || 'no power-up'; power.classList.toggle('live', !!arena.power); }
-  const alive = document.getElementById('a-alive');
-  if (alive) alive.textContent = arena.alive ? 'In play' : 'Out';
+
+  /* The slot: the mark, the name, and a bar that empties. A force field has no
+     clock — it lasts until something hits it — so its bar stays full. */
+  const slot = document.getElementById('a-slot');
+  if (slot) {
+    const kind = arena.powerKind;
+    slot.classList.toggle('on', !!kind);
+    if (kind && slot.dataset.kind !== kind) {
+      slot.dataset.kind = kind;
+      const colour = POWER_COLOUR[kind] || '#FFC53D';
+      const mark = document.getElementById('a-mark');
+      if (mark) {
+        mark.style.background = colour;
+        mark.innerHTML = '<svg viewBox="0 0 24 24">' + (POWER_MARK[kind] || '') + '</svg>';
+      }
+      const name = document.getElementById('a-pname');
+      if (name) name.textContent = arena.power;
+      const clock = document.getElementById('a-pclock');
+      if (clock) clock.style.background = colour;
+    }
+    if (!kind) slot.dataset.kind = '';
+    const clock = document.getElementById('a-pclock');
+    if (clock && kind) clock.style.width = Math.round(arena.powerLeft * 100) + '%';
+  }
+
   requestAnimationFrame(paintArenaHud);
 }
 
-/* The stick both walks and aims, so a thumb never has to do two jobs. */
+/* Two sticks: left walks, right aims and shoots.
+ *
+ * One stick that both walked and aimed meant you could never back away from
+ * somebody while still shooting at them, which is most of what a shooting game
+ * is. Blooket's arena uses two on a phone and so does every twin-stick game
+ * since the arcades; the fire button is gone because the right stick is the
+ * fire button.
+ */
 function wireStick() {
-  const stick = document.getElementById('stick');
-  const knob = document.getElementById('knob');
-  const fire = document.getElementById('fire');
-  if (!stick) return;
-  const grip = (e) => {
-    const t = e.touches ? e.touches[0] : e;
-    const box = stick.getBoundingClientRect();
-    const dx = (t.clientX - (box.left + box.width / 2)) / (box.width / 2);
-    const dy = (t.clientY - (box.top + box.height / 2)) / (box.height / 2);
-    const len = Math.min(1, Math.hypot(dx, dy));
-    const ang = Math.atan2(dy, dx);
-    if (arena) arena.stick(Math.cos(ang) * len, Math.sin(ang) * len);
-    knob.style.transform = `translate(${Math.cos(ang) * len * 26}px,${Math.sin(ang) * len * 26}px)`;
-    e.preventDefault();
-  };
-  const release = () => { if (arena) arena.stick(0, 0); knob.style.transform = 'none'; };
-  ['touchstart', 'touchmove'].forEach(ev => stick.addEventListener(ev, grip, { passive: false }));
-  ['touchend', 'touchcancel'].forEach(ev => stick.addEventListener(ev, release));
-  stick.addEventListener('mousedown', (e) => {
-    grip(e);
-    const move = (m) => grip(m);
-    const up = () => { release(); window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  const pads = [
+    { stick: document.getElementById('stick'), knob: document.getElementById('knob'),
+      send: (x, y) => arena && arena.stick(x, y), release: () => arena && arena.stick(0, 0) },
+    { stick: document.getElementById('aim'), knob: document.getElementById('aimknob'),
+      send: (x, y) => arena && arena.aim(x, y), release: () => {} }
+  ];
+  pads.forEach(pad => {
+    const { stick, knob } = pad;
+    if (!stick || !knob) return;
+    let firing = null;
+    const grip = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      const box = stick.getBoundingClientRect();
+      const dx = (t.clientX - (box.left + box.width / 2)) / (box.width / 2);
+      const dy = (t.clientY - (box.top + box.height / 2)) / (box.height / 2);
+      const len = Math.min(1, Math.hypot(dx, dy));
+      const ang = Math.atan2(dy, dx);
+      const nx = Math.cos(ang) * len, ny = Math.sin(ang) * len;
+      pad.send(nx, ny);
+      // holding the aim stick keeps shooting rather than firing once
+      if (pad.knob.id === 'aimknob' && len > 0.24 && !firing) {
+        firing = setInterval(() => pad.send(nx, ny), 90);
+      }
+      knob.style.transform = `translate(${nx * 26}px,${ny * 26}px)`;
+      e.preventDefault();
+    };
+    const release = () => {
+      clearInterval(firing); firing = null;
+      pad.release();
+      knob.style.transform = 'none';
+    };
+    ['touchstart', 'touchmove'].forEach(ev => stick.addEventListener(ev, grip, { passive: false }));
+    ['touchend', 'touchcancel'].forEach(ev => stick.addEventListener(ev, release));
+    stick.addEventListener('mousedown', (e) => {
+      grip(e);
+      const move = (m) => grip(m);
+      const up = () => { release(); window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+      window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
   });
-  let held = null;
-  const hold = (e) => { e.preventDefault(); if (arena) arena.fire(); held = setInterval(() => arena && arena.fire(), 90); };
-  const drop = () => { clearInterval(held); held = null; };
-  fire.addEventListener('touchstart', hold, { passive: false });
-  ['touchend', 'touchcancel'].forEach(ev => fire.addEventListener(ev, drop));
-  fire.addEventListener('mousedown', hold);
-  window.addEventListener('mouseup', drop);
 }
 
 /* Out of energy, or tagged: one question buys the way back in. */
@@ -818,6 +1770,100 @@ function askArenaQuestion() {
   });
 }
 
+/* The move — the thing that turns this from a quiz into a game.
+ *
+ * One component for all fourteen modes, because the rules describe them: what
+ * the moves are, what they say, and whether one needs pointing at somebody. A
+ * mode added later gets its picker for nothing, and none of them can drift out
+ * of step with what the scorer actually does.
+ *
+ * It sits under the question and above the answers, chosen while the clock is
+ * running, so it costs no class time at all: the seconds a child spends
+ * deciding whether to rob Ana or guard their own gold are seconds they were
+ * already spending reading the question.
+ */
+function movePicker() {
+  const moves = (game.moves || []);
+  if (!moves.length) return el('span', {});
+  const here = moves.some(m => m.id === me.move) ? me.move : moves[0].id;
+  const box = el('div', {});
+  const row = el('div', { class: 'moves' + (moves.length === 2 ? ' two' : '') });
+  const aimBox = el('div', {});
+
+  const send = (id, on) => {
+    api(`/games/${pin}/move`, { method: 'POST', body: { playerId: me.id, move: id, on: on || '' } })
+      .then(out => {
+        if (out && out.ok === false) { toast(out.why || 'Cannot do that.', 'bad'); return; }
+        if (out && out.view) apply(out.view);
+      })
+      .catch(err => toast(err.message, 'bad'));
+  };
+
+  /* Some moves need pointing at somebody, or at a card. Showing that only once
+   * the move is picked keeps the row short — a phone screen has no space for
+   * every possible target of every possible move at once. */
+  function drawAim(spec) {
+    aimBox.innerHTML = '';
+    if (!spec || !spec.needs) return;
+    const aim = el('div', { class: 'aim' });
+    if (spec.needs === 'player') {
+      const others = (game.players || []).filter(p => p.id !== me.id);
+      if (!others.length) {
+        aimBox.append(el('span', { class: 'cap' }, 'Nobody else to aim at yet'));
+        return;
+      }
+      others.forEach(p => {
+        const btn = el('button', { type: 'button', class: me.on === p.id ? 'on' : '' },
+          el('span', { html: Sprite.face(p.avatar || 0, 18) }), el('span', {}, p.name));
+        btn.onclick = () => {
+          aim.querySelectorAll('button').forEach(n => n.classList.remove('on'));
+          btn.classList.add('on');
+          me.on = p.id;
+          send(spec.id, p.id);
+        };
+        aim.append(btn);
+      });
+    } else if (spec.needs === 'card') {
+      const mine = me.cards || [];
+      const want = NovaRules.CARD_SET.filter(c => !mine.includes(c));
+      (want.length ? want : NovaRules.CARD_SET).forEach(c => {
+        const btn = el('button', { type: 'button', class: me.on === c ? 'on' : '' },
+          el('span', { html: Sprite.icon(c, 18, 'currentColor') }), el('span', {}, c));
+        btn.onclick = () => {
+          aim.querySelectorAll('button').forEach(n => n.classList.remove('on'));
+          btn.classList.add('on');
+          me.on = c;
+          send(spec.id, c);
+        };
+        aim.append(btn);
+      });
+    }
+    aimBox.append(el('span', { class: 'cap' },
+      spec.needs === 'player' ? 'At who?' : 'Which card?'), aim);
+  }
+
+  moves.forEach(spec => {
+    const btn = el('button', { class: 'move' + (spec.id === here ? ' on' : ''), type: 'button' },
+      el('b', {}, spec.label), el('span', {}, spec.note));
+    btn.onclick = () => {
+      row.querySelectorAll('.move').forEach(n => n.classList.remove('on'));
+      btn.classList.add('on');
+      me.move = spec.id;
+      drawAim(spec);
+      // a move that needs a target waits for one rather than being sent half-made
+      if (!spec.needs) send(spec.id, '');
+      else if (me.on) send(spec.id, me.on);
+    };
+    row.append(btn);
+  });
+
+  box.append(el('span', { class: 'cap' }, game.moveAsk || 'How are you playing this one?'),
+             row, aimBox);
+  const chosen = moves.find(m => m.id === here);
+  if (chosen && chosen.needs) drawAim(chosen);
+  return box;
+}
+
 /* Your own side of whatever game is being played, under the question.
  *
  * The board shows the whole class; this shows only you, because a child looking
@@ -828,87 +1874,41 @@ function stagePanel() {
   const rank = game.players.findIndex(p => p.id === me.id) + 1;
   const answered = game.players.filter(p => p.answered).length;
 
-  if (game.mode === 'kart') {
-    const far = Math.max(1, game.trackLength || 1000);
-    box.append(el('span', { class: 'cap' }, 'Your kart'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('kart', 44, '#FFC53D') }),
-        el('span', { class: 'big-num' }, `${me.distance || 0}m`)),
-      el('div', { class: 'minitrack' },
-        el('i', { style: `width:${Math.max(4, Math.min(96, (me.distance || 0) / far * 96))}%` }),
-        el('span', { class: 'flag' })));
-  } else if (game.mode === 'tower') {
-    const stack = el('div', { class: 'ministack' });
-    for (let i = 0; i < Math.min(8, me.blocks || 0); i++) {
-      stack.append(el('i', { style: `--c:${['#F4364C', '#FFC53D', '#4F6BFF', '#12BE8E'][i % 4]};animation-delay:${i * 40}ms` }));
+  if (game.mode === 'tower') {
+    /* Your team's floor, and where the gap in it is. The tower itself is on the
+       board — this is the bit you need in your hand while you answer: whose
+       side you are on, how high they are, and how many blocks you are holding. */
+    const T = (NovaTower.TEAM[me.team] || NovaTower.TEAM.red);
+    const mine = (game.towers && game.towers[me.team] && game.towers[me.team].blocks) || [];
+    const slots = game.towerSlots || 4;
+    const floors = Math.floor(mine.length / slots);
+    const row = el('div', { class: 'ministack' });
+    for (let i = 0; i < slots; i++) {
+      row.append(el('i', { style: `--c:${i < mine.length % slots ? T.face : 'rgba(255,255,255,.14)'}` }));
     }
-    box.append(el('span', { class: 'cap' }, 'Your tower'),
-               stack.children.length ? stack : el('span', { class: 'cap' }, 'Nothing built yet'),
-               el('span', { class: 'big-num' }, String(me.blocks || 0)));
-  } else if (game.mode === 'tug') {
-    // the rope belongs to the room, so the phone shows which way it is going
-    const rope = Math.max(-100, Math.min(100, game.rope || 0));
-    const ours = me.team === 'red' ? -rope : rope;
+    box.append(el('span', { class: 'cap' }, `${T.name} · floor ${floors + 1}`),
+               row,
+               el('span', { class: 'big-num' }, String(me.ready || 0)),
+               el('span', { class: 'cap' },
+                  (me.ready || 0) ? 'blocks in hand' : 'answer to earn a block'));
+  } else if (game.mode === 'volcano') {
+    const gap = Math.round((me.height || 0) - (game.lava || 0));
     box.append(el('span', { class: 'cap' },
-                 ours > 0 ? 'Your team is winning the rope'
-               : ours < 0 ? 'They are pulling it back' : 'Dead even'),
+                 me.safe ? (gap > 40 ? 'Well clear of it' : 'The lava is close')
+                         : 'The lava has you — climb!'),
+      el('div', { class: 'rowline' },
+        el('span', { class: 'mini-face', html: Sprite.icon('flame', 40, me.safe ? '#FF7A45' : '#F4364C') }),
+        el('span', { class: 'big-num' }, String(Math.round(me.height || 0)))),
       el('div', { class: 'minitrack' },
-        el('i', { style: `width:${Math.round(Math.max(2, Math.min(100, (ours + 100) / 2)))}%;` +
-                         `background:${me.team === 'red' ? '#F4364C' : '#4F6BFF'}` })),
-      el('span', { class: 'big-num' }, `${Math.abs(ours)}`));
-  } else if (game.mode === 'heist') {
-    box.append(el('span', { class: 'cap' }, 'Your gold'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('coin', 40, '#FFC53D') }),
-        el('span', { class: 'big-num' }, String(me.coins || 0))),
-      me.chest ? el('span', { class: 'cap' }, me.chest) : el('span', {}));
-  } else if (game.mode === 'cards') {
-    const all = ['star', 'moon', 'leaf', 'flame', 'drop', 'bolt', 'gem', 'crown'];
-    const tint = { star: '#FFC53D', moon: '#8C7BB8', leaf: '#12BE8E', flame: '#FF7A45',
-                   drop: '#2BA8FF', bolt: '#F4364C', gem: '#7C4DFF', crown: '#E5A02A' };
-    const hand = el('div', { class: 'minihand' });
-    const held = me.cards || [];
-    all.forEach(c => hand.append(el('i', { class: 'mcard' + (held.includes(c) ? '' : ' gap'),
-                                           html: held.includes(c) ? Sprite.icon(c, 15, tint[c]) : '' })));
-    box.append(el('span', { class: 'cap' }, `${held.length} of 8 cards`), hand,
-               me.spares ? el('span', { class: 'cap' }, `${me.spares} spare — three trades for one you need`)
-                         : el('span', {}));
-  } else if (game.mode === 'treasure') {
-    box.append(el('span', { class: 'cap' }, 'Your coins'),
-      el('div', { class: 'rowline' },
-        el('span', { class: 'mini-face', html: Sprite.icon('gem', 40, '#FFC53D') }),
-        el('span', { class: 'big-num' }, String(me.coins || 0))));
+        el('i', { style: `width:${Math.max(3, Math.min(100, 50 + gap / 2))}%;` +
+                         `background:${me.safe ? 'linear-gradient(90deg,#12BE8E,#FFC53D)' : '#F4364C'}` })),
+      el('span', { class: 'cap' }, me.safe ? `${gap} above the lava` : `${-gap} under it`));
   } else if (game.mode === 'boss' && game.boss) {
     box.append(el('span', { class: 'cap' }, game.boss.name),
       el('span', { class: 'mini-face', html: Sprite.icon('dragon', 58, '#9B7BFF') }),
       el('div', { class: 'answeredbar' },
          el('i', { style: `width:${Math.max(0, game.boss.hp / game.boss.max * 100)}%;background:linear-gradient(90deg,#F4364C,#FF7A45)` })),
       el('span', { class: 'cap' }, `${game.boss.hp} HP left`));
-  } else if (game.mode === 'snow') {
-    const foe = game.teams[me.team === 'red' ? 'blue' : 'red'] || { blocks: 0, max: 0, name: '' };
-    const fort = el('div', { class: 'minifort' });
-    const rows = Math.max(1, Math.ceil((foe.max || 1) / 3));
-    for (let r = 0; r < rows; r++) {
-      const row = el('div', { class: 'row' });
-      for (let c = 0; c < 3; c++) {
-        const nth = r * 3 + c;
-        if (nth >= (foe.max || 0)) continue;
-        row.append(el('i', { class: nth < foe.blocks ? '' : 'gone',
-                             style: `--c:${me.team === 'red' ? '#4F6BFF' : '#F4364C'}` }));
-      }
-      fort.append(row);
-    }
-    box.append(el('span', { class: 'cap' }, `Knock down the ${foe.name} fort`), fort,
-               el('span', { class: 'cap' }, `${foe.blocks} block${foe.blocks === 1 ? '' : 's'} standing`));
-  } else if (game.mode === 'balloon') {
-    const strip = el('div', { class: 'balloons' });
-    for (let b = 0; b < 3; b++) {
-      strip.append(el('i', { class: b < (me.balloons || 0) ? '' : 'popped',
-                             style: `--c:${['#F4364C', '#FFC53D', '#2BA8FF'][b]}` }));
-    }
-    box.append(el('span', { class: 'cap' }, 'Your balloons'), strip,
-      el('span', { class: 'cap' }, (me.balloons || 0) > 0
-        ? `Get it wrong and one pops` : 'All gone — play on for points'));
   } else {
     box.append(el('span', { class: 'mini-face', html: drawFace(me, 74) }),
       el('span', { class: 'big-num' }, rank ? '#' + rank : '—'),
@@ -934,9 +1934,161 @@ function stagePanel() {
   return box;
 }
 
+/* One block, dropped.
+ *
+ * It slides from one side to the other and you tap. Where it is when you tap is
+ * where it lands, and that offset is sent to the game and drawn on the board —
+ * so a hurried drop is crooked on the projector for the rest of the lesson, and
+ * a square one earns the team a second block.
+ *
+ * The swing gets faster as the tower grows, because a mechanic that never gets
+ * harder has stopped being a mechanic by question six.
+ */
+/* ── building, at your own pace ──────────────────────────
+ *
+ * The class used to be marched through Tallest Tower one question at a time,
+ * with everybody waiting on the slowest child and the teacher pressing next.
+ * A mode about racing three towers up cannot have the whole room standing
+ * still between questions, so this is the same shape as the rest: the whole
+ * quiz is on the phone, you work through it at your own speed, and a right
+ * answer is a block in your hand.
+ */
+let buildCardNode = null, buildQ = 0, strikeCardNode = null;
+
+function buildCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  const team = me.team || 'red';
+  const T = (NovaTower.TEAM[team] || NovaTower.TEAM.red);
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', style: `border-color:${T.face}` }, T.name),
+    el('span', { class: 'chip', id: 'b-blocks' }, (me.blocks || 0) + ' blocks up')));
+  card.append(el('div', { class: 'runq', id: 'buildq' }));
+  card.append(el('p', { class: 'tiny faint', style: 'text-align:center;margin-top:2px' },
+    'Every right answer is a block for your tower'));
+  setTimeout(askBuildQuestion, 0);
+  return card;
+}
+
+/** The next question for this child alone, out of the quiz their phone holds. */
+function askBuildQuestion() {
+  const box = document.getElementById('buildq');
+  const quiz = game.quiz || [];
+  if (!box || !quiz.length) return;
+  const q = quiz[buildQ % quiz.length];
+  const asked = Date.now();
+  box.innerHTML = '';
+  box.append(el('p', { class: 'runq-text' }, q.text || 'Question'));
+  const grid = el('div', { class: 'opts' });
+  (q.choices || []).forEach((c, i) => {
+    const btn = el('button', { class: 'opt-btn ' + ['a', 'b', 'c', 'd'][i % 4], type: 'button' },
+                   c.text || '');
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      [...grid.children].forEach(n => { n.disabled = true; });
+      const seconds = Math.max(1, (q.time || 20));
+      const speed = Math.max(0, Math.min(1, 1 - (Date.now() - asked) / (seconds * 1000)));
+      api(`/games/${pin}/answer`, { method: 'POST',
+          body: { playerId: me.id, questionId: q.id, answer: c.id, speed } })
+        .then(out => {
+          const right = out && (out.correct ?? out.player?.correct);
+          btn.classList.add(right ? 'right' : 'wrong');
+          if (navigator.vibrate) navigator.vibrate(right ? [16, 40, 16] : 22);
+          if (out && out.view) apply(out.view);
+          // a right answer is a block, and the block takes the screen over
+          buildQ += 1;
+          setTimeout(() => { if (game.state === 'building') render(); }, 520);
+        })
+        .catch(() => { [...grid.children].forEach(n => { n.disabled = false; }); });
+    };
+    grid.append(btn);
+  });
+  box.append(grid);
+}
+
+function dropCard() {
+  const card = el('div', { class: 'play arena-wrap' });
+  const team = me.team || 'red';
+  const T = (NovaTower.TEAM[team] || NovaTower.TEAM.red);
+  card.append(el('div', { class: 'qhead' },
+    el('span', { class: 'chip', style: `border-color:${T.face}` }, T.name),
+    el('span', { class: 'chip live', id: 'd-left' },
+       (me.ready || 0) + ((me.ready || 0) === 1 ? ' block to place' : ' blocks to place'))));
+
+  const shell = el('div', { class: 'arena-shell' });
+  shell.append(el('canvas', { class: 'arena-canvas', id: 'drop' }));
+  card.append(shell);
+  card.append(el('button', { class: 'boostbtn', id: 'd-go', type: 'button' }, 'DROP IT'));
+  /* Whichever of the three things is true right now: the gorilla has your
+     tower and nothing you drop will land, there is a green column to build to,
+     or it is an ordinary block and a square drop is worth two. */
+  const mine = (game.towers && game.towers[team]) || {};
+  const held = mine.apeUntil && (mine.apeUntil - drift) > Date.now();
+  card.append(el('p', {
+    class: held ? 'deckstate out' : 'tiny faint',
+    style: held ? 'margin-top:6px' : 'text-align:center;margin-top:2px'
+  }, held ? 'The gorilla is on your tower — nothing lands until he goes'
+     : mine.mark ? `Build to the green column — floor ${mine.mark} — for a shield`
+     : 'Land it square in the gap and your team gets two'));
+  setTimeout(startDrop, 0);
+  return card;
+}
+
+let dropper = null, dropSeq = 0, dropBusy = false, dropCardNode = null;
+
+function startDrop() {
+  const canvas = document.getElementById('drop');
+  if (!canvas || dropper) return;
+  const mine = (game.towers && game.towers[me.team]) || null;
+  const floors = mine ? Math.floor((mine.blocks || []).length / (game.towerSlots || 4)) : 0;
+  dropper = NovaTower.placer({ canvas, team: me.team || 'red',
+                               speed: 1 + Math.min(1.4, floors * 0.08) });
+  const go = document.getElementById('d-go');
+  if (!go) return;
+  go.onclick = () => {
+    if (dropBusy) return;
+    const offset = dropper.drop();
+    if (offset === null) return;
+    dropBusy = true;
+    if (navigator.vibrate) navigator.vibrate(Math.abs(offset) < 0.1 ? [20, 40, 20] : 15);
+    go.textContent = Math.abs(offset) < 0.1 ? 'SQUARE — TWO BLOCKS' : 'PLACED';
+    go.disabled = true;
+    dropSeq += 1;
+    api(`/games/${pin}/place`, { method: 'POST',
+        body: { playerId: me.id, offset, seq: dropSeq } })
+      .then(out => {
+        /* The gorilla is on the team's tower: the block left your hand and
+           went nowhere, which is Kahoot's rule and the honest thing to show —
+           a button that silently does nothing reads as a broken phone. */
+        if (out && out.ape) {
+          go.textContent = 'THE GORILLA TOOK IT';
+          if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+        } else if (out && out.won) {
+          go.textContent = 'GREEN COLUMN — SHIELDED';
+        }
+        if (out && out.view) apply(out.view);
+      })
+      .catch(() => {})
+      .then(() => {
+        // the engine is torn down and rebuilt for the next block in hand
+        setTimeout(() => {
+          if (dropper) { dropper.stop(); dropper = null; }
+          dropBusy = false; dropCardNode = null;
+          render();
+        }, 620);
+      });
+  };
+}
+
 function questionCard(fresh) {
   const q = game.question;
   const card = el('div', { class: 'play' });
+
+  /* The double-points question. A swing nobody can see coming is the thing
+     Blooket's best modes have and a straight quiz does not: a lead that is safe
+     from question three is a game that ended at question three. */
+  if (game.doubleAt === game.index && game.state === 'question') {
+    card.append(el('div', { class: 'doubler' }, 'DOUBLE POINTS'));
+  }
 
   if (me.answered) {
     const shape = SHAPES[(picked && (q.choices || []).findIndex(c => c.id === picked)) % 6] || '';
@@ -953,6 +2105,7 @@ function questionCard(fresh) {
   card.append(el('div', { class: 'timerbar' }, el('i', { id: 'ptimerbar' })));
   card.append(el('div', { class: 'qcard' }, el('h2', { class: 'qtext' }, q.text || 'Question')));
   card.append(stagePanel());
+  card.append(movePicker());
   if (game.mode === 'laser' && me.down)
     card.append(el('p', { class: 'tiny', style: 'color:var(--amber)' },
       'You are down. A right answer heals a teammate.'));
@@ -1011,24 +2164,46 @@ function revealCard() {
       el('p', { class: 'sub' }, 'Be quicker next round')));
   } else {
     const line = game.mode === 'laser' ? (me.down ? 'Teammate healed' : ok ? 'Laser fired' : 'Shield hit')
-      : game.mode === 'kart'     ? (ok ? `+${g} metres` : 'Spun out')
-      : game.mode === 'tower'    ? (ok ? `+${g} block${g > 1 ? 's' : ''}` : 'A block fell')
-      : game.mode === 'treasure' ? (ok ? `+${g} coins` : 'Empty chest')
-      : game.mode === 'tug'      ? (ok ? `Pulled ${g}` : 'Lost your grip')
-      : game.mode === 'heist'    ? (ok ? (me.chest || `+${g} gold`) : 'Empty-handed')
-      : game.mode === 'cards'    ? (ok ? (me.chest || 'A card') : 'No card this time')
+      : game.mode === 'tower'    ? (ok ? (me.move === 'brace' ? 'Braced — steady again'
+                                                             : `+${g} block${g > 1 ? 's' : ''}`)
+                                       : 'A block fell')
       : game.mode === 'boss'     ? (ok ? `${g} damage` : 'The boss hit back')
-      : game.mode === 'snow'     ? (ok ? `Direct hit · +${g}` : 'Wide of the fort')
-      : game.mode === 'balloon'  ? (ok ? `+${g || 0}`
-                                       : (me.balloons > 0 ? `A balloon popped · ${me.balloons} left`
-                                                          : 'Your last balloon popped'))
+      : game.mode === 'volcano'  ? (ok ? `Climbed ${g}` : 'Slipped back')
       :                            (ok ? `+${g || 0}` : 'No points');
     card.append(el('div', { class: 'big ' + (ok ? 'good' : 'bad') },
       el('div', { class: 'mark', html: Sprite.icon(ok ? (me.streak >= 3 ? 'flame' : 'tick') : 'cross', 86) }),
       el('h2', {}, ok ? (me.streak >= 3 ? 'On fire' : 'Correct') : 'Not this time'),
       el('p', { class: 'gain' }, line),
       me.chest ? el('p', { class: 'sub' }, me.chest) : '',
-      me.streak >= 2 ? el('p', { class: 'sub' }, `${me.streak} in a row`) : ''));
+      /* The streak, as a badge rather than a sentence. Kahoot's own people
+         found the number itself is the pull — children chase the badge, not the
+         bonus points — and a line of small grey text is not a badge. */
+      me.streak >= 2 ? el('div', { class: 'streak' },
+                          el('i', { html: Sprite.icon('flame', 22) }),
+                          el('b', {}, me.streak),
+                          el('span', {}, 'in a row')) : ''));
+  }
+
+  /* Where you are, and how far off the one in front.
+   *
+   * Kahoot puts this on every player's own screen between questions and it is
+   * most of why a room leans in: "second, two hundred behind" is a reason to
+   * try on the next question, and a score on its own is not. Only for the
+   * modes where a personal score is the game — the team and class modes have
+   * their own board. */
+  const ranked = (game.players || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+  const place = ranked.findIndex(p => p.id === me.id) + 1;
+  let saidWhere = false;
+  if (place && ranked.length > 1 && !['tower', 'robot'].includes(game.mode)) {
+    saidWhere = true;
+    const above = place > 1 ? ranked[place - 2] : null;
+    const gap = above ? (above.score || 0) - (me.score || 0) : 0;
+    const ordinal = ['', '1st', '2nd', '3rd'][place] || place + 'th';
+    card.append(el('div', { class: 'standing' },
+      el('b', {}, ordinal),
+      el('span', {}, place === 1
+        ? (ranked[1] ? `${(me.score || 0) - (ranked[1].score || 0)} ahead` : 'out in front')
+        : `${gap} behind ${String(above.name || '').slice(0, 12)}`)));
   }
 
   const right = q.type === 'short' ? q.answer : (q.choices || []).filter(c => c.correct).map(c => c.text).join(', ');
@@ -1060,7 +2235,36 @@ function revealCard() {
     });
     box.style.flex = 'none';
     card.append(box);
-  } else {
+  } else if (game.mode === 'tower') {
+    /* A team game, so a personal rank is the wrong number. What this child did
+       is the right one. */
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Blocks you have put up'),
+      el('h2', { style: 'font-size:2rem' }, String(me.blocks || 0))));
+  } else if (game.mode === 'robot') {
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Boosts you have put in'),
+      el('h2', { style: 'font-size:2rem' }, String(me.boosts || 0))));
+  } else if (game.mode === 'eagle') {
+    /* How far down the canyon, in the units the board is drawn in, and whether
+       the wind is behind you. The wind is the one thing in this mode that is
+       not obvious from looking up, so it is the one thing the phone says: a
+       child at the back who is not told they are being carried reads the gap
+       and stops trying, which is exactly what the wind exists to prevent. */
+    const lead = game.players.reduce((m, p) => Math.max(m, p.score || 0), 0);
+    const behind = Math.max(0, lead - (me.score || 0));
+    const wind = lead > 0 ? Math.min(0.5, (behind / lead) * 0.6) : 0;
+    card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
+      el('p', { class: 'tiny faint' }, 'Down the canyon'),
+      el('h2', { style: 'font-size:2rem' }, Math.round((me.score || 0) / 12) + 'm'),
+      el('p', { class: 'tiny muted' }, wind >= 0.08
+        ? `The wind is behind you — every answer is worth ${Math.round((1 + wind) * 100)}%`
+        : 'Out in front, flying on your own')));
+  } else if (!saidWhere) {
+    /* Only when nothing above has already said it. The place and the gap are
+       one fact, and it was being printed twice on the same screen — once as
+       "2nd, 17 behind Ben" and again underneath as "Your position #2". The
+       score is in the header, so the second panel was saying nothing new. */
     const rank = game.players.findIndex(p => p.id === me.id) + 1;
     card.append(el('div', { class: 'card pad', style: 'margin-top:12px;flex:none;text-align:center' },
       el('p', { class: 'tiny faint' }, 'Your position'),
@@ -1111,11 +2315,8 @@ function overCard() {
     // or the child gets the source code of an SVG at 3.4rem
     card.append(el('div', { class: 'mini-face', style: 'line-height:0', html: medal }),
       el('h1', { style: 'font-size:1.7rem;margin:8px 0 4px' }, rank === 1 ? 'You won!' : `You finished #${rank}`),
-      el('p', { class: 'muted' }, game.mode === 'kart' ? `${me.distance || 0}m driven`
-        : game.mode === 'tower' ? `${me.blocks || 0} blocks high`
-        : game.mode === 'treasure' ? `${me.coins || 0} coins`
-        : game.mode === 'snow' ? `${me.hits || 0} blocks knocked off`
-        : game.mode === 'balloon' ? `${me.score} points · ${me.balloons || 0} balloon${me.balloons === 1 ? '' : 's'} left`
+      el('p', { class: 'muted' }, game.mode === 'tower' ? `${me.blocks || 0} blocks high`
+        : game.mode === 'volcano' ? `${me.height || 0} up the wall`
         : me.score + ' points'));
     if (rank <= 3) confetti(120);
   }
@@ -1125,10 +2326,8 @@ function overCard() {
   game.players.slice(0, 5).forEach((p, i) => lb.append(el('div', { class: 'spread', style: 'padding:7px 0' },
     el('span', { class: 'row-name' }, el('span', { class: 'mini-face', html: drawFace(p, 24) }),
        `#${i + 1} ${p.name}${p.id === me.id ? ' (you)' : ''}`),
-    el('strong', {}, game.mode === 'kart' ? `${p.distance || 0}m`
-      : game.mode === 'tower' ? `${p.blocks || 0} blocks`
-      : game.mode === 'treasure' ? `${p.coins || 0} coins`
-      : game.mode === 'snow' ? `${p.hits || 0} blocks`
+    el('strong', {}, game.mode === 'tower' ? `${p.blocks || 0} blocks`
+      : game.mode === 'volcano' ? `${p.height || 0}`
       : String(p.score)))));
   card.append(lb);
   if (paidOut) card.append(payoutCard(paidOut));
@@ -1161,13 +2360,13 @@ function payoutCard(paid) {
     el('span', {}, `Level ${lv.level}`),
     el('b', {}, lv.top ? 'Top level' : `${lv.toNext} to level ${lv.level + 1}`)));
   box.append(el('p', { class: 'tiny faint', style: 'margin-top:8px' },
-    `${NovaProgress.read().coins} coins to spend on your monster. Kept on this phone.`));
+    `${NovaProgress.read().coins} coins to spend on your blook. Kept on this phone.`));
 
   const wrap = el('div', {});
   if (paid.levelUp) {
     NovaProgress.markSeen(paid.levelUp);
     wrap.append(el('div', { class: 'levelup' },
-      `Level ${paid.levelUp}! New monster parts unlocked.`));
+      `Level ${paid.levelUp}! New blook parts unlocked.`));
     confetti(90);
   }
   wrap.append(box);

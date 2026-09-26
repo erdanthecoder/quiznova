@@ -14,7 +14,19 @@
 
   const int = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const shuffle = (arr) => arr.slice().sort(() => Math.random() - 0.5);
+  /* A real shuffle. sort(() => Math.random() - 0.5) is the one everybody
+     writes and it is not uniform — the comparator is inconsistent, so which
+     permutations come out depends on the sort, and some are far likelier than
+     others. When the thing being shuffled is where the right answer goes, that
+     bias is a child learning to guess the colour. */
+  function shuffle(arr) {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
 
   /** Build a multiple-choice question, keeping distractors distinct and plausible. */
   function mc(text, correct, wrongs, why) {
@@ -26,7 +38,19 @@
       if (options.length === 4) break;
     }
     if (options.length < 4) return null;              // caller skips it
-    return { text, correct: String(correct), options, why };
+    /* And not in that order.
+     *
+     * This built [correct, ...wrongs] and handed it straight back, so the right
+     * answer was the first option in every question this engine has ever
+     * written — which on the board is the red triangle, every single time. A
+     * class works that out in about four questions and then stops reading the
+     * question.
+     *
+     * Numbers get shuffled too, though putting them in their own order looks
+     * tidier: the wrong answers here are near misses, so a sorted row leaves
+     * the right one in the middle nearly nine times in ten, which is the same
+     * problem wearing a nicer coat. */
+    return { text, correct: String(correct), options: shuffle(options), why };
   }
 
   /* near misses: what a child actually writes when they slip */
@@ -288,8 +312,111 @@
       const [country, city] = pick(CAPITALS);
       const wrongs = shuffle(CAPITALS).filter(c => c[0] !== country).slice(0, 3).map(c => c[1]);
       return mc(`What is the capital city of ${country}?`, city, wrongs, `${city} is the capital of ${country}.`);
+    },
+
+    /* ── Kyrgyz ────────────────────────────────────────────
+     *
+     * Built rather than listed, and asked both ways round, because those are
+     * two different things to know: seeing "мышык" and knowing it is a cat is
+     * reading, and wanting to say cat and reaching for "мышык" is speaking. A
+     * list of fixed questions would run out in one lesson; a generator crossed
+     * with nine word sets does not.
+     *
+     * The wrong answers are always drawn from the same set as the right one —
+     * three other animals, never an animal against a number — so a child who
+     * does not know the word still has to think rather than spot the odd one
+     * out. */
+    kyrgyzWord() {
+      const set = pick(KG_SETS);
+      const [kg, en] = pick(set.words);
+      const others = shuffle(set.words).filter(w => w[0] !== kg).slice(0, 3);
+      if (others.length < 3) return null;
+      // half the time each way round
+      if (Math.random() < 0.5) {
+        return mc(`What does "${kg}" mean?`, en, others.map(w => w[1]),
+                  `"${kg}" is ${en} in English.`);
+      }
+      return mc(`How do you say "${en}" in Kyrgyz?`, kg, others.map(w => w[0]),
+                `${en} is "${kg}".`);
+    },
+    kyrgyzNumber() {
+      const n = int(1, 10);
+      const right = KG_NUMBERS[n - 1];
+      const wrongs = shuffle(KG_NUMBERS).filter(w => w !== right).slice(0, 3);
+      if (Math.random() < 0.5) {
+        return mc(`Which number is "${right}"?`, String(n),
+                  shuffle([1,2,3,4,5,6,7,8,9,10]).filter(x => x !== n).slice(0, 3).map(String),
+                  `"${right}" is ${n}.`);
+      }
+      return mc(`How do you count ${n} in Kyrgyz?`, right, wrongs, `${n} is "${right}".`);
+    },
+    kyrgyzGreeting() {
+      const [kg, en] = pick(KG_GREETINGS);
+      const wrongs = shuffle(KG_GREETINGS).filter(g => g[0] !== kg).slice(0, 3);
+      if (Math.random() < 0.5) {
+        return mc(`What does "${kg}" mean?`, en, wrongs.map(g => g[1]), `"${kg}" means ${en}.`);
+      }
+      return mc(`How would you say "${en}"?`, kg, wrongs.map(g => g[0]), `"${kg}" is how you say it.`);
     }
   };
+
+  /* ── Kyrgyz word sets ────────────────────────────────────
+   *
+   * Cyrillic, which is what Kyrgyz is written in and what a child in Bishkek
+   * sees on a board. The sets are small on purpose: eight or nine words a
+   * child can actually hold, crossed with both directions and ten numbers,
+   * which is more questions than a lesson needs and none of them padding.
+   *
+   * These are the everyday words, not a dictionary. A native speaker should
+   * read them before a class does — they are the one thing in this file I
+   * cannot check by running it.
+   */
+  const KG_NUMBERS = ['бир', 'эки', 'үч', 'төрт', 'беш', 'алты', 'жети', 'сегиз', 'тогуз', 'он'];
+
+  const KG_GREETINGS = [
+    ['Салам', 'hello'],
+    ['Саламатсызбы', 'hello (polite)'],
+    ['Кош бол', 'goodbye'],
+    ['Рахмат', 'thank you'],
+    ['Кечиресиз', 'excuse me'],
+    ['Ооба', 'yes'],
+    ['Жок', 'no'],
+    ['Жакшы', 'good'],
+    ['Кандайсың?', 'how are you?']
+  ];
+
+  const KG_SETS = [
+    { id: 'family', label: 'family', words: [
+      ['ата', 'father'], ['эне', 'mother'], ['бала', 'child'], ['кыз', 'girl'],
+      ['ага', 'older brother'], ['эже', 'older sister'],
+      ['чоң ата', 'grandfather'], ['чоң эне', 'grandmother'] ] },
+    { id: 'colours', label: 'colours', words: [
+      ['кызыл', 'red'], ['көк', 'blue'], ['жашыл', 'green'], ['сары', 'yellow'],
+      ['ак', 'white'], ['кара', 'black'] ] },
+    { id: 'animals', label: 'animals', words: [
+      ['ат', 'horse'], ['ит', 'dog'], ['мышык', 'cat'], ['кой', 'sheep'],
+      ['уй', 'cow'], ['эчки', 'goat'], ['куш', 'bird'], ['балык', 'fish'] ] },
+    { id: 'food', label: 'food and drink', words: [
+      ['нан', 'bread'], ['суу', 'water'], ['сүт', 'milk'], ['эт', 'meat'],
+      ['чай', 'tea'], ['алма', 'apple'], ['туз', 'salt'], ['май', 'butter'] ] },
+    { id: 'days', label: 'days of the week', words: [
+      ['дүйшөмбү', 'Monday'], ['шейшемби', 'Tuesday'], ['шаршемби', 'Wednesday'],
+      ['бейшемби', 'Thursday'], ['жума', 'Friday'], ['ишемби', 'Saturday'],
+      ['жекшемби', 'Sunday'] ] },
+    { id: 'body', label: 'the body', words: [
+      ['баш', 'head'], ['кол', 'hand'], ['бут', 'leg'], ['көз', 'eye'],
+      ['кулак', 'ear'], ['мурун', 'nose'], ['ооз', 'mouth'], ['тиш', 'tooth'] ] },
+    { id: 'nature', label: 'nature', words: [
+      ['күн', 'sun'], ['ай', 'moon'], ['тоо', 'mountain'], ['асман', 'sky'],
+      ['кар', 'snow'], ['жамгыр', 'rain'], ['шамал', 'wind'], ['от', 'fire'] ] },
+    { id: 'school', label: 'school', words: [
+      ['китеп', 'book'], ['калем', 'pen'], ['мугалим', 'teacher'],
+      ['окуучу', 'pupil'], ['мектеп', 'school'], ['класс', 'classroom'],
+      ['дептер', 'notebook'], ['сабак', 'lesson'] ] },
+    { id: 'home', label: 'at home', words: [
+      ['үй', 'house'], ['эшик', 'door'], ['терезе', 'window'], ['стол', 'table'],
+      ['орундук', 'chair'], ['төшөк', 'bed'], ['аяк', 'bowl'], ['кашык', 'spoon'] ] }
+  ];
 
   /* ── curated banks for facts you cannot generate ────────── */
   const B = {
@@ -554,7 +681,16 @@
     { id: 'spelling', label: 'spelling', bank: B.spelling, words: ['spelling', 'spellings', 'spell', 'misspelled'] },
     { id: 'phonics', label: 'phonics', bank: B.phonics, words: ['phonics', 'sounds', 'rhyme', 'rhyming', 'digraph', 'blending', 'reading'] },
     { id: 'online', label: 'staying safe online', bank: B.online,
-      words: ['online safety', 'internet safety', 'e-safety', 'esafety', 'passwords', 'cyber'] }
+      words: ['online safety', 'internet safety', 'e-safety', 'esafety', 'passwords', 'cyber'] },
+
+    /* ── Kyrgyz ──────────────────────────────────────────── */
+    { id: 'kyrgyz', owns: true, label: 'Kyrgyz words', gen: G.kyrgyzWord,
+      words: ['kyrgyz', 'kyrgyz words', 'kyrgyz vocabulary', 'кыргызча', 'кыргыз тили',
+              'kyrgyz language', 'learn kyrgyz'] },
+    { id: 'kyrgyznumbers', owns: true, label: 'Kyrgyz numbers', gen: G.kyrgyzNumber,
+      words: ['kyrgyz numbers', 'kyrgyz counting', 'сандар', 'counting in kyrgyz'] },
+    { id: 'kyrgyzgreetings', owns: true, label: 'Kyrgyz greetings', gen: G.kyrgyzGreeting,
+      words: ['kyrgyz greetings', 'салам', 'kyrgyz hello', 'greetings in kyrgyz', 'saying hello'] }
   ];
 
   /* generic subject fallbacks: "maths quiz" with no sub-topic named */
@@ -562,25 +698,54 @@
     maths: ['addition', 'subtraction', 'times', 'division', 'doubling', 'halving', 'fractions', 'money', 'counting', 'shapes'],
     english: ['wordclass', 'plurals', 'opposites', 'synonyms', 'spelling', 'punctuation', 'homophones'],
     science: ['space', 'body', 'animals', 'plants', 'weather', 'materials', 'forces'],
-    humanities: ['geography', 'history', 'uk', 'capitals']
+    humanities: ['geography', 'history', 'uk', 'capitals'],
+    kyrgyz: ['kyrgyz', 'kyrgyzgreetings', 'kyrgyznumbers']
   };
   const SUBJECT_WORDS = {
     maths: ['maths', 'math', 'mathematics', 'numeracy', 'arithmetic', 'numbers'],
     english: ['english', 'literacy', 'language', 'writing', 'vocabulary'],
     science: ['science', 'biology', 'chemistry', 'physics', 'nature'],
-    humanities: ['humanities', 'topic work', 'social studies']
+    humanities: ['humanities', 'topic work', 'social studies'],
+    kyrgyz: ['kyrgyz', 'кыргызча', 'кыргыз', 'kyrgyz language', 'learn kyrgyz']
   };
 
   /** Score every topic against what the teacher typed and take the best. */
   function match(text) {
-    const t = ' ' + text.toLowerCase().replace(/[^a-z0-9+×÷−'\- ]/g, ' ').replace(/\s+/g, ' ') + ' ';
-    let best = null, bestScore = 0;
-    for (const topic of TOPICS) {
-      let score = 0;
+    /* Cyrillic survives the tidy-up now. The old character class was a-z0-9
+       and punctuation, so every Kyrgyz letter was replaced with a space and
+       "кыргызча" arrived here as nothing at all — a teacher typing the name of
+       their own language got no topic and no questions. */
+    const t = ' ' + text.toLowerCase()
+      .replace(/[^a-z0-9\u0400-\u04ff+×÷−'\- ]/g, ' ')
+      .replace(/\s+/g, ' ') + ' ';
+    /* A language name governs the whole request.
+     *
+     * "Kyrgyz animals" used to land on the English animals bank, because
+     * "animals" is the longer word and scored higher — so a teacher asking for
+     * Kyrgyz animal words got questions about butterfly life cycles. A topic
+     * marked `owns` is a subject that qualifies everything next to it rather
+     * than competing with it: once one matches, only those compete. */
+    const hits = (topic) => topic.words.some(
+      w => t.includes(' ' + w + ' ') || t.includes(' ' + w));
+    const owning = TOPICS.filter(x => x.owns && hits(x));
+    const pool = owning.length ? owning : TOPICS;
+
+    let best = null, bestScore = 0, bestPhrase = 0;
+    for (const topic of pool) {
+      let score = 0, longest = 0;
       for (const w of topic.words) {
-        if (t.includes(' ' + w + ' ') || t.includes(' ' + w)) score += w.length > 4 ? 3 : 2;
+        if (t.includes(' ' + w + ' ') || t.includes(' ' + w)) {
+          score += w.length > 4 ? 3 : 2;
+          if (w.length > longest) longest = w.length;
+        }
       }
-      if (score > bestScore) { bestScore = score; best = topic; }
+      /* Ties go to whichever matched the longer phrase, not to whichever is
+         higher up the list. "Kyrgyz numbers" matches both the general Kyrgyz
+         topic and the numbers one for the same score, and without this the
+         general one wins every time purely by being written first. */
+      if (score > bestScore || (score === bestScore && score > 0 && longest > bestPhrase)) {
+        bestScore = score; bestPhrase = longest; best = topic;
+      }
     }
     if (best) return { topic: best, subject: null };
 
