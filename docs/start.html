@@ -47,8 +47,8 @@
 <script src="run.js?v=963fd974"></script>
 <script src="tower.js?v=fbdb38cb"></script>
 <script src="paste.js?v=3032c005"></script>
-<script src="rules.js?v=45d54cc1"></script>
-<script src="live.js?v=ee2902a9"></script>
+<script src="rules.js?v=debcec46"></script>
+<script src="live.js?v=7fadac6b"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
 <script src="account.js?v=1f2bba77"></script>
 
@@ -307,7 +307,12 @@ if (!made) {
       await Nova.api('/quizzes/' + id + '/ops', { method: 'POST',
         body: { ops: made.questions.map(q => ({ op: 'add_question', question: q })) } });
       if (Nova.confetti) Nova.confetti();
-      const to = '/studio?id=' + encodeURIComponent(id) + (andPlay ? '&host=1' : '');
+      /* If the link said which game it was sent for, carry it through, so a
+         teacher who pressed one button is not asked a question the link has
+         already answered. */
+      const to = '/studio?id=' + encodeURIComponent(id)
+        + (andPlay ? '&host=1' : '')
+        + (andPlay && made.mode ? '&mode=' + encodeURIComponent(made.mode) : '');
       location.href = to;
     } catch (err) {
       play.disabled = save.disabled = false;

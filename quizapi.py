@@ -378,8 +378,14 @@ def status():
 
 @api.get("/modes")
 def list_modes():
-    """The live game modes, so the pickers stay in step with the server."""
-    return jsonify({"modes": [dict(id=key, maps=maps_for(key), **value) for key, value in MODES.items()]})
+    """The live game modes, so the pickers stay in step with the server.
+
+    A limited edition drops out of the list once its run is over. It is not
+    deleted: games already played in it keep their reports, and bringing it
+    back is one line of dates.
+    """
+    return jsonify({"modes": [dict(id=key, maps=maps_for(key), **value)
+                              for key, value in MODES.items() if mode_open(key)]})
 
 
 @api.get("/quizzes")
@@ -908,6 +914,24 @@ MAPS = {
     "eagle":    [("canyon", "Ala-Too Canyon"), ("dusk", "Red Gorge"),
                  ("storm", "The Storm")],
 }
+
+
+def mode_open(mode_id, now=None):
+    """Is this mode in the game today?
+
+    A limited edition has to actually be limited or the words mean nothing.
+    What closes is the mode: nothing a class earned inside it is touched, and a
+    game already being played is never taken away mid-round. Mirrors modeOpen
+    in static/rules.js.
+    """
+    import datetime
+    info = (MODES.get(mode_id) or {}).get("limited")
+    if not info:
+        return True
+    today = (now or datetime.date.today())
+    start = datetime.date.fromisoformat(info["from"])
+    end = datetime.date.fromisoformat(info["until"])
+    return start <= today <= end
 
 
 # How a game finishes. Playing every question is the default, but a class with

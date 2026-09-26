@@ -379,7 +379,12 @@
 
   async function attemptOnce(path, method, body) {
     if (path === '/modes') {
-      return { modes: Object.entries(MODES).map(([id, m]) => Object.assign({ id, maps: mapsFor(id) }, m)) };
+      /* A limited edition is taken out of the list once its run is over. It
+         is not deleted: games already played in it keep their reports, and a
+         mode that comes back is one line of dates. */
+      return { modes: Object.entries(MODES)
+        .filter(([id]) => !NovaRules.modeOpen || NovaRules.modeOpen(id))
+        .map(([id, m]) => Object.assign({ id, maps: mapsFor(id) }, m)) };
     }
 
     const m = path.match(/^\/games(?:\/([^/]+))?(\/.*)?$/);

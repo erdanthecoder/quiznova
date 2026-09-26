@@ -205,6 +205,12 @@ tr:hover td{background:var(--paper)}
 .modecard .plan svg{width:100%;height:auto;display:block}
 .modecard .plan::after{content:'The map';position:absolute;left:8px;bottom:6px;
   font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;opacity:.72;line-height:1}
+
+/* the badge on a mode that is only here for a while */
+.modecard{position:relative}
+.modecard .ltd{position:absolute;top:10px;right:10px;padding:4px 10px;border-radius:99px;
+  background:rgba(12,8,28,.82);border:1.5px solid rgba(255,197,61,.5);color:#FFC53D;
+  font-weight:800;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -957,12 +963,20 @@ const joinAddress = () => (window.QUOLDEK_JOIN
       try { modes = (await api('/modes')).modes; } catch { /* offline */ }
       // anything from a release that has not opened yet is held back
       if (window.NovaLaunch) modes = NovaLaunch.openModes(modes);
+      // and anything whose limited run is over has gone
+      if (window.NovaRules && NovaRules.openModes) modes = NovaRules.openModes(modes);
       // a fallback for a page that could not reach the server; it has to name a
       // mode that still exists
       if (!modes.length) modes = [{ id: 'tower', icon: 'bricks', label: 'Tower Build',
                                     blurb: 'Build tall and sway, or stop and brace before the wind',
                                     maps: [] }];
       showModes(modes);
+
+      /* Arriving with a mode named — from a link that already knows what it
+         wants played — skips the first screen. It is the same two presses as
+         before, minus the one the link already made. */
+      const wanted = modes.find(m => m.id === qs('mode'));
+      if (wanted) showMaps(wanted);
 
       function showModes(all) {
         list.innerHTML = '';
@@ -972,6 +986,16 @@ const joinAddress = () => (window.QUOLDEK_JOIN
                      el('span', { class: 'body' },
                         el('strong', {}, m.label),
                         el('span', { class: 'sub' }, m.blurb)));
+          /* A limited edition says how long is left of it. A mode that quietly
+             vanishes in December is a mode a teacher plans a lesson around and
+             then cannot find. */
+          if (m.limited && window.NovaRules && NovaRules.modeDaysLeft) {
+            const days = NovaRules.modeDaysLeft(m.id);
+            if (days) {
+              btn.append(el('span', { class: 'ltd' },
+                'Limited \u00b7 ' + days + ' day' + (days === 1 ? '' : 's') + ' left'));
+            }
+          }
           btn.dataset.mode = m.id;
           list.append(btn);
         });

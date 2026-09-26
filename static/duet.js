@@ -148,8 +148,13 @@
 
     /* The ribbon. It unrolls from the middle outwards, which is the only way a
        ribbon has ever looked right — one that fades in is a rectangle. */
-    function ribbon(k, cx, cy, full) {
-      const rw = full * ease.back(k), rh = Math.max(34, full * 0.15);
+    function ribbon(k, cx, cy, full, cap) {
+      /* The ribbon's height is capped by the canvas as well as by its own
+         width. Sized off the width alone it came out as tall as a third of a
+         short strip, which pushed the line underneath it off the bottom — and
+         a caption nobody can see is a caption that is not there. */
+      const rw = full * ease.back(k);
+      const rh = Math.max(28, Math.min(full * 0.15, cap));
       if (rw < 6) return 0;
       ctx.save();
       ctx.translate(cx, cy);
@@ -193,7 +198,7 @@
       const gone = now - started;
       ctx.clearRect(0, 0, w, h);
 
-      const cx = w / 2, cy = h * 0.42;
+      const cx = w / 2, cy = h * 0.36;
       const put = Math.min(h * 0.34, w * 0.2);      // how big each mark is drawn
       const apart = put * 0.62;
 
@@ -292,15 +297,18 @@
       ctx.globalAlpha = 1;
 
       let rh = 0;
+      const words = Math.max(14, Math.min(24, w * 0.032));
+      /* Laid out from the bottom up: the line has to fit, then the ribbon above
+         it, and whatever is left is where the two of them meet. */
+      const lineY = h - words * 0.9;
+      const ribbonY = Math.min(cy + put * 0.86, lineY - words * 1.5 - h * 0.08);
       if (gone > T.ribbon) {
-        const full = Math.min(w * 0.82, 620);
-        rh = ribbon(clamp01((gone - T.ribbon) / 700), cx, cy + put * 0.88, full);
+        const full = Math.min(w * 0.74, 560);
+        rh = ribbon(clamp01((gone - T.ribbon) / 700), cx, ribbonY, full, h * 0.17);
       }
       if (gone > T.under) {
         ctx.globalAlpha = clamp01((gone - T.under) / 500);
-        say(line, cx, cy + put * 0.88 + Math.max(34, rh) * 0.9 + 18,
-            Math.max(14, Math.min(24, w * 0.032)), '800',
-            dark ? '#FFF7E4' : '#2B2050');
+        say(line, cx, lineY, words, '800', dark ? '#FFF7E4' : '#2B2050');
         ctx.globalAlpha = 1;
       }
 

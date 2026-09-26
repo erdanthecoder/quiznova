@@ -74,6 +74,43 @@
     points:    { label: 'First to a score', values: [250, 500, 1000, 2000] },
     time:      { label: 'A time limit', values: [3, 5, 10, 15, 20] }   // minutes
   };
+  /* ── a mode that is only here for a while ─────────────────
+   *
+   * A limited edition has to actually be limited or the words mean nothing.
+   * These two answer, from the one place, whether a mode is in the game today
+   * and how much of its run is left — and the dates are read in the reader's
+   * own time zone, the same as everything else with a clock in it, because a
+   * school in one time zone should not lose a game at four in the afternoon.
+   *
+   * What closes is the mode. Nothing a class earned inside it is touched: the
+   * scores, the reports and the homework are all still there afterwards, and a
+   * game already being played is never taken away mid-round.
+   */
+  function modeOpen(id, at) {
+    const m = MODES[id];
+    if (!m || !m.limited) return true;
+    const now = at === undefined ? Date.now() : at;
+    const [fy, fm, fd] = String(m.limited.from).split('-').map(Number);
+    const [uy, um, ud] = String(m.limited.until).split('-').map(Number);
+    const from = new Date(fy, (fm || 1) - 1, fd || 1).getTime();
+    const until = new Date(uy, (um || 12) - 1, (ud || 28), 23, 59, 59).getTime();
+    return now >= from && now <= until;
+  }
+
+  /** Days left of a limited run, or 0 for a mode that is simply in the game. */
+  function modeDaysLeft(id, at) {
+    const m = MODES[id];
+    if (!m || !m.limited || !modeOpen(id, at)) return 0;
+    const now = at === undefined ? Date.now() : at;
+    const [uy, um, ud] = String(m.limited.until).split('-').map(Number);
+    const until = new Date(uy, (um || 12) - 1, (ud || 28), 23, 59, 59).getTime();
+    return Math.max(1, Math.ceil((until - now) / 86400000));
+  }
+
+  /** The list, with anything whose run is over taken out. */
+  const openModes2 = (list, at) =>
+    (list || []).filter(m => modeOpen(m && m.id ? m.id : m, at));
+
   function readGoal(goal) {
     const kind = goal && GOALS[goal.kind] ? goal.kind : 'questions';
     if (kind === 'questions') return { kind, value: 0 };
@@ -957,6 +994,7 @@
 
   global.NovaRules = {
     MODES, MAPS, GOALS, SETUP, SCORERS, BOSS_NAMES, MOVES, DEFAULT_MODE,
+    modeOpen, modeDaysLeft, openModes: openModes2,
     SAFE_MS, FIELD_W, FIELD_H, safeZones, zoneCounts, claimZone, settleSafe,
     TOWER_TEAMS, TOWER_NAMES, SLOTS, PERFECT, GIFT_EVERY, MONSTER_EVERY, MONSTER_FLOOR,
     GORILLA_MS, MARK_AHEAD, TOWER_TARGET, towerWinner, LASER_TARGET, teamTotal, laserStanding,
