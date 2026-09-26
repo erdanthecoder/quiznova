@@ -96,6 +96,12 @@ const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log(`FAIL  ${n}${
   hub.on('pageerror', e => huberrs.push(e.message));
   await hub.goto(`${base}/quiznova.html`, { waitUntil: 'domcontentloaded' });
   await hub.waitForTimeout(1800);
+  /* During a release week the home page plays its cutscene over everything,
+   * which is the whole point of it — and a test that only passes between
+   * launches is not a test. So this walks out of the film the way a teacher in
+   * a hurry does, by pressing Skip, rather than pretending it is not there. */
+  const film = hub.locator('.launch-skip');
+  if (await film.count()) { await film.click(); await hub.waitForTimeout(700); }
   // the little play button on the quiz card is how a teacher starts one here
   const play = hub.locator('button[title="Host a live game"]').first();
   ok('the main page has a way to host', await play.count() > 0);

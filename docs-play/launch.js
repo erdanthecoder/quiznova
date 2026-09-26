@@ -51,6 +51,19 @@
       // so nobody opens the hat shelf on the day and finds it locked end to end
       hatsFrom: 4,
       show: 'garden'
+    },
+    {
+      version: '5.0',
+      // 26 September 2026, the moment the day starts, wherever the reader is
+      at: new Date(2026, 8, 26, 0, 0, 0),
+      until: new Date(2026, 8, 30, 0, 0, 0),
+      /* Nothing is held back by this one. What 5.0 adds is a door — a lesson
+       * arriving as a link, and the words in it turned into a game. A door
+       * cannot be released on a clock: whoever sends the first link decides
+       * when it opens, and a link that lands on a page saying "not yet" is a
+       * link that never gets sent twice. */
+      modes: [],
+      show: 'sunrise'
     }
   ];
 
@@ -74,6 +87,12 @@
 
   /** The next release nobody has seen yet, or null once they are all out. */
   const next = (at) => RELEASES.find(r => stamp(at) < r.at.getTime()) || null;
+
+  /* The newest one that is actually out. A page about the current update needs
+     this rather than next(): once the last release has landed there is no next
+     one, and a page that falls back to a version written into it goes on
+     talking about the update before this one for ever. */
+  const latest = (at) => RELEASES.filter(r => stamp(at) >= r.at.getTime()).pop() || FIRST;
 
   /** Is this release's reveal still worth playing? Open, and not yet stale. */
   function showing(version, at) {
@@ -151,12 +170,22 @@
         line: 'The deep gives you nothing four times in seven. And then this.' },
       { icon: 'crown',  tint: '#FFC53D', title: 'Hats',
         line: 'Twelve of them, on forty-eight blooks, all yours to earn.' }
+    ],
+    '5.0': [
+      { icon: 'book',      tint: '#12BE8E', title: 'Kyrgyz in the game',
+        line: 'Words, numbers and greetings, asked both ways round.' },
+      { icon: 'link',      tint: '#7C4DFF', title: 'A lesson becomes a link',
+        line: 'Open it and the quiz is already written. Nothing to type.' },
+      { icon: 'key',       tint: '#FFC53D', title: 'One sign-in',
+        line: 'The same account, and it comes with you.' },
+      { icon: 'handshake', tint: '#2BA8FF', title: 'Send it on',
+        line: 'Any site can hand a class a game. Four words is enough.' }
     ]
   };
 
   global.NovaLaunch = {
     RELEASES, AT, NEW_MODES, NEW_THINGS,
-    out, until, live, untilVersion, next, openModes, heldModes, hatOpen,
+    out, until, live, untilVersion, next, latest, openModes, heldModes, hatOpen,
     seen, markSeen, showing,
     rocket: (opts) => show('rocket', opts),
     garden: (opts) => show('garden', opts),
@@ -179,7 +208,8 @@
     if (!global.document) return done();
     if (document.querySelector('.launch')) return done();   // never two at once
 
-    const version = options.version || (which === 'garden' ? '4.0' : '3.0');
+    const version = options.version
+      || (which === 'garden' ? '4.0' : which === 'sunrise' ? '5.0' : '3.0');
     const shell = document.createElement('div');
     shell.className = 'launch launch-' + which;
     shell.innerHTML = '<canvas class="launch-sky"></canvas>'
@@ -252,14 +282,21 @@
       try { fn(t); }
       catch (err) { finish(); }
     };
-    const run = which === 'garden' ? growGarden : flyRocket;
+    /* Choosing the reveal is inside the guard along with running it. It was
+     * outside, and a release whose film was not written yet threw on the way to
+     * picking it — which left the cutscene's shell over the page with nothing
+     * drawing in it and nothing able to take it away. A full-screen overlay is
+     * exactly the wrong place to find out that a name was spelled wrong. */
     try {
+      const run = which === 'garden' ? growGarden
+                : which === 'sunrise' ? riseOverMountains : flyRocket;
       run({ ctx, canvas, shell, word, cards, finish,
             frame: (fn) => { raf = requestAnimationFrame(guarded(fn)); } });
     } catch (err) { finish(); return finish; }
 
     // the hard stop: whatever happens inside, it is over by then
-    setTimeout(finish, which === 'garden' ? 34000 : 9000);
+    setTimeout(finish, which === 'garden' ? 34000
+                     : which === 'sunrise' ? 16000 : 9000);
     return finish;
   }
 
@@ -1131,6 +1168,412 @@
    * Kept because 3.0 happened, and somebody who asks to watch it again should
    * get the thing they were shown rather than this year's one.
    */
+  /* ══ 5.0: a sunrise, and words coming over the ridge ═════
+   *
+   * What this update is, in one picture: a lesson finishes somewhere else, and
+   * the words it taught arrive here as a game. So the film is words arriving.
+   * They come in over the mountains at dawn, land in a row, and turn over to
+   * show what they mean.
+   *
+   * The mountains are grown, not drawn: midpoint displacement, a new range
+   * every time the film plays, three of them at different distances. That
+   * matters more than it sounds. A painted skyline is the same skyline on every
+   * machine in the school, and the moment a class notices that, the film is a
+   * slide with music. A range nobody has seen before is a place.
+   *
+   * The Kyrgyz is on the tiles because this is the release where Kyrgyz turns
+   * up inside the game, and a film about words ought to be able to show some.
+   */
+  const KG_TILES = [
+    ['тоо', 'mountain'], ['күн', 'sun'], ['суу', 'water'],
+    ['ат', 'horse'], ['нан', 'bread'], ['китеп', 'book']
+  ];
+  const TILE_TINTS = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#7C4DFF', '#FF7A45'];
+
+  /* A skyline.
+   *
+   * The first try was midpoint displacement, which is the usual answer and the
+   * wrong one here: it makes rolling country, and the relief is so low that a
+   * snowline drawn across it comes out as a white shelf a mile long. Mountains
+   * are peaks. So the range is built as peaks — a handful of them at their own
+   * places, each falling away on both sides, and the skyline is simply whichever
+   * of them is highest at that point. The flanks are bent slightly inwards,
+   * which is the difference between a mountain and a tent.
+   *
+   * A little smooth noise on top, so no two sides of the same peak agree.
+   */
+  function ridgeLine(steps, peaks, sharp) {
+    const tops = Array.from({ length: peaks }, (_, i) => ({
+      x: (i + rand(0.15, 0.85)) / peaks,
+      h: rand(0.42, 1),
+      w: rand(0.6, 1.25) / peaks
+    }));
+    const jag = noiseField(13);
+    const out = [];
+    for (let i = 0; i < steps; i++) {
+      const x = i / (steps - 1);
+      let y = 0.08;
+      for (const t of tops) {
+        const d = Math.abs(x - t.x) / t.w;
+        if (d < 1) y = Math.max(y, t.h * (1 - Math.pow(d, sharp)));
+      }
+      out.push(Math.max(0.04, Math.min(1, y + jag(x * 9) * 0.045)));
+    }
+    return out;
+  }
+
+  /* ── the timeline ─────────────────────────────────────────
+   * Fourteen seconds. Written out here for the same reason the garden's is: a
+   * cutscene is edited, and cuts you cannot see written down are cuts you
+   * cannot fix.
+   */
+  const S = {
+    sky:   0,        // night, and the letterbox closing
+    ridge: 300,      // the range lifts into frame
+    sun:   1400,     // and the sun starts to come up behind it
+    yurt:  2500,     // something in the foreground that is somebody's home
+    first: 3100,     // the first word comes over the ridge
+    every: 640,      // and the rest follow, this far apart
+    flip:  8400,     // they all turn over
+    title: 9800,
+    cards: 10700,
+    out:   14200
+  };
+
+  const rgb = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const blend = (a, b, k) => [a[0] + (b[0] - a[0]) * k,
+                              a[1] + (b[1] - a[1]) * k,
+                              a[2] + (b[2] - a[2]) * k];
+
+  function riseOverMountains(stage) {
+    const { ctx, canvas, shell, word, cards, finish, frame } = stage;
+    const started = performance.now();
+    const W = () => innerWidth, H = () => innerHeight;
+    shell.classList.add('bars');
+
+    /* Two skies, and the film is the journey between them. Three stops each,
+       because a real dawn is not one colour going lighter — it is a cold top, a
+       hot band where the sun is, and a pale edge under it. */
+    const NIGHT = [[16, 12, 34], [34, 22, 58], [52, 34, 74]];
+    const DAWN  = [[46, 72, 150], [236, 124, 116], [255, 203, 96]];
+
+    const stars = Array.from({ length: 130 }, () => ({
+      x: Math.random(), y: Math.random() * 0.66, r: rand(0.5, 1.8),
+      rate: rand(0.4, 1.7), phase: Math.random() * 6.28
+    }));
+
+    /* Back to front. The far range is thin and cool and barely above the
+       horizon; the near one is almost black. Nothing else is doing the work of
+       distance here, so these three numbers are the depth of the shot. */
+    const layers = [
+      { line: ridgeLine(121, 5, 1.35), base: 0.72, tall: 0.42, tint: [104, 100, 156], snow: true },
+      { line: ridgeLine(121, 4, 1.5),  base: 0.82, tall: 0.30, tint: [62, 52, 106], snow: false },
+      { line: ridgeLine(121, 3, 1.7),  base: 0.93, tall: 0.22, tint: [24, 17, 42], snow: false }
+    ];
+
+    const tiles = KG_TILES.map((pair, i) => ({
+      kg: pair[0], en: pair[1], tint: TILE_TINTS[i % TILE_TINTS.length],
+      born: S.first + i * S.every, flipAt: S.flip + i * 90,
+      spin: rand(-3.4, -1.8), landed: false
+    }));
+
+    /* Five birds, crossing once, because a dawn with nothing alive in it is a
+       wallpaper. They flap on their own phase and never quite in step. */
+    const birds = Array.from({ length: 5 }, (_, i) => ({
+      at: rand(0.04, 0.3) + i * 0.05, y: rand(0.16, 0.34),
+      size: rand(9, 16), rate: rand(7, 11), phase: Math.random() * 6.28,
+      speed: rand(0.030, 0.046)
+    }));
+
+    let dust = [], smoke = [], worded = false, carded = false;
+
+    /* Where the words end up. Worked out from the window every frame rather
+       than once, so a teacher who turns their laptop round mid-film does not
+       get a row of tiles hanging off the edge. */
+    function grid() {
+      const cols = W() < 640 ? 2 : 3;
+      const w = Math.min(212, (W() - 64) / cols - 18), h = w * 0.54;
+      const rows = Math.ceil(tiles.length / cols);
+      const gx = 18, gy = 16;
+      const x0 = (W() - (cols * w + (cols - 1) * gx)) / 2;
+      const y0 = H() * 0.44 - (rows * h + (rows - 1) * gy) / 2;
+      return { w, h,
+        at: (i) => [x0 + (i % cols) * (w + gx), y0 + Math.floor(i / cols) * (h + gy)] };
+    }
+
+    /** A word on a card: the shape the answers on the board are, at rest. */
+    function drawTile(t, x, y, w, h, turn, squash, face) {
+      const r = Math.min(18, w * 0.13);
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(turn);
+      ctx.scale(face, squash);
+      ctx.translate(-w / 2, -h / 2);
+
+      ctx.fillStyle = 'rgba(0,0,0,.28)';
+      ctx.beginPath(); ctx.roundRect(3, 6, w, h, r); ctx.fill();
+      ctx.fillStyle = t.tint;
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h, r); ctx.fill();
+      // one lighter band along the top, the way a printed card catches a light
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h * 0.34, r); ctx.fill();
+      ctx.lineWidth = Math.max(2, w * 0.018);
+      ctx.strokeStyle = '#1B1330';
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h, r); ctx.stroke();
+
+      /* The Kyrgyz has to fit whatever it is, so the size comes down until it
+         does. A word clipped by its own card is worse than a small word. */
+      const text = face < 0 ? t.en : t.kg;
+      let size = h * 0.42;
+      do {
+        ctx.font = `800 ${size}px 'Nunito', system-ui, sans-serif`;
+        size -= 1;
+      } while (size > 9 && ctx.measureText(text).width > w * 0.84);
+      ctx.save();
+      if (face < 0) ctx.scale(-1, 1);            // the back of a card is mirrored
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(27,19,48,.45)';
+      ctx.fillText(text, (face < 0 ? -w / 2 : w / 2), h / 2 + Math.max(1.5, h * 0.022));
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(text, (face < 0 ? -w / 2 : w / 2), h / 2);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    /** Somebody's home, in the near dark. */
+    function drawYurt(x, ground, w, alpha) {
+      const h = w * 0.66;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, ground);
+      ctx.lineWidth = Math.max(2, w * 0.016);
+      ctx.strokeStyle = '#1B1330';
+      ctx.lineJoin = 'round';
+
+      ctx.fillStyle = '#F2EBFF';
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, 0);
+      ctx.lineTo(-w * 0.46, -h * 0.44);
+      ctx.quadraticCurveTo(0, -h * 1.12, w * 0.46, -h * 0.44);
+      ctx.lineTo(w / 2, 0);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // the band where the roof felt is tied down to the wall
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.455, -h * 0.44); ctx.lineTo(w * 0.455, -h * 0.44);
+      ctx.stroke();
+      // and the ribs running up to the crown
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.4;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(w * 0.1 * i, -h * 0.46);
+        ctx.quadraticCurveTo(w * 0.07 * i, -h * 0.82, w * 0.03 * i, -h * 1.0);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // the door, in the red everything here is in
+      ctx.fillStyle = '#F4364C';
+      ctx.beginPath(); ctx.roundRect(-w * 0.11, -h * 0.4, w * 0.22, h * 0.4, [6, 6, 0, 0]);
+      ctx.fill(); ctx.stroke();
+
+      // the crown: the ring the smoke goes out of
+      ctx.fillStyle = '#2B2050';
+      ctx.beginPath(); ctx.ellipse(0, -h * 1.0, w * 0.13, w * 0.05, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    function tick(now) {
+      const gone = now - started;
+      const dpr = canvas.width / innerWidth;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = W(), h = H();
+
+      /* ── the sky ── */
+      const day = clamp01((gone - S.sun) / 5200);
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, rgb(blend(NIGHT[0], DAWN[0], ease.soft(day))));
+      sky.addColorStop(0.58, rgb(blend(NIGHT[1], DAWN[1], ease.soft(day))));
+      sky.addColorStop(1, rgb(blend(NIGHT[2], DAWN[2], ease.soft(day))));
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      /* ── stars, going out as it gets light ── */
+      const night = 1 - clamp01((gone - S.sun) / 3400);
+      if (night > 0.01) {
+        stars.forEach(s => {
+          const twinkle = 0.55 + 0.45 * Math.sin(gone / 420 * s.rate + s.phase);
+          ctx.globalAlpha = night * twinkle * 0.85;
+          ctx.fillStyle = '#FFF6E0';
+          ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+      }
+
+      /* ── the sun, coming up behind the far range ── */
+      const up = clamp01((gone - S.sun) / 4600);
+      if (up > 0) {
+        const sy = h * 0.76 - ease.out(up) * h * 0.30;
+        const r = Math.max(34, Math.min(96, h * 0.09));
+        const glow = ctx.createRadialGradient(w * 0.62, sy, r * 0.5, w * 0.62, sy, r * 7);
+        glow.addColorStop(0, 'rgba(255,214,120,.55)');
+        glow.addColorStop(0.35, 'rgba(255,150,110,.18)');
+        glow.addColorStop(1, 'rgba(255,120,90,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#FFE9A8';
+        ctx.beginPath(); ctx.arc(w * 0.62, sy, r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      /* ── the range ── */
+      layers.forEach((L, li) => {
+        // each one lifts into frame a beat after the one behind it
+        const inFrame = tween(gone, S.ridge + li * 160, S.ridge + 1100 + li * 160,
+                              h * 0.09, 0, ease.out);
+        const baseY = h * L.base + inFrame;
+        const top = (i) => baseY - L.line[i] * h * L.tall;
+        /* Only a little of the dawn gets into the rock. Warm the far range too
+           much and it ends up the same colour as the sky behind it, which takes
+           the distance straight back out of the shot. */
+        ctx.fillStyle = rgb(blend(L.tint, DAWN[1],
+                                  ease.soft(day) * (li === 0 ? 0.16 : li === 1 ? 0.08 : 0.04)));
+        ctx.beginPath();
+        ctx.moveTo(-4, h + 4);
+        for (let i = 0; i < L.line.length; i++) {
+          ctx.lineTo((i / (L.line.length - 1)) * w, top(i));
+        }
+        ctx.lineTo(w + 4, h + 4);
+        ctx.closePath();
+        ctx.fill();
+
+        /* Snow, on the far range only, and only on what is actually high. A cap
+           on every bump is a birthday cake, not a mountain. */
+        if (!L.snow) return;
+        /* Snow is not a shape stuck on top of a peak — it is the part of the
+         * mountain that is above a line, and the line is the same height all
+         * the way along the range. So that is how it is drawn: find a peak that
+         * clears it, walk out along the actual ridge in both directions until
+         * the rock drops below it, and fill what is in between. Caps drawn as
+         * their own little triangles float, and a row of identical triangles
+         * along a ridge is a birthday cake.
+         */
+        const high = Math.max.apply(null, L.line);
+        const px = (j) => (j / (L.line.length - 1)) * w;
+        const snowline = baseY - high * h * L.tall + h * L.tall * 0.13;
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        for (let i = 2; i < L.line.length - 2; i++) {
+          const v = L.line[i];
+          if (v <= L.line[i - 1] || v <= L.line[i + 1]) continue;   // a peak
+          if (top(i) > snowline) continue;                          // a high one
+          let l = i, r = i;
+          while (l > 1 && top(l - 1) < snowline) l--;
+          while (r < L.line.length - 2 && top(r + 1) < snowline) r++;
+          if (r - l > L.line.length / 3) continue;   // a whole flat range, not a cap
+          ctx.beginPath();
+          ctx.moveTo(px(l), snowline);
+          for (let j = l; j <= r; j++) ctx.lineTo(px(j), top(j));
+          ctx.lineTo(px(r), snowline);
+          ctx.closePath(); ctx.fill();
+          i = r + 1;                                  // one cap per peak, not per point
+        }
+      });
+
+      /* ── birds ── */
+      birds.forEach(b => {
+        const x = (b.at + gone / 1000 * b.speed) * w * 1.3 - w * 0.15;
+        if (x < -40 || x > w + 40) return;
+        const flap = Math.sin(gone / 1000 * b.rate + b.phase);
+        const y = b.y * h + flap * 3;
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#1B1330';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(x - b.size, y + Math.abs(flap) * b.size * 0.42);
+        ctx.quadraticCurveTo(x, y - b.size * 0.3, x + b.size, y + Math.abs(flap) * b.size * 0.42);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+
+      /* ── the yurt, and its smoke ── */
+      const yurtIn = clamp01((gone - S.yurt) / 900);
+      if (yurtIn > 0) {
+        const yw = Math.max(96, Math.min(210, w * 0.14));
+        const yx = w * 0.11, ygr = h * 0.90;
+        drawYurt(yx, ygr, yw, ease.soft(yurtIn));
+        if (Math.random() < 0.3) {
+          smoke.push({ x: yx + rand(-3, 3), y: ygr - yw * 0.66 - 4,
+                       r: rand(3, 7), life: 1, rise: rand(0.5, 1.1), drift: rand(-0.2, 0.45) });
+        }
+      }
+      smoke = smoke.filter(s => s.life > 0);
+      smoke.forEach(s => {
+        s.y -= s.rise; s.x += s.drift; s.r += 0.16; s.life -= 0.011;
+        ctx.globalAlpha = Math.max(0, s.life) * 0.2;
+        ctx.fillStyle = '#EDE6FF';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      /* ── the words arriving ── */
+      const g = grid();
+      const FLIGHT = 980;
+      tiles.forEach((t, i) => {
+        if (gone < t.born) return;
+        const k = clamp01((gone - t.born) / FLIGHT);
+        const [tx, ty] = g.at(i);
+        const fromX = w * 1.24, fromY = h * 0.66;
+        const e = ease.back(k);
+        const x = fromX + (tx - fromX) * e;
+        const y = fromY + (ty - fromY) * e - Math.sin(Math.PI * clamp01(k)) * h * 0.13;
+        const turn = t.spin * (1 - ease.out(k));
+
+        // it lands once, and the ground says so
+        const since = gone - t.born - FLIGHT;
+        if (!t.landed && k >= 1) {
+          t.landed = true;
+          for (let d = 0; d < 12; d++) {
+            dust.push({ x: tx + g.w / 2, y: ty + g.h, r: rand(2, 5), life: 1,
+                        vx: rand(-2.4, 2.4), vy: rand(-1.6, -0.2) });
+          }
+        }
+        const settle = since > 0 && since < 420
+          ? Math.sin(since / 62) * 0.06 * Math.exp(-since / 170) : 0;
+        const squash = 1 - (since > 0 && since < 240 ? Math.exp(-since / 70) * 0.16 : 0);
+
+        /* Turning over is the moment the film is about: a word a class has just
+           met, and then what it means. Half a turn, and the back of a card is
+           its own mirror image, so the text is flipped with it. */
+        let face = 1;
+        if (gone > t.flipAt) {
+          const f = clamp01((gone - t.flipAt) / 460);
+          face = Math.cos(Math.PI * ease.soft(f));
+          if (Math.abs(face) < 0.06) face = face < 0 ? -0.06 : 0.06;
+        }
+        drawTile(t, x, y, g.w, g.h, turn + settle, squash, face);
+      });
+
+      dust = dust.filter(d => d.life > 0);
+      dust.forEach(d => {
+        d.x += d.vx; d.y += d.vy; d.vy += 0.1; d.life -= 0.026;
+        ctx.globalAlpha = Math.max(0, d.life) * 0.5;
+        ctx.fillStyle = '#FFE9A8';
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      if (!worded && gone > S.title) { worded = true; word(); }
+      if (!carded && gone > S.cards) { carded = true; cards(); }
+      if (gone > S.out) return finish();
+      frame(tick);
+    }
+    frame(tick);
+  }
+
   function flyRocket(stage) {
     const { ctx, canvas, word, cards, finish, frame } = stage;
     const started = performance.now();

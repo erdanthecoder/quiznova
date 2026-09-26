@@ -376,6 +376,27 @@ body.laser #toasts{bottom:auto;top:calc(env(safe-area-inset-top, 0px) + 92px)}
 .launch-garden .launch-cards{bottom:19%}
 @media (max-width:640px){ .launch-garden .launch-cards{bottom:26%} }
 
+/* ── the 5.0 reveal ──────────────────────────────────────
+ * A dawn, so the shell is the colour of the last of the night and the word
+ * arrives the way the sun does: up from under the ridge, warm, once. The cards
+ * sit low and lean a little, like postcards put down on a table. */
+.launch-sunrise{background:#100C22}
+.launch-sunrise .launch-word{top:11%}
+.launch-sunrise .launch-word .up{
+  color:#FFF7E4;letter-spacing:-.035em;transform:translateY(26px) scale(.9);
+  text-shadow:0 0 30px rgba(255,203,96,.6),0 0 80px rgba(236,124,116,.42),0 5px 0 rgba(0,0,0,.32)}
+.launch-sunrise .launch-word.on .up{animation:launch-dawn 1.2s cubic-bezier(.18,.95,.26,1) forwards}
+@keyframes launch-dawn{
+  0%{opacity:0;transform:translateY(26px) scale(.9)}
+  70%{opacity:1;transform:translateY(-3px) scale(1.02)}
+  100%{opacity:1;transform:none}}
+.launch-sunrise .launch-card{transform:translateY(30px) scale(.9) rotate(-1.8deg);
+  background:rgba(16,12,34,.72);border-color:rgba(255,203,96,.32);
+  backdrop-filter:blur(8px);box-shadow:0 12px 38px rgba(0,0,0,.48)}
+.launch-sunrise .launch-card:nth-child(2n){transform:translateY(30px) scale(.9) rotate(1.6deg)}
+.launch-sunrise .launch-cards{bottom:9%}
+@media (max-width:640px){ .launch-sunrise .launch-cards{bottom:16%} }
+
 /* ── the cutscene ────────────────────────────────────────
  * Bars top and bottom while it runs. They are not decoration: they say "this is
  * a thing to watch, it will end, you do not have to do anything" — which is the

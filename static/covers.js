@@ -476,6 +476,46 @@
       '<circle cx="81" cy="64" r="4.5" fill="' + INK + '"/>' +
       '<path d="M56 88h48" stroke="' + INK + '" stroke-width="4" stroke-linecap="round"/>',
 
+    /* Kyrgyz. The mountains are the country — three quarters of it is the Tien
+       Shan — with a yurt on the grass under them and the sun's rays off the
+       flag above. Drawn like everything else here rather than a flag pasted on
+       a card, because a flag on a card is a sticker and this is a picture. */
+    kyrgyz:
+      sky('#DCEEFF') + sun(128, 24, 13) +
+      o('<path d="M0 74 36 34l20 22 18-26 22 30 18-16 26 30z" fill="#8FA8C8"/>') +
+      '<path d="M36 34l10 12h-20zM74 30l9 12h-18zM114 44l8 10h-16z" fill="#F4F8FF"/>' +
+      grass('#8FD98A') +
+      // a yurt: a round felt tent with a smoke ring in the top
+      o('<path d="M50 88c0-14 10-22 26-22s26 8 26 22z" fill="#F7F1E4"/>') +
+      '<path d="M50 88c0-14 10-22 26-22s26 8 26 22" fill="none" stroke="' + INK + '" stroke-width="3"/>' +
+      o('<rect x="68" y="74" width="16" height="14" rx="2" fill="#B06A3B"/>') +
+      '<circle cx="76" cy="62" r="7" fill="#F4364C" stroke="' + INK + '" stroke-width="3"/>' +
+      '<g stroke="' + INK + '" stroke-width="2.2" opacity=".45">' +
+      '<path d="M60 70l-4 18M92 70l4 18M76 66v22"/></g>',
+
+    // counting on a hand, which is how a number first gets learned
+    kyrgyznumbers:
+      sky('#FFF1DC') +
+      o('<path d="M56 88V56a7 7 0 0 1 14 0v-14a7 7 0 0 1 14 0v-6a7 7 0 0 1 14 0v20a7 7 0 0 1 13 4v28z" fill="#FFD9B8"/>') +
+      '<path d="M70 56v-8M84 42v-6M98 36v-4" stroke="' + INK + '" stroke-width="2.6" ' +
+      'stroke-linecap="round" opacity=".45"/>' +
+      o('<rect x="16" y="26" width="26" height="26" rx="5" fill="#F4364C"/>' +
+        '<rect x="16" y="58" width="26" height="26" rx="5" fill="#4F6BFF"/>' +
+        '<rect x="126" y="42" width="26" height="26" rx="5" fill="#12BE8E"/>') +
+      '<g fill="#fff"><rect x="24" y="37" width="10" height="5" rx="2.5"/>' +
+      '<rect x="22" y="69" width="14" height="5" rx="2.5"/>' +
+      '<rect x="132" y="53" width="14" height="5" rx="2.5"/></g>',
+
+    // two speech bubbles meeting, which is what a greeting is
+    kyrgyzgreetings:
+      sky('#EAFBF3') +
+      o('<path d="M12 22h70a8 8 0 0 1 8 8v24a8 8 0 0 1-8 8H38l-16 12V62h-10a8 8 0 0 1-8-8V30a8 8 0 0 1 8-8z" fill="#12BE8E"/>') +
+      '<g fill="#fff"><rect x="24" y="34" width="44" height="6" rx="3"/>' +
+      '<rect x="24" y="46" width="30" height="6" rx="3"/></g>' +
+      o('<path d="M148 44h-56a8 8 0 0 0-8 8v22a8 8 0 0 0 8 8h38l14 10V82h4a8 8 0 0 0 8-8V52a8 8 0 0 0-8-8z" fill="#FFC53D"/>') +
+      '<g fill="#5A3B00"><rect x="96" y="56" width="38" height="6" rx="3"/>' +
+      '<rect x="96" y="68" width="24" height="6" rx="3"/></g>',
+
     // a flag on a globe
     capitals:
       sky('#EAFBF3') +
@@ -489,7 +529,8 @@
   /* Every topic maps onto a picture; anything unnamed falls back to a picture
      for its subject, and anything with no subject either gets the plain one —
      a card with no picture is worse than a card with a general one. */
-  const SUBJECT_COVER = { maths: 'times', english: 'wordclass', science: 'space', humanities: 'geography' };
+  const SUBJECT_COVER = { maths: 'times', english: 'wordclass', science: 'space',
+                          humanities: 'geography', kyrgyz: 'kyrgyz' };
   const PLAIN = 'wordclass';
 
   function cover(topic, width = 240) {

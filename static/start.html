@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ready to play · Quoldek</title>
+<link href="/fonts.css" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<meta name="theme-color" content="#7C4DFF">
+<meta name="description" content="A lesson's words, turned into a game the whole class can play.">
+<link rel="stylesheet" href="/nova.css">
+<style>
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .land{width:min(720px,100%);text-align:center}
+  .land .card{padding:0;overflow:hidden}
+  .land .inner{padding:clamp(20px,3.6vw,34px)}
+  .land h1{font-size:clamp(1.7rem,4.4vw,2.6rem);margin:0 0 8px;letter-spacing:-.02em}
+  .land .lede{color:var(--muted);font-size:1.05rem;margin:0 0 22px}
+  /* the strip at the top: the lesson's own words, arriving */
+  .stage{position:relative;display:block;width:100%;height:clamp(150px,26vw,208px);
+    background:#100C22;border-bottom:3px solid var(--line)}
+  .peek{display:flex;flex-direction:column;gap:9px;text-align:left;margin:0 0 22px}
+  .peek b{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .peek .q{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:var(--r-md);
+    background:var(--paper-2);border:2px solid var(--line-soft);font-weight:700;font-size:.96rem}
+  .peek .q .sh{flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:8px}
+  .peek .q .sh svg{width:15px;height:15px}
+  /* the answer only — scoped, because the shape and the question text are
+     spans too and a rule that catches all three paints the question green */
+  .peek .q .tx{flex:1;min-width:0}
+  .peek .q .tx span{display:block;font-weight:600;font-size:.84rem;color:var(--mint);margin-top:3px}
+  .land .row{justify-content:center;gap:11px;flex-wrap:wrap}
+  .land .note{margin-top:16px;font-size:.82rem;color:var(--faint);line-height:1.6}
+  .badpath{color:var(--red);font-weight:800}
+  @media (prefers-reduced-motion:reduce){ .stage{display:none} }
+</style>
+</head>
+<body class="light">
+<div class="land" id="land"></div>
+
+<script src="/sprites.js"></script>
+<script src="/nova.js"></script>
+<script src="/quizbank.js"></script>
+<script src="/bridge.js"></script>
+<script>
+/* Where a lesson somewhere else turns into a game here.
+ *
+ * Another site finishes a lesson, puts the words it just taught into a link,
+ * and a teacher lands on this page with the quiz already written. Nothing was
+ * uploaded and no server spoke to another server — the whole request travelled
+ * inside the address, which is why it works from a worksheet, a chat message
+ * or a QR code on a wall.
+ *
+ * The page shows what it made before it does anything with it. A page that
+ * silently creates things on somebody's behalf and then announces it is a page
+ * people stop trusting; three questions on screen and two buttons is not.
+ */
+const { el, esc } = Nova;
+const land = document.getElementById('land');
+
+const req = NovaBridge.readRequest();
+const made = NovaBridge.quizFrom(req);
+
+function card(...kids) {
+  const c = el('div', { class: 'card' }, ...kids);
+  land.replaceChildren(c);
+  return c;
+}
+const inner = (...kids) => el('div', { class: 'inner' }, ...kids);
+
+if (!made) {
+  card(inner(
+    el('h1', {}, 'This link is missing its words'),
+    el('p', { class: 'lede' },
+      req.asked
+        ? 'It asked for a quiz, but there was not enough in it to write one — four words at the very least.'
+        : 'Nothing was passed in, so there is nothing to play yet.'),
+    el('div', { class: 'row' },
+      el('a', { class: 'btn primary', href: '/quiz' }, 'Write one instead'),
+      el('a', { class: 'btn ghost', href: '/teach/' }, 'Your dashboard'))));
+} else {
+  const n = made.questions.length;
+  const right = (q) => (q.choices.find(c => c.correct) || {}).text || '';
+
+  /* The four shapes the board puts the answers on, so the three questions here
+     look like the thing they are about to become rather than like a list. */
+  const SHAPES = [['tri', '#F4364C'], ['diamond', '#4F6BFF'], ['circle', '#FFC53D'], ['square', '#12BE8E']];
+  const shape = (i) => {
+    const [kind, tint] = SHAPES[i % 4];
+    const box = el('span', { class: 'sh' });
+    box.style.background = tint;
+    const d = kind === 'tri' ? '<path d="M12 3 22 20H2z"/>'
+      : kind === 'diamond' ? '<path d="M12 2 22 12 12 22 2 12z"/>'
+      : kind === 'circle' ? '<circle cx="12" cy="12" r="10"/>'
+      : '<rect x="2.5" y="2.5" width="19" height="19" rx="3"/>';
+    box.innerHTML = `<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true">${d}</svg>`;
+    return box;
+  };
+
+  const peek = el('div', { class: 'peek' }, el('b', {}, 'A look at three of them'));
+  made.questions.slice(0, 3).forEach((q, i) => {
+    peek.append(el('div', { class: 'q' }, shape(i),
+      el('span', { class: 'tx' }, q.text, el('span', {}, right(q)))));
+  });
+
+  const play = el('button', { class: 'btn primary lg' }, 'Put it on the board');
+  const save = el('button', { class: 'btn' }, 'Just save it');
+  const say = el('p', { class: 'note' });
+  const stage = el('canvas', { class: 'stage' });
+
+  card(stage, inner(
+    el('h1', {}, made.title),
+    el('p', { class: 'lede' },
+      `${n} question${n === 1 ? '' : 's'}, ready to play` +
+      (req.from ? ` · sent from ${esc(req.from)}` : '')),
+    peek,
+    el('div', { class: 'row' }, play, save),
+    say));
+
+  /* ── the strip at the top ─────────────────────────────────
+   * The class's own words, coming in over a ridge at dawn and landing as the
+   * tiles they are about to be answers on.
+   *
+   * It is the lesson's real words rather than a picture of some words, which is
+   * the only reason it is worth the code: a teacher who opened this link from a
+   * message wants to know, in the first second and without reading, that it
+   * arrived with the right lesson in it.
+   */
+  (function strip() {
+    const still = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ctx = stage.getContext && stage.getContext('2d');
+    if (!ctx || still) { stage.remove(); return; }
+
+    // the shortest few answers: short words fit on a tile and read at a glance
+    const words = made.questions.map(right).filter(w => w && w.length <= 12)
+      .filter((w, i, all) => all.indexOf(w) === i)
+      .sort((a, b) => a.length - b.length).slice(0, 5);
+    if (words.length < 2) { stage.remove(); return; }
+
+    const TINTS = ['#F4364C', '#4F6BFF', '#FFC53D', '#12BE8E', '#7C4DFF'];
+    const rand = (a, b) => a + Math.random() * (b - a);
+
+    /* A skyline by midpoint displacement: split, nudge the middle, repeat, each
+       pass moving things less than the last. A drawn one would be the same
+       drawing on every screen in the school; this is somewhere. */
+    function ridge(steps, rough) {
+      let pts = [rand(0.3, 0.7), rand(0.3, 0.7)], amp = rough;
+      while (pts.length < steps) {
+        const next = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+          next.push((pts[i - 1] + pts[i]) / 2 + rand(-amp, amp), pts[i]);
+        }
+        pts = next; amp *= 0.56;
+      }
+      return pts.map(v => Math.max(0.05, Math.min(1, v)));
+    }
+    const back = ridge(33, 0.3), front = ridge(33, 0.36);
+
+    let w = 0, h = 0;
+    const size = () => {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      const box = stage.getBoundingClientRect();
+      w = Math.max(1, box.width); h = Math.max(1, box.height);
+      stage.width = Math.round(w * dpr); stage.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    size();
+    addEventListener('resize', size);
+
+    const started = performance.now();
+    const ease = { out: (t) => 1 - Math.pow(1 - t, 3),
+                   back: (t) => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); },
+                   soft: (t) => t * t * (3 - 2 * t) };
+    const clamp01 = (n) => Math.max(0, Math.min(1, n));
+    const tiles = words.map((word, i) => ({ word, tint: TINTS[i % TINTS.length],
+      born: 260 + i * 210, spin: rand(-2.6, -1.2), bob: Math.random() * 6.28 }));
+    const FLIGHT = 820;
+    let stop = false;
+
+    function layout() {
+      const pad = Math.max(10, w * 0.03);
+      const gap = Math.max(7, w * 0.014);
+      const tw = Math.min(150, (w - pad * 2 - gap * (tiles.length - 1)) / tiles.length);
+      const th = Math.min(h * 0.42, tw * 0.56);
+      const x0 = (w - (tiles.length * tw + (tiles.length - 1) * gap)) / 2;
+      return { tw, th, at: (i) => [x0 + i * (tw + gap), h * 0.34 - th / 2] };
+    }
+
+    function tile(t, x, y, tw, th, turn) {
+      const r = Math.min(13, tw * 0.13);
+      ctx.save();
+      ctx.translate(x + tw / 2, y + th / 2);
+      ctx.rotate(turn);
+      ctx.translate(-tw / 2, -th / 2);
+      ctx.fillStyle = 'rgba(0,0,0,.3)';
+      ctx.beginPath(); ctx.roundRect(2, 5, tw, th, r); ctx.fill();
+      ctx.fillStyle = t.tint;
+      ctx.beginPath(); ctx.roundRect(0, 0, tw, th, r); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      ctx.beginPath(); ctx.roundRect(0, 0, tw, th * 0.34, r); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#1B1330';
+      ctx.beginPath(); ctx.roundRect(0, 0, tw, th, r); ctx.stroke();
+      // the word comes down in size until it fits: a word clipped by its own
+      // tile is worse than a small word
+      let size = th * 0.4;
+      do { ctx.font = `800 ${size}px 'Nunito', system-ui, sans-serif`; size -= 1; }
+      while (size > 8 && ctx.measureText(t.word).width > tw * 0.84);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(27,19,48,.4)';
+      ctx.fillText(t.word, tw / 2, th / 2 + 1.5);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(t.word, tw / 2, th / 2);
+      ctx.restore();
+    }
+
+    function frame(now) {
+      if (stop) return;
+      const gone = now - started;
+      ctx.clearRect(0, 0, w, h);
+
+      const day = ease.soft(clamp01(gone / 2600));
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, `rgb(${22 + day * 24},${16 + day * 56},${38 + day * 112})`);
+      sky.addColorStop(0.62, `rgb(${40 + day * 196},${26 + day * 98},${60 + day * 56})`);
+      sky.addColorStop(1, `rgb(${56 + day * 199},${36 + day * 167},${76 + day * 20})`);
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+
+      // the sun, coming up behind the far ridge
+      const up = ease.out(clamp01((gone - 200) / 3000));
+      const sy = h * 0.92 - up * h * 0.34, sr = Math.max(14, h * 0.13);
+      const glow = ctx.createRadialGradient(w * 0.72, sy, sr * 0.4, w * 0.72, sy, sr * 6);
+      glow.addColorStop(0, 'rgba(255,214,120,.5)');
+      glow.addColorStop(1, 'rgba(255,120,90,0)');
+      ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#FFE9A8';
+      ctx.beginPath(); ctx.arc(w * 0.72, sy, sr, 0, Math.PI * 2); ctx.fill();
+
+      [[back, 0.80, 0.30, 'rgba(104,100,156,.95)'],
+       [front, 0.99, 0.24, '#1A1130']].forEach(([line, base, tall, fill]) => {
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.moveTo(-4, h + 4);
+        for (let i = 0; i < line.length; i++) {
+          ctx.lineTo((i / (line.length - 1)) * w, h * base - line[i] * h * tall);
+        }
+        ctx.lineTo(w + 4, h + 4);
+        ctx.closePath(); ctx.fill();
+      });
+
+      const g = layout();
+      tiles.forEach((t, i) => {
+        if (gone < t.born) return;
+        const k = clamp01((gone - t.born) / FLIGHT);
+        const [tx, ty] = g.at(i);
+        const e = ease.back(k);
+        const x = w * 1.15 + (tx - w * 1.15) * e;
+        const arc = Math.sin(Math.PI * clamp01(k)) * h * 0.2;
+        const since = gone - t.born - FLIGHT;
+        const rest = since > 0 ? Math.sin(gone / 900 + t.bob) * 2.2 : 0;
+        const y = h * 0.78 + (ty - h * 0.78) * e - arc + rest;
+        const settle = since > 0 && since < 480
+          ? Math.sin(since / 60) * 0.05 * Math.exp(-since / 180) : 0;
+        tile(t, x, y, g.tw, g.th, t.spin * (1 - ease.out(k)) + settle);
+      });
+
+      requestAnimationFrame(frame);
+    }
+    /* If anything in there throws — an old browser without roundRect, a font
+       that will not measure — the strip goes away and the page it was decorating
+       is untouched. A banner is never worth a blank page. */
+    const guarded = (fn) => (t) => { try { fn(t); } catch (err) { stop = true; stage.remove(); } };
+    const go = guarded(frame);
+    requestAnimationFrame(go);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.catch(() => {});
+  })();
+
+  /* Nothing is written down until a button is pressed. Landing on a link
+     should never quietly add things to somebody's library. */
+  async function keep(andPlay, button) {
+    const was = button.textContent;
+    button.textContent = 'Saving…';
+    play.disabled = save.disabled = true;
+    try {
+      const quiz = await Nova.api('/quizzes', { method: 'POST',
+        body: { title: made.title, questions: [], starter: false } });
+      const id = quiz.quiz ? quiz.quiz.id : quiz.id;
+      await Nova.api('/quizzes/' + id + '/ops', { method: 'POST',
+        body: { ops: made.questions.map(q => ({ op: 'add_question', question: q })) } });
+      if (Nova.confetti) Nova.confetti();
+      const to = '/studio?id=' + encodeURIComponent(id) + (andPlay ? '&host=1' : '');
+      location.href = to;
+    } catch (err) {
+      play.disabled = save.disabled = false;
+      button.textContent = was;
+      say.innerHTML = '';
+      say.append(el('span', { class: 'badpath' }, err.message || 'That did not save.'));
+    }
+  }
+  play.onclick = () => keep(true, play);
+  save.onclick = () => keep(false, save);
+}
+</script>
+</body>
+</html>

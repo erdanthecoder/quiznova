@@ -291,7 +291,8 @@ function catalogue() {
   return out;
 }
 const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
-const SUBJECT_NAME = { maths: 'Maths', english: 'English', science: 'Science', humanities: 'Humanities' };
+const SUBJECT_NAME = { maths: 'Maths', english: 'English', science: 'Science',
+                       humanities: 'Humanities', kyrgyz: 'Kyrgyz' };
 
 function readyCard(p) {
   const play = el('button', { class: 'btn primary sm' }, 'Play');
