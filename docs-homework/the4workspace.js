@@ -37,6 +37,9 @@
 
   // Arriving from the4workspace.web.app or LearnKyrgyz, already signed in.
   (function arrive() {
+    // account.js reads the hand-off first (to sign in to Quoldek) and leaves it here
+    const given = global.__the4workspaceHandoff;
+    if (given && given.at && given.rt) { try { save(fromTokens(given.at, given.rt)); } catch { /* broken */ } return; }
     const m = location.hash.match(/(?:^#|&)oit=([A-Za-z0-9_-]+)/);
     if (!m) return;
     const rest = location.hash.slice(1).split('&').filter(p => !p.startsWith('oit=')).join('&');
@@ -128,41 +131,17 @@
     // the teacher's pages only: students joining a game or doing homework never see it
     if (/^(play|live|hw)quoldek\./.test(location.hostname) || /\/(play|take|join)(\.html)?$/.test(location.pathname)) return;
     const top = document.querySelector('.topbar-inner');
-    if (!top || document.getElementById('oit-btn')) return;
+    if (!top || document.getElementById('ws-btn')) return;
     const style = document.createElement('style');
-    style.textContent = `.oit-r{display:inline-block;width:18px;height:18px;border-radius:5px;vertical-align:-4px}#ws-btn{gap:6px;text-decoration:none}#ws-btn:hover .oit-r{transform:rotate(-10deg) scale(1.1)}.oit-r{transition:transform .4s cubic-bezier(.2,1.4,.3,1)}
-      #oit-btn{gap:6px}#oit-btn.on{background:linear-gradient(135deg,#efe8ff,#e3ffd1)}`;
+    style.textContent = `.oit-r{display:inline-block;width:18px;height:18px;border-radius:5px;vertical-align:-4px}#ws-btn{gap:6px;text-decoration:none}#ws-btn:hover .oit-r{transform:rotate(-10deg) scale(1.1)}.oit-r{transition:transform .4s cubic-bezier(.2,1.4,.3,1)}`;
     document.head.append(style);
-    const b = document.createElement('button');
-    b.id = 'oit-btn'; b.className = 'btn sm';
-    const acctBtn = () => document.getElementById('acct');
-    top.insertBefore(b, acctBtn() || document.getElementById('top-new') || null);
     // The4Workspace: straight to the one-account hub for all four apps.
     const ws = document.createElement('a');
     ws.id = 'ws-btn'; ws.className = 'btn sm ghost'; ws.href = HUB + '/';
     ws.title = 'The4Workspace: LearnKyrgyz, Quoldek, Kadam and AkylduuKodo with one account';
     ws.innerHTML = RINGS + ' <span class="hide-sm">The4Workspace</span>';
-    top.insertBefore(ws, b);
-    const paint = (u) => {
-      b.classList.toggle('on', !!u);
-      b.innerHTML = RINGS + (u ? ` <span class="hide-sm">${esc(u.name.split(' ')[0])}</span>` : ' <span>One account</span>');
-      b.title = u ? `Signed in with The4Workspace as ${u.email}. Your quizzes are saved to this account.` : 'Sign in once with your The4Workspace / LearnKyrgyz account';
-      const a = acctBtn(); if (a) a.style.display = u ? 'none' : '';          // one account at a time in the bar
-    };
-    listeners.add(paint); paint(user());
-    new MutationObserver(() => paint(user())).observe(top, { childList: true });
-    b.onclick = () => {
-      const u = user();
-      if (!u) return signIn();
-      Nova.modal(`
-        <h2 style="margin-bottom:6px">${RINGS} One account</h2>
-        <p class="muted tiny" style="margin-bottom:18px">Signed in with The4Workspace as <b>${esc(u.email)}</b>.<br><br>
-          It's the same account as LearnKyrgyz. Your quizzes are saved to it, so they're here on any computer, and they stay in this browser too.</p>
-        <div class="row" style="justify-content:flex-end;gap:10px;flex-wrap:wrap">
-          <a class="btn ghost" href="${HUB}/" target="_blank" rel="noopener">Open The4Workspace</a>
-          <button class="btn danger" id="oit-out">Sign out</button>
-        </div>`, { onMount(box, close) { box.querySelector('#oit-out').onclick = () => { signOut(); close(); Nova.toast('Signed out. Your quizzes are still in this browser.'); }; } });
-    };
+    const ref = [document.getElementById('acct'), document.getElementById('top-new')].find(n => n && n.parentNode === top) || null;
+    top.insertBefore(ws, ref);
   }
 
   global.The4Workspace = { hub: HUB, icon: WS_ICON, user, token, signIn, signOut, pull, push, onChange: (fn) => { listeners.add(fn); fn(user()); return () => listeners.delete(fn); } };

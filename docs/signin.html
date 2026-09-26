@@ -56,6 +56,8 @@
 .role b{display:block;font-size:1.05rem}
 .role span{display:block;color:var(--muted);font-size:.87rem;line-height:1.45;margin-top:2px}
 .google{display:flex;align-items:center;justify-content:center;gap:10px}
+.ws-go{display:flex;align-items:center;justify-content:center;gap:10px;color:#fff;border:0;background:linear-gradient(135deg,#7c5cff,#5b3df0);box-shadow:0 10px 24px -12px rgba(124,92,255,.9)}
+.ws-go:hover{filter:brightness(1.08)}
 .hold{display:grid;place-items:center;min-height:100vh;gap:14px;text-align:center;padding:30px}
 .spin{width:34px;height:34px;border-radius:50%;border:4px solid var(--line-soft);border-top-color:var(--brand);
   animation:turn .8s linear infinite}
@@ -86,8 +88,8 @@
 <script src="rules.js?v=debcec46"></script>
 <script src="live.js?v=7fadac6b"></script>
 <script src="nova-local.js?v=44c67ff9"></script>
-<script src="account.js?v=1f2bba77"></script>
-<script src="the4workspace.js?v=fbd2669a"></script>
+<script src="account.js?v=82434b28"></script>
+<script src="the4workspace.js?v=f70095db"></script>
 
 <script>
 window.QUOLDEK_LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
@@ -219,6 +221,15 @@ function askRole(opts) {
   return pane;
 }
 
+/* ── The4Workspace ──────────────────────────────────────────
+ * The one account for LearnKyrgyz, Quoldek, Kadam and AkylduuKodo, offered
+ * first: sign in there once and Quoldek signs you in too. */
+function wsButton() {
+  return el('button', { class: 'btn lg block ws-go', type: 'button', onclick: () => NovaAccount.signInWithWorkspace() },
+    el('span', { style: 'line-height:0', html: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" aria-hidden="true"><circle cx="8" cy="8" r="5"/><circle cx="16" cy="8" r="5"/><circle cx="8" cy="16" r="5"/><circle cx="16" cy="16" r="5"/></svg>' }),
+    'Continue with The4Workspace');
+}
+
 /* ── signing in ───────────────────────────────────────────── */
 function signInPane() {
   const pane = el('div', { class: 'pane' });
@@ -252,6 +263,7 @@ function signInPane() {
   pane.append(
     el('h2', {}, 'Welcome back'),
     el('p', { class: 'lede' }, 'Sign in and Quoldek takes you to your own board.'),
+    wsButton(), el('div', { class: 'or' }, 'or with a Quoldek password'),
     el('label', { class: 'field' }, el('span', { class: 'label' }, 'Email'), email),
     el('label', { class: 'field' }, el('span', { class: 'label' }, 'Password'), pass),
     go, el('div', { class: 'or' }, 'or'), google,
@@ -328,6 +340,7 @@ function detailsPane(role) {
     el('p', { class: 'lede' }, role === 'teacher'
       ? 'Your quizzes follow you to every computer you sign in on.'
       : 'Your level, your coins and everything you unlock follow you about.'),
+    wsButton(), el('div', { class: 'or' }, 'or make a Quoldek-only account'),
     el('label', { class: 'field' }, el('span', { class: 'label' }, 'Name'), name),
     el('label', { class: 'field' }, el('span', { class: 'label' }, 'Email'), email),
     el('label', { class: 'field' }, el('span', { class: 'label' }, 'Password'), pass),

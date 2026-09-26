@@ -34,7 +34,58 @@
   const SDK = 'https://www.gstatic.com/firebasejs/10.12.5/';
 
   let auth = null, loading = null, user = null, profile = null;
+
+  /* The4Workspace: one account for LearnKyrgyz, Quoldek, Kadam and AkylduuKodo.
+   *
+   * Arriving from the4workspace.web.app, the session rides in the address
+   * fragment (#oit=…), which is never sent to a server. It is read the moment
+   * this file loads, removed from the address at once, and swapped at
+   * The4Workspace for a one-time Quoldek sign-in token, so the one account
+   * signs in here too — no second password. The raw session is left for
+   * the4workspace.js, which keeps quizzes in the same account.
+   *
+   * And the first time Quoldek opens in a tab, it asks The4Workspace who is
+   * signed in there: a quick redirect that comes straight back with the
+   * session or with #oit=none. Never on the pages a class is sent to. */
+  const WS_HUB = 'https://the4workspace.web.app/';
+  const WS_TOKEN = 'https://lzamxwqxnzcrazyuipjx.supabase.co/functions/v1/oit-firebase-token';
+  const wsHandoff = (function () {
+    if (!global.location) return null;
+    const m = location.hash.match(/(?:^#|&)oit=([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    const rest = location.hash.slice(1).split('&').filter(p => !p.startsWith('oit=')).join('&');
+    history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : ''));
+    try {
+      const t = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+      if (t && t.at) { global.__the4workspaceHandoff = t; return t; }
+    } catch { /* #oit=none, or a broken link: nobody is signed in by it */ }
+    return { none: true };
+  })();
+  function signInWithWorkspace(opts) {
+    const back = location.href;
+    location[opts && opts.silent ? 'replace' : 'assign'](WS_HUB + '?return=' + encodeURIComponent(back) + (opts && opts.silent ? '&silent=1' : ''));
+  }
+  (function checkWorkspace() {
+    if (wsHandoff || !global.location || location.hostname !== 'quoldek.web.app') return;
+    if (/\/(play|take|join|show|host)(\.html)?\/?$/.test(location.pathname) || global.navigator && navigator.onLine === false) return;
+    try {
+      if (sessionStorage.getItem('quoldek:ws-checked')) return;
+      sessionStorage.setItem('quoldek:ws-checked', '1');
+    } catch { return; /* storage blocked: skip the check rather than loop */ }
+    signInWithWorkspace({ silent: true });
+  })();
   const listeners = new Set();
+
+  async function useWorkspaceSession(at) {
+    const res = await fetch(WS_TOKEN, { method: 'POST',
+      headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: CONFIG.projectId }) });
+    const body = await res.json().catch(() => ({}));
+    if (!body.token) throw new Error(body.error || ('HTTP ' + res.status));
+    const mod = await firebase();
+    await mod.signInWithCustomToken(auth, body.token);
+    try { localStorage.setItem('nova:signedIn', '1'); } catch { /* private mode */ }
+  }
 
   /* The last known role, kept in this browser purely so a returning teacher is
    * not shown the wrong page for the half second it takes to ask. It is a hint
@@ -313,6 +364,10 @@
     keepHint('');
   }
 
+  const wsSignIn = wsHandoff && wsHandoff.at
+    ? useWorkspaceSession(wsHandoff.at).catch((err) => console.warn('[Quoldek] The4Workspace sign-in did not complete:', err && err.message))
+    : null;
+
   // somebody who has signed in before should still be signed in when they return
   try { if (localStorage.getItem('nova:signedIn')) firebase(); } catch { /* private mode */ }
 
@@ -338,6 +393,8 @@
    */
   function requireAccount(opts) {
     const o = opts || {};
+    // signing in with The4Workspace right now: decide once that has finished
+    if (wsSignIn && !o.afterWorkspace) { wsSignIn.then(() => requireAccount(Object.assign({}, o, { afterWorkspace: true }))); return; }
     const wait = o.wait || 5000;
     if (!global.document || !global.location) return;
     const gate = (o.gate || 'https://quoldek.web.app/signin.html')
@@ -375,7 +432,7 @@
   const pushQuizzes = (list) => call('POST', { quizzes: list });
 
   global.NovaAccount = {
-    signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon,
+    signIn, signInWithPassword, signUp, resetPassword, signOut, sync, pushSoon, signInWithWorkspace,
     quizzes, pushQuizzes,
     loadProfile, setRole, saveProgress, boardFor, sendToBoard, SITES, requireAccount, wake,
     get user() { return user; },
