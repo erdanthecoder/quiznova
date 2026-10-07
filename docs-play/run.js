@@ -694,8 +694,14 @@
          seven children through a five-slot hash put three names on top of each
          other. Whoever has put more boosts in runs a little further ahead. */
       const lead = Math.min(4, p.boosts || 0) * h * 0.030;
-      const spread = (i - (n - 1) / 2) * h * 0.085;
-      const x = packX() + lead + spread;
+      /* Wide enough apart that bodies do not merge, but never so wide that a
+         class of thirty runs off the side of the screen. */
+      const gap = Math.min(h * 0.13, canvas.width * 0.42 / Math.max(1, n));
+      const spread = (i - (n - 1) / 2) * gap;
+      /* and the whole pack slides back if its front runner would be off the
+         right-hand edge of the board */
+      const over = packX() + h * 0.12 + (n - 1) / 2 * gap + size * 0.7 - canvas.width;
+      const x = packX() + lead + spread - Math.max(0, over);
       const hard = rush();
       // legs go over faster in a boost, and the whole body leans into it
       const cycle = Math.sin(t / (hard > 0 ? 52 : 86) + i * 1.7);
@@ -791,21 +797,35 @@
         }
       }
 
-      if (p.name) {
-        const fs = Math.max(10, h * 0.026);
-        ctx.font = `800 ${fs}px ui-sans-serif,system-ui,sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const tw = ctx.measureText(p.name).width + fs * 0.8;
-        ctx.fillStyle = 'rgba(8,6,20,.7)';
-        ctx.beginPath();
-        ctx.roundRect(x - tw / 2, gy + h * 0.022, tw, fs * 1.5, fs * 0.75);
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillText(p.name, x, gy + h * 0.022 + fs * 0.78);
-        ctx.textBaseline = 'alphabetic';
-      }
+      if (p.name) tags.push({ x, gy, name: p.name, boosted: p.boostAt && now() - p.boostAt < 1400 });
       ctx.restore();
+    }
+
+    /* Names go on after the whole pack, each on the lowest row where it does
+       not cover another one. Drawn under every runner as they were, a pack of
+       four read "Aibek Nurai Timu Aizada" — one long word nobody could split. */
+    let tags = [];
+    function drawTags() {
+      const h = canvas.height;
+      const fs = Math.max(10, h * 0.026);
+      ctx.save();
+      ctx.font = `800 ${fs}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const rows = [];
+      tags.sort((a, b) => a.x - b.x).forEach(tg => {
+        const tw = ctx.measureText(tg.name).width + fs * 0.9;
+        let row = 0;
+        while ((rows[row] || -Infinity) > tg.x - tw / 2 - fs * 0.2) row++;
+        rows[row] = tg.x + tw / 2;
+        const y = tg.gy + h * 0.022 + row * fs * 1.75;
+        ctx.fillStyle = tg.boosted ? 'rgba(255,197,61,.92)' : 'rgba(8,6,20,.74)';
+        ctx.beginPath(); ctx.roundRect(tg.x - tw / 2, y, tw, fs * 1.5, fs * 0.75); ctx.fill();
+        ctx.fillStyle = tg.boosted ? '#2A1B00' : '#fff';
+        ctx.fillText(tg.name, tg.x, y + fs * 0.78);
+      });
+      ctx.restore();
+      tags = [];
     }
 
     /* The robot. Side on, striding, and built out of hard edges — a monster is a
@@ -1003,7 +1023,8 @@
       ctx.font = `800 ${Math.max(10, h * 0.026)}px ui-sans-serif,system-ui,sans-serif`;
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255,255,255,.7)';
-      ctx.fillText(Math.round(frac * 100) + '% of the way off this deck',
+      ctx.fillText(frac <= 0 ? 'Answer right and boost to get off this deck'
+                   : Math.round(frac * 100) + '% of the way off this deck',
                    barX + 4, barY + barH + h * 0.038);
 
       if (now() < bannerUntil) {
@@ -1106,18 +1127,18 @@
       ctx.fillStyle = urgency > 0.7 ? '#F4364C' : '#fff';
       ctx.font = `900 ${Math.max(30, h * 0.13)}px ui-sans-serif,system-ui,sans-serif`;
       ctx.fillText((left / 1000).toFixed(1), w / 2, h * 0.125);
-      ctx.font = `800 ${Math.max(12, h * 0.036)}px ui-sans-serif,system-ui,sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,.75)';
-      ctx.fillText('Get inside a green zone — each one only holds so many',
-                   w / 2, h * 0.175);
-
-      // who is still adrift, which is the number the room needs to hear
+      /* Who is still adrift goes in the line under the clock. It used to sit
+         on the clock's own line at the left, and on a board narrower than a
+         cinema screen the two ran into each other. */
       const adrift = players.filter(p => !p.zone).length;
-      ctx.textAlign = 'left';
-      ctx.font = `900 ${Math.max(14, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.font = `800 ${Math.max(12, h * 0.036)}px ui-sans-serif,system-ui,sans-serif`;
       ctx.fillStyle = adrift ? '#FFC53D' : '#12BE8E';
-      ctx.fillText(adrift ? adrift + ' still out in the open' : 'Everybody is in',
-                   w * 0.03, h * 0.10);
+      const say = adrift ? `${adrift} still out in the open — get inside a green zone, each holds only so many`
+                         : 'Everybody is in';
+      const fit = Math.min(1, (w * 0.94) / Math.max(1, ctx.measureText(say).width));
+      if (fit < 1) ctx.font = `800 ${Math.max(10, h * 0.036 * fit)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillText(say, w / 2, h * 0.175);
+      ctx.font = `900 ${Math.max(14, h * 0.045)}px ui-sans-serif,system-ui,sans-serif`;
 
       ctx.textAlign = 'right';
       const lives = Math.max(0, room.lives || 0);
@@ -1531,6 +1552,7 @@
       // the pack, furthest back first so a runner in front paints over one behind
       [...players].sort((a, b) => (a.boosts || 0) - (b.boosts || 0))
         .forEach((p, i, all) => drawRunner(p, i, all.length, t));
+      drawTags();
       // and the speed itself, over the lot of it
       speedLines(t);
       foreground(t);

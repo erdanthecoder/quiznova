@@ -472,6 +472,17 @@
 .choice:active{transform:scale(.92)}
 .choice.on{border-color:#fff;background:rgba(255,255,255,.14)}
 .choice svg{width:100%;height:100%}
+/* 3, 2, 1, go */
+.kickoff{position:fixed;inset:0;z-index:60;display:grid;place-items:center;pointer-events:none;
+  background:radial-gradient(70% 50% at 50% 50%,rgba(20,12,48,.85),rgba(8,5,20,.95));animation:koIn .25s ease both}
+.kickoff.out{animation:koOut .45s ease both}
+@keyframes koIn{from{opacity:0}}
+@keyframes koOut{to{opacity:0;transform:scale(1.08)}}
+.ko-num{font-size:min(42vw,11rem);font-weight:900;line-height:1;color:#fff;text-shadow:0 0 50px rgba(124,92,255,.9)}
+.ko-num.beat{animation:koBeat .55s cubic-bezier(.2,1.4,.4,1) both}
+.ko-num.go{font-size:min(30vw,8rem);background:linear-gradient(90deg,#FFC53D,#FF5D73,#7C5CFF);-webkit-background-clip:text;
+  background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none}
+@keyframes koBeat{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.92);opacity:1}100%{transform:scale(1)}}
 </style>
 </head>
 <body class="dark">
@@ -489,10 +500,10 @@
 <script src="/nova.js?v=9fa1dfb0"></script>
 <script src="/quizbank.js?v=cab5d77f"></script>
 <script src="/realtime.js?v=75e1623c"></script>
-<script src="/arena.js?v=5dd682fe"></script>
-<script src="/strike.js?v=0d07d142"></script>
-<script src="/run.js?v=963fd974"></script>
-<script src="/tower.js?v=fbdb38cb"></script>
+<script src="/arena.js?v=5e41b738"></script>
+<script src="/strike.js?v=bc938837"></script>
+<script src="/run.js?v=5ed75e48"></script>
+<script src="/tower.js?v=73e991fc"></script>
 <script src="/paste.js?v=3032c005"></script>
 <script src="/rules.js?v=debcec46"></script>
 <script src="/live.js?v=7fadac6b"></script>
@@ -844,8 +855,32 @@ function hud() {
   return node;
 }
 
+/* The moment the teacher starts, the phone says so too: three, two, one, go,
+   with a buzz on each beat, so nobody is caught looking the other way. */
+let seenState = null;
+function kickoff() {
+  const was = seenState;
+  seenState = game.state;
+  if (was !== 'lobby' || game.state === 'lobby' || game.state === 'over') return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.createElement('div');
+  box.className = 'kickoff';
+  box.innerHTML = '<div class="ko-num"></div>';
+  document.body.append(box);
+  const num = box.firstChild;
+  ['3', '2', '1', 'GO!'].forEach((b, i) => setTimeout(() => {
+    num.textContent = b;
+    num.classList.remove('beat'); void num.offsetWidth; num.classList.add('beat');
+    if (b === 'GO!') num.classList.add('go');
+    if (navigator.vibrate) navigator.vibrate(b === 'GO!' ? [40, 30, 60] : 25);
+  }, 200 + i * 600));
+  setTimeout(() => box.classList.add('out'), 2700);
+  setTimeout(() => box.remove(), 3200);
+}
+
 function render(fresh) {
   if (!me) return;
+  kickoff();
   const app = $('#app');
   app.innerHTML = '';
   app.append(hud());

@@ -138,15 +138,62 @@
     const floorsOf = (t) => Math.floor(blocksOf(t).length / slots);
     const tallest = () => Math.max(1, ...TEAMS.map(t => Math.ceil(blocksOf(t).length / slots)));
 
+    /* The valley it is built in. A flat blue wall behind three towers made
+       the race look like a chart; a dusk sky over the Ala-Too, with the
+       snow catching the last of the light, makes it a place. Everything here
+       is seeded, so the range is the same shape on every frame. */
+    const STARS = Array.from({ length: 70 }, (_, i) => ({
+      x: (Math.sin(i * 91.7) * 0.5 + 0.5), y: (Math.sin(i * 37.3) * 0.5 + 0.5) * 0.5,
+      r: 0.6 + (i % 3) * 0.45, tw: i * 1.7 }));
+    function ridge(w, h, base, amp, seed, step) {
+      const pts = [];
+      for (let x = -step; x <= w + step; x += step) {
+        const k = x / w;
+        const y = base - amp * (0.55 + 0.45 * Math.sin(k * 7.1 + seed) * Math.cos(k * 3.3 + seed * 2.1))
+                       - amp * 0.35 * Math.abs(Math.sin(k * 17 + seed * 3));
+        pts.push([x, y]);
+      }
+      return pts;
+    }
     function sky(t) {
       const w = canvas.width, h = canvas.height;
       const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#0B1030');
-      g.addColorStop(0.55, '#1E2A6B');
-      g.addColorStop(1, '#3A4FA8');
+      g.addColorStop(0, '#0A0B2E');
+      g.addColorStop(0.42, '#2B2470');
+      g.addColorStop(0.72, '#7A3C8F');
+      g.addColorStop(0.9, '#F08A5D');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      // stars, twinkling in the dark half
+      STARS.forEach(st => {
+        ctx.globalAlpha = 0.35 + 0.45 * Math.abs(Math.sin(t / 900 + st.tw));
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(st.x * w, st.y * h, st.r * Math.max(1, h / 500), 0, TAU); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      // the moon, with its glow
+      const mx = w * 0.82, my = h * 0.16, mr = h * 0.055;
+      const glow = ctx.createRadialGradient(mx, my, mr * 0.4, mx, my, mr * 4);
+      glow.addColorStop(0, 'rgba(255,236,190,.35)'); glow.addColorStop(1, 'rgba(255,236,190,0)');
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(mx, my, mr * 4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#FFF1CC'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(214,190,140,.45)';
+      ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.2, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + mr * 0.35, my + mr * 0.3, mr * 0.14, 0, TAU); ctx.fill();
+      // the far range, snow on its peaks, then the near one, darker
+      const far = ridge(w, h, h * 0.70, h * 0.30, 1.3, Math.max(8, w / 90));
+      ctx.fillStyle = '#4B3E86';
+      ctx.beginPath(); ctx.moveTo(0, h); far.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(w, h); ctx.fill();
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(0, h); far.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(w, h); ctx.clip();
+      const snow = ctx.createLinearGradient(0, h * 0.38, 0, h * 0.56);
+      snow.addColorStop(0, 'rgba(255,240,250,.85)'); snow.addColorStop(1, 'rgba(255,240,250,0)');
+      ctx.fillStyle = snow; ctx.fillRect(0, 0, w, h * 0.56);
+      ctx.restore();
+      const near = ridge(w, h, h * 0.84, h * 0.17, 4.2, Math.max(8, w / 70));
+      ctx.fillStyle = '#2A2050';
+      ctx.beginPath(); ctx.moveTo(0, h); near.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(w, h); ctx.fill();
       // clouds, drifting, so a tower that is not growing still feels alive
-      ctx.fillStyle = 'rgba(255,255,255,.08)';
+      ctx.fillStyle = 'rgba(255,214,235,.10)';
       for (let i = 0; i < 6; i++) {
         const cx = ((t * 0.006 * (1 + i * 0.3) + i * 340) % (w + 400)) - 200;
         const cy = h * (0.10 + (i % 3) * 0.13);
@@ -176,6 +223,8 @@
       const gg = ctx.createLinearGradient(0, ground, 0, h);
       gg.addColorStop(0, '#5C4B36'); gg.addColorStop(1, '#3A2E20');
       ctx.fillStyle = gg; ctx.fillRect(0, ground, w, h - ground);
+      ctx.fillStyle = '#3FAE5A'; ctx.fillRect(0, ground, w, Math.max(4, h * 0.016));
+      ctx.fillStyle = '#6BD47F'; ctx.fillRect(0, ground, w, Math.max(2, h * 0.005));
       ctx.strokeStyle = INK; ctx.lineWidth = Math.max(2, h * 0.006);
       ctx.beginPath(); ctx.moveTo(0, ground); ctx.lineTo(w, ground); ctx.stroke();
 
@@ -183,7 +232,7 @@
          towers always fit on the screen however high the room builds. */
       const top = Math.max(tallest(), target ? Math.min(target, tallest() + 4) : 0);
       const room = ground - h * 0.16;
-      const floorH = clamp(room / Math.max(4, top + 1), h * 0.018, h * 0.092);
+      const floorH = clamp(room / Math.max(4, top + 1), h * 0.018, h * 0.12);
       const colW = w / 3;
       const blockW = Math.min(colW * 0.17, floorH * 1.5);
 
@@ -260,7 +309,7 @@
         const giftY = ground - nextGift * 5 * floorH;
         if (giftY > h * 0.1) {
           const bob = Math.sin(t / 420 + i) * floorH * 0.18;
-          drawGift(cx + blockW * slots * 0.72, giftY + bob, Math.max(14, floorH * 1.1));
+          drawGift(Math.min(w - floorH, cx + blockW * slots * 0.72), giftY + bob, Math.max(14, floorH * 1.1));
         }
 
         /* The green column. When the gorilla takes a tower the other two are

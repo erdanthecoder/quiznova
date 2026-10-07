@@ -1142,6 +1142,9 @@
     /* The only numbers on screen during the fight: how long is left, and what
      * this player is holding. Anything else is reading, and there is no time. */
     function hud(t) {
+      /* The board has its own clock in the panel above it; a second one in the
+         corner, counting a round the projector does not play, only read 0.0s. */
+      if (watching) return;
       const w = canvas.width, h = canvas.height;
       const left = Math.max(0, ROUND_MS - t);
       ctx.save();

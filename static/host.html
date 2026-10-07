@@ -640,7 +640,13 @@
 .canyon{position:fixed;left:0;right:0;top:0;height:min(46vh,430px);
   width:100%;z-index:0;pointer-events:none}
 body.flying{background:#0C1026}
-body.flying .stage{position:relative;z-index:1;padding-top:min(38vh,350px)}
+body.flying .stage{position:relative;z-index:1;padding-top:min(38vh,350px);padding-bottom:16px}
+/* the board under the canyon gets what the canyon leaves, so all four answers fit */
+body.flying .board{height:calc(100vh - 92px - min(38vh,350px));min-height:340px}
+body.flying .ask{padding:12px 22px}
+body.flying .ask h1{font-size:clamp(1.3rem,3.2vw,2.6rem)}
+body.flying .grid4{gap:12px}
+body.flying .tile{padding:12px 22px}
 body.flying .topbar{position:relative;z-index:2;background:rgba(12,16,38,.5);
   backdrop-filter:blur(10px);border-bottom-color:transparent}
 body.flying .ask{background:rgba(12,16,38,.86);backdrop-filter:blur(12px);
@@ -648,11 +654,58 @@ body.flying .ask{background:rgba(12,16,38,.86);backdrop-filter:blur(12px);
 body.flying .ask h1{color:#FFF7E4}
 body.flying .lb,body.flying .tile{box-shadow:0 18px 50px rgba(6,8,24,.5)}
 /* what this mode is, while it is here */
-.limited{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:3;
+.limited{position:fixed;left:16px;bottom:14px;z-index:3;
   display:flex;align-items:center;gap:9px;padding:7px 16px;border-radius:99px;
   background:rgba(12,8,28,.74);border:2px solid rgba(255,197,61,.45);
   backdrop-filter:blur(8px);font-weight:800;font-size:.82rem;color:#FFF7E4}
 .limited b{color:#FFC53D;letter-spacing:.08em;text-transform:uppercase;font-size:.7rem}
+
+/* ── the live boards: the game gets the screen, the table sits beside it ── */
+.playfield{flex:1 1 auto;min-height:0;display:grid;gap:14px;
+  grid-template-columns:minmax(0,1fr) clamp(230px,21vw,300px)}
+.playfield .arena-board,.playfield .towerboard,.playfield .runboard{min-height:0;max-height:none;height:100%}
+.playfield .rest{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
+.playfield .rest > .card{margin-top:0 !important;flex:1;min-height:0;overflow:auto;padding:16px 14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));backdrop-filter:blur(10px)}
+.playfield .rest h3{font-size:.78rem !important;letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:10px !important}
+.playfield .lb{gap:6px}
+.playfield .lb-row{padding:8px 10px;gap:9px;font-size:.92rem;border-radius:12px}
+.playfield .lb-row > span:nth-child(4){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.playfield .lb-row .move{display:none}
+.playfield .lb-row .rank{width:22px;font-size:.8rem}
+.playfield .lb-row .score{font-size:.95rem;white-space:nowrap}
+.playfield .lb-row.top{box-shadow:0 0 0 1px rgba(255,200,87,.5),0 8px 24px -10px rgba(255,200,87,.55)}
+.finishbtn{flex:none;width:100%;justify-content:center}
+.arena-board{box-shadow:0 0 0 1px rgba(255,255,255,.06),0 30px 70px -30px rgba(0,0,0,.95),0 0 60px -30px rgba(124,92,255,.6)}
+.ask.bosspanel{flex-wrap:wrap;row-gap:4px;padding:14px 24px}
+.ask.bosspanel h1,.ask.towerpanel h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;
+  font-size:clamp(1.4rem,2.8vw,2.5rem);min-width:0}
+.ask.towerpanel{padding:14px 24px}
+@media (max-width:900px){
+  .playfield{grid-template-columns:1fr;grid-template-rows:minmax(300px,1fr) auto}
+  .playfield .rest > .card{max-height:34vh}
+}
+
+/* 3, 2, 1, go */
+.kickoff{position:fixed;inset:0;z-index:50;display:grid;place-content:center;justify-items:center;gap:10px;
+  background:radial-gradient(60% 60% at 50% 50%,rgba(20,12,48,.82),rgba(8,5,20,.94));backdrop-filter:blur(6px);
+  animation:koIn .3s ease both;pointer-events:none}
+.kickoff.out{animation:koOut .45s ease both}
+@keyframes koIn{from{opacity:0}}
+@keyframes koOut{to{opacity:0;transform:scale(1.08)}}
+.ko-mode{font-size:clamp(1.1rem,2.4vw,1.8rem);font-weight:900;letter-spacing:.24em;text-transform:uppercase;
+  color:#cfc4ff;text-shadow:0 0 30px rgba(124,92,255,.8)}
+.ko-num{font-size:clamp(7rem,22vw,16rem);font-weight:900;line-height:1;color:#fff;
+  text-shadow:0 0 60px rgba(124,92,255,.9),0 10px 0 rgba(0,0,0,.35)}
+.ko-num.beat{animation:koBeat .6s cubic-bezier(.2,1.4,.4,1) both}
+.ko-num.go{background:linear-gradient(90deg,#FFC53D,#FF5D73,#7C5CFF);-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;text-shadow:none;filter:drop-shadow(0 0 40px rgba(255,93,115,.7))}
+@keyframes koBeat{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.92);opacity:1}100%{transform:scale(1)}}
+/* the room behind the board breathes rather than sitting still */
+@media (prefers-reduced-motion:no-preference){
+  body.dark::before{animation:roomDrift 18s ease-in-out infinite alternate}
+}
+@keyframes roomDrift{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(3%,2%,0) scale(1.06)}100%{transform:translate3d(-3%,1%,0) scale(1.02)}}
 </style>
 </head>
 <body class="dark">
@@ -1138,7 +1191,33 @@ function watchCanyon() {
   }
 }
 
+/* The start of a game is an event, so the board treats it as one: the mode's
+   name, then three, two, one, go — over whatever the first screen is, and only
+   on the move out of the lobby (a board opened mid-game just shows the game). */
+let seenState = null;
+function kickoff() {
+  const was = seenState;
+  seenState = game.state;
+  if (was !== 'lobby' || game.state === 'lobby' || game.state === 'over') return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const label = (game.modeInfo && game.modeInfo.label) || 'Quoldek';
+  const box = el('div', { class: 'kickoff' },
+    el('div', { class: 'ko-mode' }, label),
+    el('div', { class: 'ko-num' }));
+  document.body.append(box);
+  const num = box.querySelector('.ko-num');
+  const beats = ['3', '2', '1', 'GO!'];
+  beats.forEach((b, i) => setTimeout(() => {
+    num.textContent = b;
+    num.classList.remove('beat'); void num.offsetWidth; num.classList.add('beat');
+    if (b === 'GO!') { num.classList.add('go'); try { confetti && confetti(); } catch { /* no confetti */ } }
+  }, 350 + i * 650));
+  setTimeout(() => box.classList.add('out'), 350 + beats.length * 650);
+  setTimeout(() => box.remove(), 350 + beats.length * 650 + 500);
+}
+
 function render(fresh) {
+  if (game) kickoff();
   watchCanyon();
   const stage = $('#stage');
   if (game.state === 'lobby') { if (paint(stage, lobbyView, fresh)) bindLobby(); return; }
@@ -1340,13 +1419,12 @@ function arenaView() {
       <div class="side blue"><b id="score-blue">0</b><span id="name-blue">Cobalt</span></div>
     </div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena', 'data-static': '' })));
-  // the arena is the thing worth watching, so the table stays short
+  // the arena is the thing worth watching: it gets the room, the table sits beside it
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 4, title: 'Top of the arena' }));
-  root.append(rest);
-  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
-    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  rest.append(leaderboard({ rows: 8, title: 'Top of the arena' }));
+  root.append(el('div', { class: 'playfield' },
+    el('div', { class: 'arena-board' }, el('canvas', { id: 'board-arena', 'data-static': '' })), rest));
+  if (hostToken) rest.append(el('button', { class: 'btn primary finishbtn', id: 'advance' }, 'Finish and show the scores'));
   return root;
 }
 
@@ -1401,13 +1479,11 @@ function runView() {
      list of names — a spreadsheet — while the chase ran in thirty pockets where
      nobody could see it. */
   const root = el('div', { class: 'board' });
-  root.append(el('div', { class: 'arena-board runboard' },
-                el('canvas', { id: 'board-run', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 6, title: 'Boosts put in' }));
-  root.append(rest);
-  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
-    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  rest.append(leaderboard({ rows: 8, title: 'Boosts put in' }));
+  root.append(el('div', { class: 'playfield' },
+    el('div', { class: 'arena-board runboard' }, el('canvas', { id: 'board-run', 'data-static': '' })), rest));
+  if (hostToken) rest.append(el('button', { class: 'btn primary finishbtn', id: 'advance' }, 'Finish and show the scores'));
   return root;
 }
 
@@ -1416,17 +1492,16 @@ function runView() {
    put the most blocks in underneath. */
 function towerView() {
   const root = el('div', { class: 'board' });
-  const panel = el('div', { class: 'ask' });
+  const panel = el('div', { class: 'ask towerpanel' });
   panel.innerHTML = `<h1>Tallest Tower</h1>
     <div class="tally"><b id="towerlead">—</b><span>in front</span></div>
     <div class="tally" style="margin-left:18px"><b id="towerblocks">0</b><span>blocks up</span></div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 6, title: 'Blocks placed' }));
-  root.append(rest);
-  if (hostToken) root.append(el('div', { class: 'row', style: 'justify-content:center;flex:none' },
-    el('button', { class: 'btn lg primary', id: 'advance' }, 'Finish and show the scores')));
+  rest.append(leaderboard({ rows: 8, title: 'Blocks placed' }));
+  root.append(el('div', { class: 'playfield' },
+    el('div', { class: 'arena-board towerboard' }, el('canvas', { id: 'board-tower', 'data-static': '' })), rest));
+  if (hostToken) rest.append(el('button', { class: 'btn primary finishbtn', id: 'advance' }, 'Finish and show the scores'));
   return root;
 }
 
@@ -1533,7 +1608,7 @@ function strikeView() {
      putting the most in. */
   const boss = game.boss || { name: 'The boss', hp: 0, max: 30 };
   const root = el('div', { class: 'board' });
-  const panel = el('div', { class: 'ask' });
+  const panel = el('div', { class: 'ask bosspanel' });
   panel.innerHTML = `<h1>${esc(boss.name)}</h1>
     <div class="tally"><b id="bosshp">${boss.hp}</b><span>health left</span></div>
     <div class="tally" style="margin-left:18px"><b id="bossclock">3:00</b><span>left</span></div>
@@ -1541,10 +1616,10 @@ function strikeView() {
     <div class="bosspips" id="bosspips"></div>
     <div class="bosswarn" id="bosswarn"><i></i><b>IT IS WINDING UP — HOLD A KNIFE</b></div>`;
   root.append(panel);
-  root.append(el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike', 'data-static': '' })));
   const rest = el('div', { class: 'rest' });
-  rest.append(leaderboard({ rows: 6, title: 'Knives in' }));
-  root.append(rest);
+  rest.append(leaderboard({ rows: 8, title: 'Knives in' }));
+  root.append(el('div', { class: 'playfield' },
+    el('div', { class: 'arena-board' }, el('canvas', { id: 'board-strike', 'data-static': '' })), rest));
   return root;
 }
 

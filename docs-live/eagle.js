@@ -187,6 +187,33 @@
      * the only angle from which a class can tell two birds apart at speed: the
      * wings are the widest thing and the silhouette is the whole read.
      */
+    let tags = [];
+    /** The leaders' names as pills, nudged upwards until none of them overlap. */
+    function nameTags() {
+      const placed = [];
+      tags.sort((a, b) => a.rank - b.rank).forEach(tg => {
+        ctx.save();
+        ctx.globalAlpha = tg.alpha;
+        ctx.font = `800 ${tg.fs}px 'Nunito', system-ui, sans-serif`;
+        const label = (tg.rank === 1 ? '👑 ' : '') + tg.name;
+        const w = ctx.measureText(label).width + tg.fs * 1.1, h = tg.fs * 1.5;
+        let x = tg.x - w / 2, y = tg.y - h;
+        for (let k = 0; k < 8; k++) {
+          const hit = placed.find(r => x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y);
+          if (!hit) break;
+          y = hit.y - h - 3;
+        }
+        placed.push({ x, y, w, h });
+        ctx.fillStyle = tg.you ? 'rgba(255,197,61,.95)' : tg.rank === 1 ? 'rgba(255,255,255,.95)' : 'rgba(12,8,28,.72)';
+        ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fill();
+        ctx.fillStyle = tg.you || tg.rank === 1 ? '#1B1330' : '#FFFFFF';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+        ctx.restore();
+      });
+      tags = [];
+    }
+
     function drawBird(b, p, t) {
       const s = p.s;
       const span = 1.7 * s;                 // half a wingspan, in pixels
@@ -270,21 +297,11 @@
       ctx.restore();
 
       /* A name, but only for the few at the front. Thirty labels is a wall of
-         text with a canyon somewhere behind it. */
-      if (b.rank <= 3 || b.you) {
-        ctx.save();
-        ctx.globalAlpha = fog(p.dz);
-        ctx.font = `800 ${Math.max(11, Math.min(24, span * 0.52))}px 'Nunito', system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.lineWidth = 4;
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(12,8,28,.75)';
-        ctx.strokeText(b.name, p.x, p.y - span * 0.9);
-        ctx.fillStyle = b.you ? '#FFC53D' : '#FFFFFF';
-        ctx.fillText(b.name, p.x, p.y - span * 0.9);
-        ctx.restore();
-      }
+         text with a canyon somewhere behind it. They are drawn after the
+         whole flock (see nameTags) so two birds side by side do not print
+         their names on top of each other. */
+      if (b.rank <= 3 || b.you) tags.push({ name: b.name, you: b.you, rank: b.rank,
+        x: p.x, y: p.y - span * 0.9, alpha: fog(p.dz), fs: Math.max(12, Math.min(24, span * 0.52)) });
       ctx.globalAlpha = 1;
     }
 
@@ -459,6 +476,7 @@
         const p = project(b.x, Math.sin(b.bob * 1.4 + b.phase) * 0.7, b.z);
         if (p) drawBird(b, p, now);
       });
+      nameTags();
 
       puffs = puffs.filter(f => f.life > 0);
       puffs.forEach(f => {

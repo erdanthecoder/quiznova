@@ -1043,7 +1043,10 @@
      * anything now. */
     function body(x, y, angle, colour, alive, label, isSelf, avatar, wild) {
       const p = project(x, y, 0);
-      const R = PLAYER_R * cam.scale;
+      /* On the projector the whole arena is in shot, so true scale made every
+         child a dot the back row could not find. The board draws them bigger
+         than life; the phone, which follows one player, keeps them true. */
+      const R = PLAYER_R * cam.scale * (watching ? 1.75 : 1);
       if (p.x < -R * 6 || p.x > canvas.width + R * 6 ||
           p.y < -R * 6 || p.y > canvas.height + R * 6) return;
 
@@ -1103,7 +1106,7 @@
 
       // the name, on a pill in their team's colour
       if (label) {
-        const size = Math.max(9, 17 * cam.scale);
+        const size = Math.max(watching ? 12 : 9, 17 * cam.scale * (watching ? 1.5 : 1));
         ctx.font = `800 ${size}px system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
